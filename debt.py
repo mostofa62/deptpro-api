@@ -662,3 +662,62 @@ def list_debts(user_id:str):
         'pageCount': total_pages,
         'totalRows': total_count
     })
+
+
+
+@app.route('/api/debt-header-data/<string:user_id>', methods=['GET'])
+def get_dept_header_data(user_id:str):
+
+    
+    # Aggregate query to sum the balance field
+    pipeline = [
+        {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
+        {"$group": {"_id": None, "total_balance": {"$sum": "$balance"}}}  # Sum the balance
+    ]
+
+    # Execute the aggregation pipeline
+    result = list(debt_accounts.aggregate(pipeline))
+
+    # Extract the total balance from the result
+    total_balance = result[0]['total_balance'] if result else 0
+    
+
+    return jsonify({
+        "debt_total_balance":total_balance,             
+    })
+
+@app.route('/api/debt-dashboard-data/<string:user_id>', methods=['GET'])
+def get_dept_dashboard_data(user_id:str):
+
+    page_size = 5
+    query = {
+        'user_id':ObjectId(user_id),
+        'deleted_at':None
+    }
+
+    sort_params = [
+    ('updated_at',-1)
+    ]
+
+    debt_list = []
+    
+    cursor = debt_accounts.find(query,{"_id":0,"user_id":0}).sort(sort_params).limit(page_size)
+
+    for todo in cursor:
+        paid_off_percentage = calculate_paid_off_percentage(todo['highest_balance'], todo['balance'])
+        left_to_go = round(float(100) - float(paid_off_percentage),1)
+        entry = {
+        
+            'title':todo['name'],
+            'progress':left_to_go,
+            'amount':todo['balance']
+        }
+        debt_list.append(entry)
+        
+    data_json = MongoJSONEncoder().encode(debt_list)
+    data_obj = json.loads(data_json)
+    
+
+    return jsonify({
+        "debt_list":data_obj,             
+    })
