@@ -1,4 +1,5 @@
 
+import math
 from typing import Any
 from bson.objectid import ObjectId
 import json
@@ -55,3 +56,18 @@ def convert_unit(size_in_bytes, unit):
    else:
        return size_in_bytes
 '''
+
+
+def calculate_monthly_interest(balance, interest_rate):
+    return round((balance * (interest_rate / 100)) / 12,2)
+
+
+def calculate_paid_off_percentage(highest_balance, current_balance):
+    if highest_balance == 0:
+        return 0.0  # To handle division by zero if highest_balance is zero
+    
+    paid_off_percentage = ((highest_balance - current_balance) / highest_balance) * 100
+    return paid_off_percentage
+
+def are_floats_equal(a,b):
+    return math.isclose(a, b, rel_tol=1e-9)

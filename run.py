@@ -5,6 +5,8 @@ from home import *
 from users import *
 from bill import *
 from billtype import *
+from debt import *
+from debttype import *
 
 #from datetime import datetime,timedelta
 
