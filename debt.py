@@ -440,12 +440,15 @@ def save_debt_account():
                 "name": data.get("name"),                
                 'debt_type':{
                     'value':ObjectId(data['debt_type']['value'])
-                }, 
+                },
+                "payor": data.get("payor"), 
                 "balance":balance ,                
-                "highest_balance": highest_balance,                
+                "highest_balance": highest_balance,
+                "minimum_payment": float(data.get("minimum_payment", 0)),                
                 "monthly_payment": float(data.get("monthly_payment", 0)),
                 "credit_limit": float(data.get("credit_limit", 0)),
-                "interest_rate": interest_rate,                
+                "interest_rate": interest_rate,
+                "start_date": datetime.strptime(data['start_date'],"%Y-%m-%d"),                
                 "due_date": datetime.strptime(data['due_date'],"%Y-%m-%d"),
                 "monthly_interest":calculate_monthly_interest(balance,interest_rate),
                 'notes':None,
@@ -466,6 +469,8 @@ def save_debt_account():
                 'lowest_payment':0,
 
                 "user_id":ObjectId(data["user_id"]),
+                "created_at":datetime.now(),
+                "updated_at":datetime.now(),
                 "deleted_at":None                
             }
 
