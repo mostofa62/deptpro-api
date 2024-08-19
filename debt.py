@@ -647,6 +647,7 @@ def list_debts(user_id:str):
             "_id":todo["_id"],
             "name":todo["name"],
             "debt_type":debt_type["name"],
+            "payor":todo["payor"],
             "balance":todo["balance"],
             "interest_rate":todo["interest_rate"],
             "monthly_payment":todo["monthly_payment"],
@@ -660,12 +661,41 @@ def list_debts(user_id:str):
 
     # Calculate total pages
     total_pages = (total_count + page_size - 1) // page_size
-    
+
+
+    #total balance , interest, monthly intereset paid off
+    # Aggregate query to sum the balance field
+    pipeline = [
+        {"$match": query},  # Filter by user_id
+        {"$group": {"_id": None, 
+                    "total_balance": {"$sum": "$balance"},
+                    "total_highest_balance":{"$sum": "$highest_balance"},
+                    "total_monthly_payment":{"$sum": "$monthly_payment"},                    
+                    "total_monthly_interest":{"$sum": "$monthly_interest"},
+                    }}  # Sum the balance
+    ]
+
+    # Execute the aggregation pipeline
+    result = list(debt_accounts.aggregate(pipeline))
+
+    # Extract the total balance from the result
+    total_balance = result[0]['total_balance'] if result else 0
+    total_highest_balance = result[0]['total_highest_balance'] if result else 0
+    total_monthly_payment = result[0]['total_monthly_payment'] if result else 0
+    total_monthly_interest = result[0]['total_monthly_interest'] if result else 0
+    total_paid_off = calculate_paid_off_percentage(total_highest_balance,total_balance)
 
     return jsonify({
         'rows': data_obj,
         'pageCount': total_pages,
-        'totalRows': total_count
+        'totalRows': total_count,
+        'extra_payload':{
+            'total_balance':total_balance,
+            'total_monthly_payment':total_monthly_payment,
+            'total_monthly_interest':total_monthly_interest,
+            'total_paid_off':total_paid_off
+        }
+        
     })
 
 
