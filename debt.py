@@ -683,6 +683,7 @@ def list_debts(user_id:str):
                     "total_highest_balance":{"$sum": "$highest_balance"},
                     "total_monthly_payment":{"$sum": "$monthly_payment"},                    
                     "total_monthly_interest":{"$sum": "$monthly_interest"},
+                    "total_minimum_payment":{"$sum": "$minimum_payment"},
                     }}  # Sum the balance
     ]
 
@@ -695,6 +696,7 @@ def list_debts(user_id:str):
     total_monthly_payment = result[0]['total_monthly_payment'] if result else 0
     total_monthly_interest = result[0]['total_monthly_interest'] if result else 0
     total_paid_off = calculate_paid_off_percentage(total_highest_balance,total_balance)
+    total_minimum_payment = result[0]['total_minimum_payment'] if result else 0
 
     return jsonify({
         'rows': data_obj,
@@ -704,7 +706,8 @@ def list_debts(user_id:str):
             'total_balance':total_balance,
             'total_monthly_payment':total_monthly_payment,
             'total_monthly_interest':total_monthly_interest,
-            'total_paid_off':total_paid_off
+            'total_paid_off':total_paid_off,
+            'total_minimum_payment':total_minimum_payment
         }
         
     })
@@ -718,7 +721,24 @@ def get_dept_header_data(user_id:str):
     # Aggregate query to sum the balance field
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
-        {"$group": {"_id": None, "total_balance": {"$sum": "$balance"}}}  # Sum the balance
+        {
+            '$addFields': {
+                'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
+            }
+        },
+
+        {
+            "$group": {
+                "_id": None, 
+                "total_balance": {"$sum": "$balance"},
+                "total_monthly_minimum": {"$sum": "$total_monthly_minimum"},
+
+                "total_balance": {"$sum": "$balance"},
+                "total_highest_balance":{"$sum": "$highest_balance"},
+
+            }
+        
+        }  # Sum the balance
     ]
 
     # Execute the aggregation pipeline
@@ -726,11 +746,34 @@ def get_dept_header_data(user_id:str):
 
     # Extract the total balance from the result
     total_balance = result[0]['total_balance'] if result else 0
+
+    total_monthly_minimum = round(result[0]['total_monthly_minimum'],2) if result else 0
+
+    total_balance = result[0]['total_balance'] if result else 0
+    total_highest_balance = result[0]['total_highest_balance'] if result else 0
+    total_paid_off = calculate_paid_off_percentage(total_highest_balance,total_balance)
+
+    user_setting = usersetting.find_one({'user_id':ObjectId(user_id)},{'debt_payoff_method':1,'monthly_budget':1})
+
+    monthly_budget = 0
+
+    if user_setting:
+        monthly_budget = round(user_setting['monthly_budget'],2)
     
+    snowball_amount = round(monthly_budget - total_monthly_minimum,2)
+
+    active_debt_account = debt_accounts.count_documents({'user_id':ObjectId(user_id),'deleted_at':None})
 
     return jsonify({
-        "debt_total_balance":total_balance,             
+        "debt_total_balance":total_balance,
+        'monthly_budget':monthly_budget,
+        'total_monthly_minimum':total_monthly_minimum,
+        'snowball_amount':snowball_amount,
+        'total_paid_off':total_paid_off,
+        'active_debt_account':active_debt_account             
     })
+
+
 
 @app.route('/api/debt-dashboard-data/<string:user_id>', methods=['GET'])
 def get_dept_dashboard_data(user_id:str):
