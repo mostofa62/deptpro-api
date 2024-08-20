@@ -13,6 +13,7 @@ from decimal import Decimal
 client = myclient
 debt_transactions = my_col('debt_transactions')
 debt_accounts = my_col('debt_accounts')
+usersetting = my_col('user_settings')
 
 payoff_order = [
     {'value':0, 'label':'0'},
@@ -191,7 +192,10 @@ def get_debt_trans(accntid:str):
         todo['year'] = matching_dicts['label']
 
         todo['billing_month_year'] = f"{todo['month']}, {todo['year']}"
-        todo['trans_date'] = todo['trans_date'].strftime('%Y-%m-%d')        
+        todo['trans_date'] = todo['trans_date'].strftime('%Y-%m-%d')
+        todo['amount'] = round(todo['amount'],2)
+        todo['previous_balance'] = round(todo['previous_balance'],2)
+        todo['new_balance'] = round(todo['new_balance'],2)        
         data_list.append(todo)
 
     total_count = debt_transactions.count_documents(query)
@@ -403,6 +407,13 @@ def get_debt(accntid:str):
         'value':value_to_search,
         'label':matching_dicts['label']
     }
+
+    debtaccounts['balance'] = round(debtaccounts['balance'],2)
+    debtaccounts['highest_balance'] = round(debtaccounts['highest_balance'],2)
+    debtaccounts['minimum_payment'] = round(debtaccounts['minimum_payment'],2)
+    debtaccounts['monthly_payment'] = round(debtaccounts['monthly_payment'],2)
+    debtaccounts['interest_rate'] = round(debtaccounts['interest_rate'],2)
+    debtaccounts['credit_limit'] = round(debtaccounts['credit_limit'],2)
 
     
 
@@ -648,10 +659,10 @@ def list_debts(user_id:str):
             "name":todo["name"],
             "debt_type":debt_type["name"],
             "payor":todo["payor"],
-            "balance":todo["balance"],
+            "balance":round(todo["balance"],2),
             "interest_rate":todo["interest_rate"],
-            "monthly_payment":todo["monthly_payment"],
-            "monthly_interest":todo["monthly_interest"],
+            "monthly_payment":round(todo["monthly_payment"],2),
+            "monthly_interest":round(todo["monthly_interest"],2),
             "due_date":todo["due_date"].strftime('%Y-%m-%d'),            
             
         }
@@ -756,3 +767,67 @@ def get_dept_dashboard_data(user_id:str):
     return jsonify({
         "debt_list":data_obj,             
     })
+
+
+#save debt user settings 
+@app.route("/api/get-user-settings/<user_id>", methods=['GET'])
+def get_user_settings(user_id:str):
+
+    user_setting = usersetting.find_one({'user_id':ObjectId(user_id)},{'_id':0,'user_id':0})
+
+    return jsonify({
+           
+            "user_setting":user_setting            
+        })
+
+
+@app.route("/api/save-user-settings", methods=['POST'])
+def save_user_settings():
+    if request.method == 'POST':
+        data = json.loads(request.data)        
+        user_setting_id = None
+
+        user_id = data['user_id']
+        message = ''
+        result = 0
+
+        try:
+
+            filter_query = {
+                "user_id" :ObjectId(user_id)
+            }
+
+            update_document = {'$set': {'monthly_budget': float(data['monthly_budget']), 'debt_payoff_method': data['debt_payoff_method']}} 
+
+            user_settings = usersetting.update_one(filter_query, update_document, upsert=True)
+            if user_settings.upserted_id:
+                
+                user_setting_id = user_settings.upserted_id
+                message = 'Settings saved!'
+                result = 1
+            else:
+                user_setting_id = user_settings.upserted_id
+                message = 'Settings updated!'
+                result = 1
+
+           
+            
+                
+        
+        except Exception as ex:
+            print('DEBT EXP: ',ex)
+            user_setting_id = None
+            result = 0
+            message = 'Debt transaction addition Failed!'
+
+        
+
+            
+
+
+        return jsonify({
+           
+            "user_setting_id":user_setting_id,
+            "message":message,
+            "result":result
+        })
