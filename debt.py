@@ -845,7 +845,7 @@ def save_user_settings():
             user_settings = usersetting.update_one(filter_query, update_document, upsert=True)
             if user_settings.upserted_id:
                 
-                user_setting_id = user_settings.upserted_id
+                user_setting_id = str(user_settings.upserted_id)
                 message = 'Settings saved!'
                 result = 1
             else:
