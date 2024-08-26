@@ -735,6 +735,7 @@ def get_dept_header_data(user_id:str):
 
                 "total_balance": {"$sum": "$balance"},
                 "total_highest_balance":{"$sum": "$highest_balance"},
+                "latest_month_debt_free": {"$max": "$month_debt_free"}
 
             }
         
@@ -764,13 +765,16 @@ def get_dept_header_data(user_id:str):
 
     active_debt_account = debt_accounts.count_documents({'user_id':ObjectId(user_id),'deleted_at':None})
 
+    latest_month_debt_free = result[0]['latest_month_debt_free'].strftime('%b %Y') if result else ''
+
     return jsonify({
         "debt_total_balance":total_balance,
         'monthly_budget':monthly_budget,
         'total_monthly_minimum':total_monthly_minimum,
         'snowball_amount':snowball_amount,
         'total_paid_off':total_paid_off,
-        'active_debt_account':active_debt_account             
+        'active_debt_account':active_debt_account,
+        "month_debt_free":latest_month_debt_free             
     })
 
 

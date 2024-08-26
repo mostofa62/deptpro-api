@@ -2,7 +2,7 @@ import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col,myclient
+from db import my_col,myclient,mydb
 from bson.objectid import ObjectId
 from bson.json_util import dumps
 import re
@@ -145,3 +145,67 @@ def get_dept_amortization(accntid:str):
     return jsonify({
         'rows':sorted_debts[0]['amortization_schedule']
     })
+
+
+@app.route('/api/debt-amortization-dynamically/<string:accntid>', methods=['POST'])
+def get_dept_amortization_dynamic(accntid:str):
+    collection_name = f"debt_{accntid}"
+    if collection_name not in mydb.list_collection_names():
+        return jsonify({
+            'rows': [],
+            'pageCount': 0,
+            'totalRows': 0
+        })
+    
+    else:
+        collection = my_col(collection_name)
+        data = request.get_json()
+        page_index = data.get('pageIndex', 0)
+        page_size = data.get('pageSize', 10)
+        
+
+        query = {
+            
+        }
+        cursor = collection.find(query).skip(page_index * page_size).limit(page_size)
+
+        total_count = collection.count_documents(query)
+        data_list = list(cursor)
+        data_json = MongoJSONEncoder().encode(data_list)
+        data_obj = json.loads(data_json)
+
+        # Calculate total pages
+        total_pages = (total_count + page_size - 1) // page_size
+
+        pipeline = [
+        {"$match": query},  # Filter by user_id
+        {"$group": {"_id": None, 
+                    "total_projected_payment": {"$sum": "$total_payment"},
+                    "total_snowball_amount":{"$sum": "$snowball_amount"},
+                    "total_interest":{"$sum": "$interest"},                    
+                    "total_principle":{"$sum": "$principle"}                    
+                    }}  # Sum the balance
+        ]
+
+        # Execute the aggregation pipeline
+        result = list(collection.aggregate(pipeline))
+
+        # Extract the total balance from the result
+        total_projected_payment = result[0]['total_projected_payment'] if result else 0
+        total_snowball_amount = result[0]['total_snowball_amount'] if result else 0
+        total_interest = result[0]['total_interest'] if result else 0
+        total_principle = result[0]['total_principle'] if result else 0
+        
+
+        return jsonify({
+            'rows': data_obj,
+            'pageCount': total_pages,
+            'totalRows': total_count,
+            'extra_payload':{
+                'total_payment':total_projected_payment,
+                'total_snowball_amount':total_snowball_amount,
+                'total_interest':total_interest,
+                'total_principle':total_principle
+            }
+        })
+    
