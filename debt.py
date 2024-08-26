@@ -765,7 +765,7 @@ def get_dept_header_data(user_id:str):
 
     active_debt_account = debt_accounts.count_documents({'user_id':ObjectId(user_id),'deleted_at':None})
 
-    latest_month_debt_free = result[0]['latest_month_debt_free'].strftime('%b %Y') if result else ''
+    latest_month_debt_free = result[0]['latest_month_debt_free'].strftime('%b %Y') if result and 'latest_month_debt_free' in result and result['latest_month_debt_free']!=None else ''
 
     return jsonify({
         "debt_total_balance":total_balance,
