@@ -774,7 +774,9 @@ def get_dept_header_data(user_id:str):
         'snowball_amount':snowball_amount,
         'total_paid_off':total_paid_off,
         'active_debt_account':active_debt_account,
-        "month_debt_free":latest_month_debt_free             
+        "month_debt_free":latest_month_debt_free,
+        "total_monthly_net_income":4200,
+        "total_monthly_bill_expese":2300             
     })
 
 
