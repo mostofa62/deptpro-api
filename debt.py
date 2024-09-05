@@ -653,6 +653,9 @@ def list_debts(user_id:str):
         {"_id":debt_type_id},
         {"_id":0,"name":1}
         )
+
+        paid_off_percentage = calculate_paid_off_percentage(todo['highest_balance'], todo['balance'])
+        left_to_go = round(float(100) - float(paid_off_percentage),1)
         
         entry = {
             "_id":todo["_id"],
@@ -663,7 +666,9 @@ def list_debts(user_id:str):
             "interest_rate":todo["interest_rate"],
             "monthly_payment":round(todo["monthly_payment"],2),
             "monthly_interest":round(todo["monthly_interest"],2),
-            "due_date":todo["due_date"].strftime('%Y-%m-%d'),            
+            "due_date":todo["due_date"].strftime('%Y-%m-%d'),
+            "left_to_go":left_to_go,
+            "paid_off_percentage":paid_off_percentage            
             
         }
         data_list.append(entry)
