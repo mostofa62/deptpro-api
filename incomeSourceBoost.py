@@ -15,7 +15,8 @@ RepeatFrequency = [
         {'label':'Weekly','value':2},
         {'label':'BiWeekly','value':3},
         {'label':'Monthly','value':4},
-        {'label':'Annual','value':5}           
+        {'label': 'Quarterly', 'value': 5},
+        {'label':'Annual','value':6}           
 ]
 
 @app.route("/api/incomesourceboost-dropdown/<string:user_id>", methods=['GET'])
@@ -53,6 +54,35 @@ def incomesourceboost_dropdown(user_id:str):
         "payLoads":{
             'income_source':income_source_types_list,
             "income_boost_source":income_boost_types_list,
+            'repeat_frequency':RepeatFrequency
+        }
+    })
+
+
+@app.route("/api/savingcategory-dropdown/<string:user_id>", methods=['GET'])
+def savingcategory_dropdown(user_id:str):
+    category_types = my_col('category_types').find(
+        {
+
+            "deleted_at":None,
+            "user_id": {"$in": [None, ObjectId(user_id)]}
+        },
+        {'_id': 1, 'name': 1, 'user_id': 1}
+        )
+    category_types_list = []
+    for todo in category_types:               
+        category_types_list.append({'value':str(todo['_id']),'label':todo['name']})
+
+
+
+    
+    
+    
+
+
+    return jsonify({
+        "payLoads":{
+            'category':category_types_list,            
             'repeat_frequency':RepeatFrequency
         }
     })
