@@ -360,6 +360,117 @@ def delete_debt():
             "deleted_done":deleted_done
         })
 
+
+@app.route('/api/debt-all/<string:accntid>', methods=['GET'])
+def get_dept_all(accntid:str):
+
+    
+    debtaccounts = debt_accounts.find_one(
+        {"_id":ObjectId(accntid)},
+        {
+        "_id":0,
+        'user_id':0,        
+        }        
+        )
+    
+    debt_type = my_col('debt_type').find_one(
+        {"_id":debtaccounts['debt_type']['value']},
+        {"_id":0,"name":1}
+        )
+    
+    #debtaccounts['debt_type']['value'] = str(debtaccounts['debt_type']['value'])
+    #debtaccounts['debt_type']['label'] = debt_type['name']
+    debtaccounts['debt_type'] = debt_type['name']
+    debtaccounts['due_date_word'] = debtaccounts['due_date'].strftime('%d %b, %Y')
+    debtaccounts['due_date'] = debtaccounts['due_date'].strftime('%Y-%m-%d')
+    
+
+    key_to_search = 'value'
+    value_to_search = int(debtaccounts['payoff_order'])
+    matching_dicts = next((dictionary for dictionary in payoff_order if dictionary.get(key_to_search) == value_to_search),None)    
+    
+    # debtaccounts['payoff_order'] = {
+    #     'value':value_to_search,
+    #     'label':matching_dicts['label']
+    # }
+
+    debtaccounts['payoff_order'] = matching_dicts['label']
+
+    debtaccounts['balance'] = round(debtaccounts['balance'],2)
+    debtaccounts['highest_balance'] = round(debtaccounts['highest_balance'],2)
+    debtaccounts['minimum_payment'] = round(debtaccounts['minimum_payment'],2)
+    debtaccounts['monthly_payment'] = round(debtaccounts['monthly_payment'],2)
+    debtaccounts['interest_rate'] = round(debtaccounts['interest_rate'],2)
+    debtaccounts['credit_limit'] = round(debtaccounts['credit_limit'],2)
+
+    
+
+
+    key_to_search = 'value'
+    value_to_search = int(debtaccounts['reminder_days'])
+    matching_dicts = next((dictionary for dictionary in reminder_days if dictionary.get(key_to_search) == value_to_search),None)    
+    
+    # debtaccounts['reminder_days'] = {
+    #     'value':value_to_search,
+    #     'label':matching_dicts['label']
+    # }
+
+    debtaccounts['reminder_days'] = matching_dicts['label']
+
+    debtaccounts['autopay'] = 'Yes'  if debtaccounts['autopay'] > 0 else 'No'
+    debtaccounts['inlclude_payoff'] = 'Yes'  if debtaccounts['inlclude_payoff'] > 0 else 'No'
+    
+    paid_off_percentage = calculate_paid_off_percentage(debtaccounts['highest_balance'], debtaccounts['balance'])
+    left_to_go = round(float(100) - float(paid_off_percentage),1)
+
+    twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    query = {
+        #'role':{'$gte':10}
+        "debt_acc_id":ObjectId(accntid),
+        "created_at": {"$gte": twelve_months_ago},
+        "deleted_at":None
+    }
+    cursor = debt_transactions.find(query,{
+        '_id':0,
+        'month':1,
+        'year':1,
+        'trans_date':1,
+        'amount':1,
+        'previous_balance':1,
+        'new_balance':1
+    })
+
+    data_list = []
+    for todo in cursor:
+        #print(todo)
+        
+
+        #todo['billing_month_year'] = f"{todo['month']}, {todo['year']}"
+        todo['trans_date'] = todo['trans_date'].strftime('%Y-%m-%d')
+        todo['amount'] = round(todo['amount'],2)
+        todo['previous_balance'] = round(todo['previous_balance'],2)
+        todo['new_balance'] = round(todo['new_balance'],2)        
+        data_list.append(todo)
+
+    #total_count = debt_transactions.count_documents(query)
+    #data_list = list(cursor)
+    data_json = MongoJSONEncoder().encode(data_list)
+    data_obj = json.loads(data_json)
+
+    #print(data_obj)
+    
+
+    return jsonify({
+        "payLoads":{
+            "debtaccounts":debtaccounts,
+            "debttrasactions":data_obj,        
+            "left_to_go":left_to_go,
+            "paid_off_percentage":paid_off_percentage
+        }        
+    })
+
+
 @app.route('/api/debt-summary/<string:accntid>', methods=['GET'])
 def get_dept_summary(accntid:str):
 
