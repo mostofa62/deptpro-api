@@ -74,6 +74,19 @@ def savingcategory_dropdown(user_id:str):
         category_types_list.append({'value':str(todo['_id']),'label':todo['name']})
 
 
+    saving_boost_types = my_col('saving_boost_types').find(
+        {
+
+            "deleted_at":None,
+            "user_id": {"$in": [None, ObjectId(user_id)]}
+        },
+        {'_id': 1, 'name': 1, 'user_id': 1}
+        )
+    saving_boost_types_list = []
+    for todo in saving_boost_types:               
+        saving_boost_types_list.append({'value':str(todo['_id']),'label':todo['name']})
+
+
 
     
     
@@ -82,7 +95,8 @@ def savingcategory_dropdown(user_id:str):
 
     return jsonify({
         "payLoads":{
-            'category':category_types_list,            
+            'category':category_types_list,
+            "saving_boost_source":saving_boost_types_list,            
             'repeat_frequency':RepeatFrequency
         }
     })
