@@ -2,7 +2,7 @@ import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col,myclient
+from db import my_col,myclient,mydb
 from bson.objectid import ObjectId
 from bson.json_util import dumps
 import re
@@ -436,6 +436,41 @@ def get_typewise_dept_info():
     data_obj = json.loads(data_json)
 
 
+    ## to find typewise account and there ammortization
+
+    deb_query = {"debt_type.value": {"$in":debttype_id_list}}
+    debt_accounts_data = debt_accounts.find(deb_query,{'_id':1,'name':1})
+
+    # Initialize a dictionary to store the final result
+    # data = {}
+
+    # # Step 2: Iterate over each debt account and retrieve data from corresponding dynamic collections
+    # for account in debt_accounts_data:
+    #     account_id = str(account['_id'])  # Convert ObjectId to string
+    #     dynamic_collection_name = f"debt_{account_id}"  # Dynamic collection name
+
+    #     # Check if the collection exists
+    #     if dynamic_collection_name in mydb.list_collection_names():
+    #         # Step 3: Query the dynamic collection (debt_<id>) for balance and month
+    #         dynamic_collection = mydb[dynamic_collection_name]
+    #         sort_params = [('month_debt_free',1)]
+    #         monthly_data = dynamic_collection.find({}, {'month': 1,'month_debt_free':1, 'balance': 1}).sort(sort_params)  # Adjust fields as needed
+    #         # Step 4: Structure the data in the required format
+    #         account_data = []
+    #         for record in monthly_data:
+    #             account_data.append({
+    #                 'month': record.get('month'),
+    #                 'amount': record.get('balance'),
+    #                 'month_debt_free':  record.get('month_debt_free') # Assuming 'balance' is the equivalent of 'amount'
+    #             })
+
+    #         # Add to the final dictionary, using 'one', 'two', etc., as keys (can modify as needed)
+    #         #key = f"account_{account_id}"  # You can change the key naming as required
+    #         key = account['name'] 
+    #         data[key] = account_data
+
+    # print(data)
+
 
     data = {
         'one': [{'month': 'Aug 2024', 'amount': 30}, {'month': 'Sep 2024', 'amount': 15},{'month': 'Oct 2024', 'amount': 30}, {'month': 'Nov 2024', 'amount': 15}, {'month': 'Dec 2024', 'amount': 0}],
@@ -451,22 +486,47 @@ def get_typewise_dept_info():
                 merged_data[month] = {'month': month}
             merged_data[month][key] = item['amount']
 
-    # Convert merged_data to a list
+    # # Convert merged_data to a list
     chart_data = list(merged_data.values())
 
-    # Function to convert month string to datetime object
+    # # Function to convert month string to datetime object
     def parse_month(month_str):
         return datetime.strptime(month_str, '%b %Y')
 
-    # Sort the data by the parsed month
+    # # Sort the data by the parsed month
     chart_data = sorted(chart_data, key=lambda x: parse_month(x['month']))
+
+
+    # Collect all months
+    # sorted_months = sorted({entry['month'] for category in data.values() for entry in category})
+
+    # # Create a dictionary with all months and categories
+    # month_data = {month: {category: 0 for category in data} for month in sorted_months}
+
+    # # Populate the dictionary with amounts from the data
+    # for category, entries in data.items():
+    #     for entry in entries:
+    #         month_data[entry['month']][category] = entry['amount']
+
+    # # Convert month_data to a list of dictionaries, sorted by month_debt_free
+    # normalized_data = []
+    # for month in sorted_months:
+    #     monthly_data = {'month': month}
+    #     for category, entries in data.items():
+    #         filtered_entries = [entry for entry in entries if entry['month'] == month]
+    #         if filtered_entries:
+    #             monthly_data[category] = sum(entry['amount'] for entry in filtered_entries)
+    #         else:
+    #             monthly_data[category] = 0
+    #     normalized_data.append(monthly_data)
 
 
     return jsonify({
         "payLoads":{            
             "debt_type_debt_counts":data_obj,
             "total_dept_type":total_dept_type,
-            "debt_type_ammortization":chart_data
+            "debt_type_ammortization":chart_data,
+            "data":data
         }        
     })
 
@@ -885,7 +945,7 @@ def list_debts(user_id:str):
         entry = {
             "_id":todo["_id"],
             "name":todo["name"],
-            "debt_type":debt_type["name"],
+            "debt_type":debt_type["name"] if debt_type!=None else None,
             "payor":todo["payor"],
             "balance":round(todo["balance"],2),
             "interest_rate":todo["interest_rate"],
