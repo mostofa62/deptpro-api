@@ -256,6 +256,8 @@ def newEntryOptionData(data_obj:any, collectionName:str, user_id:str):
     if '__isNew__' in data_obj:
         collecObj =  my_col(collectionName).insert_one({
             'name':data_obj['label'],
+            'parent':None,
+            'deleted_at':None,
             'user_id':ObjectId(user_id)
         })
 

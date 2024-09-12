@@ -60,6 +60,30 @@ transaction_year = [
 ]
 
 
+def newEntryOptionData(data_obj:any, collectionName:str, user_id:str):
+
+    
+
+    if data_obj == None:
+        return data_obj
+
+    if '__isNew__' in data_obj:
+        collecObj =  my_col(collectionName).insert_one({
+            'name':data_obj['label'],
+            'parent':None,
+            'deleted_at':None,
+            'user_id':ObjectId(user_id)
+        })
+
+        if collecObj.inserted_id != None:
+            return {'value': collecObj.inserted_id}
+    else:
+
+        if data_obj['value'] == '':
+            return None        
+        else:
+            return {'value': ObjectId(data_obj['value'])}
+
 #debt transaction summary
 
 @app.route("/api/delete-debt-transaction/<string:accntid>", methods=['POST'])
@@ -361,9 +385,94 @@ def delete_debt():
         })
 
 
+@app.route('/api/debt-typewise-info', methods=['GET'])
+def get_typewise_dept_info():
+
+
+    total_dept_type = my_col('debt_type').count_documents({"deleted_at": None})
+
+    # Fetch the debt type cursor
+    debt_type_cursor = my_col('debt_type').find(
+        {"deleted_at": None},
+        {'_id': 1, 'name': 1, 'parent': 1}
+    )
+    
+    # Create a list of _id values
+    debttype_id_list = [item['_id'] for item in debt_type_cursor]
+
+
+    # Aggregation pipeline with $lookup to get the name (label)
+    pipeline = [
+        # Step 1: Match documents with debt_type.value in debttype_id_list
+        {"$match": {"debt_type.value": {"$in": debttype_id_list}}},
+        
+        # Step 2: Lookup to join debt_type collection to get the name (label)
+        {
+            "$lookup": {
+                "from": "debt_type",                # The collection to join
+                "localField": "debt_type.value",    # Field from the current collection
+                "foreignField": "_id",              # Field from the debt_type collection
+                "as": "debt_info"                   # Resulting array field for joined data
+            }
+        },
+        
+        # Step 3: Unwind the debt_info array to flatten it
+        {"$unwind": "$debt_info"},
+        
+        # Step 4: Group by debt_type.value and count occurrences, include debt_type name
+        {
+            "$group": {
+                "_id": "$debt_type.value",          # Group by debt_type.value
+                "count": {"$sum": 1},               # Count occurrences
+                "name": {"$first": "$debt_info.name"}  # Get the first name (label)
+            }
+        }
+    ]
+
+    # Perform the aggregation
+    debt_type_debt_counts = list(debt_accounts.aggregate(pipeline))
+
+    data_json = MongoJSONEncoder().encode(debt_type_debt_counts)
+    data_obj = json.loads(data_json)
+
+
+
+    data = {
+        'one': [{'month': 'Aug 2024', 'amount': 30}, {'month': 'Sep 2024', 'amount': 15},{'month': 'Oct 2024', 'amount': 30}, {'month': 'Nov 2024', 'amount': 15}, {'month': 'Dec 2024', 'amount': 0}],
+        'two': [{'month': 'Aug 2024', 'amount': 100},{'month': 'Sep 2024', 'amount': 10}, {'month': 'Oct 2024', 'amount': 20}, {'month': 'Nov 2024', 'amount': 15},{'month': 'Dec 2024', 'amount': 0}]
+    }
+
+    # Prepare data for Recharts - merge months across both 'one' and 'two'
+    merged_data = {}
+    for key in data:
+        for item in data[key]:
+            month = item['month']
+            if month not in merged_data:
+                merged_data[month] = {'month': month}
+            merged_data[month][key] = item['amount']
+
+    # Convert merged_data to a list
+    chart_data = list(merged_data.values())
+
+    # Function to convert month string to datetime object
+    def parse_month(month_str):
+        return datetime.strptime(month_str, '%b %Y')
+
+    # Sort the data by the parsed month
+    chart_data = sorted(chart_data, key=lambda x: parse_month(x['month']))
+
+
+    return jsonify({
+        "payLoads":{            
+            "debt_type_debt_counts":data_obj,
+            "total_dept_type":total_dept_type,
+            "debt_type_ammortization":chart_data
+        }        
+    })
+
+
 @app.route('/api/debt-all/<string:accntid>', methods=['GET'])
 def get_dept_all(accntid:str):
-
     
     debtaccounts = debt_accounts.find_one(
         {"_id":ObjectId(accntid)},
@@ -466,7 +575,7 @@ def get_dept_all(accntid:str):
             "debtaccounts":debtaccounts,
             "debttrasactions":data_obj,        
             "left_to_go":left_to_go,
-            "paid_off_percentage":paid_off_percentage
+            "paid_off_percentage":paid_off_percentage            
         }        
     })
 
@@ -552,6 +661,7 @@ def save_debt_account():
         debt_id = None
         message = ''
         result = 0
+        user_id = data["user_id"]
         try:
             balance = float(data.get("balance", 0))
             interest_rate = float(data.get("interest_rate", 0))
@@ -560,9 +670,10 @@ def save_debt_account():
             
             debt = {
                 "name": data.get("name"),                
-                'debt_type':{
-                    'value':ObjectId(data['debt_type']['value'])
-                },
+                # 'debt_type':{
+                #     'value':ObjectId(data['debt_type']['value'])
+                # },
+                'debt_type':newEntryOptionData(data['debt_type'],'debt_type',user_id),
                 "payor": data.get("payor"), 
                 "balance":balance ,                
                 "highest_balance": highest_balance,
@@ -590,7 +701,7 @@ def save_debt_account():
                 'percentage':0,
                 'lowest_payment':0,
 
-                "user_id":ObjectId(data["user_id"]),
+                "user_id":ObjectId(user_id),
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None                
@@ -627,6 +738,8 @@ def update_debt(accntid:str):
         message = ''
         result = 0
 
+        user_id = data['user_id']
+
         try:
 
             debt_acc_query = {
@@ -656,9 +769,10 @@ def update_debt(accntid:str):
 
             
             newvalues = { "$set": {
-                'debt_type':{
-                    'value':ObjectId(data['debt_type']['value'])
-                },                   
+                # 'debt_type':{
+                #     'value':ObjectId(data['debt_type']['value'])
+                # },
+                'debt_type':newEntryOptionData(data['debt_type'],'debt_type',user_id),                   
                 'balance':balance,
                 "highest_balance": highest_balance,                
                 "monthly_payment": float(data.get("monthly_payment", 0)),
