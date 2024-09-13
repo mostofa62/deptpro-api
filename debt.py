@@ -384,7 +384,7 @@ def delete_debt():
             "deleted_done":deleted_done
         })
 
-
+debt_types_collection = my_col('debt_type')
 @app.route('/api/debt-typewise-info', methods=['GET'])
 def get_typewise_dept_info():
 
@@ -438,63 +438,90 @@ def get_typewise_dept_info():
 
     ## to find typewise account and there ammortization
 
-    deb_query = {"debt_type.value": {"$in":debttype_id_list}}
-    debt_accounts_data = debt_accounts.find(deb_query,{'_id':1,'name':1})
+    # Query to get debt accounts along with debt_type
+    deb_query = {"debt_type.value": {"$in": debttype_id_list}}
+    debt_accounts_data = debt_accounts.find(deb_query, {'_id': 1, 'name': 1, 'debt_type': 1})
+
+    # Fetch debt type names
+    debt_types = debt_types_collection.find({'_id': {'$in': debttype_id_list}})    
+    debt_type_names = {str(d['_id']): d['name'] for d in debt_types}
+    print(debt_type_names)
 
     # Initialize a dictionary to store the final result
-    # data = {}
+    data = {}
 
-    # # Step 2: Iterate over each debt account and retrieve data from corresponding dynamic collections
-    # for account in debt_accounts_data:
-    #     account_id = str(account['_id'])  # Convert ObjectId to string
-    #     dynamic_collection_name = f"debt_{account_id}"  # Dynamic collection name
+    # Step 2: Iterate over each debt account and retrieve data from corresponding dynamic collections
+    for account in debt_accounts_data:
+        account_id = str(account['_id'])  # Convert ObjectId to string
+        debt_type_id = str(account['debt_type']['value'])  # Get the debt type ID
+        debt_type_name = debt_type_names.get(debt_type_id, 'Unknown')  # Get the debt type name
+        dynamic_collection_name = f"debt_{account_id}"  # Dynamic collection name
 
-    #     # Check if the collection exists
-    #     if dynamic_collection_name in mydb.list_collection_names():
-    #         # Step 3: Query the dynamic collection (debt_<id>) for balance and month
-    #         dynamic_collection = mydb[dynamic_collection_name]
-    #         sort_params = [('month_debt_free',1)]
-    #         monthly_data = dynamic_collection.find({}, {'month': 1,'month_debt_free':1, 'balance': 1}).sort(sort_params)  # Adjust fields as needed
-    #         # Step 4: Structure the data in the required format
-    #         account_data = []
-    #         for record in monthly_data:
-    #             account_data.append({
-    #                 'month': record.get('month'),
-    #                 'amount': record.get('balance'),
-    #                 'month_debt_free':  record.get('month_debt_free') # Assuming 'balance' is the equivalent of 'amount'
-    #             })
+        # Check if the collection exists
+        if dynamic_collection_name in mydb.list_collection_names():
+            # Step 3: Query the dynamic collection (debt_<id>) for balance and month
+            dynamic_collection = mydb[dynamic_collection_name]
+            sort_params = [('month_debt_free', 1)]
+            monthly_data = dynamic_collection.find({}, {'month': 1, 'month_debt_free': 1, 'balance': 1}).sort(sort_params)
 
-    #         # Add to the final dictionary, using 'one', 'two', etc., as keys (can modify as needed)
-    #         #key = f"account_{account_id}"  # You can change the key naming as required
-    #         key = account['name'] 
-    #         data[key] = account_data
+             # Step 4: Structure the data in the required format
+        for record in monthly_data:
+            month = record.get('month')
+            amount = record.get('balance', 0)
+            # Initialize the month entry if not already present
+            if month not in data:
+                data[month] = {'month': month}
+                data[month]['debt_names'] = []
 
-    # print(data)
+            # Update debt_names and amounts for the current month
+            if debt_type_name not in [d.get(debt_type_id) for d in data[month]['debt_names']]:
+                data[month]['debt_names'].append({debt_type_id: debt_type_name})
+            
+            # Sum amounts for the same month and debt type
+            if debt_type_id in data[month]:
+                data[month][debt_type_id] += amount                
+            else:
+                data[month][debt_type_id] = amount
+    # Ensure all debt types are included in debt_names, even if their amount is zero
+    for month in data:
+        for debt_type_id in debt_type_names:
+            if not any(debt_type_id in item for item in data[month]['debt_names']):
+                data[month]['debt_names'].append({debt_type_id: debt_type_names[debt_type_id]})
 
+    # Convert debt_names list to the required format
+    for month in data:
+        data[month]['debt_names'] = list(data[month]['debt_names'])            
 
-    data = {
-        'one': [{'month': 'Aug 2024', 'amount': 30}, {'month': 'Sep 2024', 'amount': 15},{'month': 'Oct 2024', 'amount': 30}, {'month': 'Nov 2024', 'amount': 15}, {'month': 'Dec 2024', 'amount': 0}],
-        'two': [{'month': 'Aug 2024', 'amount': 100},{'month': 'Sep 2024', 'amount': 10}, {'month': 'Oct 2024', 'amount': 20}, {'month': 'Nov 2024', 'amount': 15},{'month': 'Dec 2024', 'amount': 0}]
-    }
+    # Print or inspect the raw data
+    print("Raw Aggregated Data:", data)
 
-    # Prepare data for Recharts - merge months across both 'one' and 'two'
+    # Merge data by month and debt type
+    # Prepare data for Recharts - merge months across all debt types
     merged_data = {}
-    for key in data:
-        for item in data[key]:
-            month = item['month']
-            if month not in merged_data:
-                merged_data[month] = {'month': month}
-            merged_data[month][key] = item['amount']
 
-    # # Convert merged_data to a list
+    # Find all unique months
+    all_months = set(data.keys())
+
+    # Sort all months by date
+    def parse_month(month_str):
+        try:
+            return datetime.strptime(month_str, '%b %Y')
+        except ValueError:
+            return datetime.min  # Default to a minimal date if parsing fails
+
+    all_months = sorted(all_months, key=parse_month)
+
+    # Initialize merged_data with all months and set missing values to None
+    for month in all_months:
+        merged_data[month] = {'month': month}
+        for debt_type in set(d for item in data.values() for d in item.keys() if d != 'month'):
+            merged_data[month][debt_type] = data.get(month, {}).get(debt_type, 0)  # Default to 0 if missing
+
+    # Convert to list of dicts for the frontend
     chart_data = list(merged_data.values())
 
-    # # Function to convert month string to datetime object
-    def parse_month(month_str):
-        return datetime.strptime(month_str, '%b %Y')
-
-    # # Sort the data by the parsed month
-    chart_data = sorted(chart_data, key=lambda x: parse_month(x['month']))
+    # Print or return the final chart data
+    print("Final Chart Data:", chart_data)
 
 
     # Collect all months
@@ -526,6 +553,7 @@ def get_typewise_dept_info():
             "debt_type_debt_counts":data_obj,
             "total_dept_type":total_dept_type,
             "debt_type_ammortization":chart_data,
+            #"debt_type_ammortization":normalized_data,
             "data":data
         }        
     })
