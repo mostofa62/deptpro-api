@@ -152,8 +152,11 @@ def get_bill(accntid:str):
         {"_id":0,"name":1}
         )
     
-    billaccounts['bill_type']['value'] = str(billaccounts['bill_type']['value'])
-    billaccounts['bill_type']['label'] = bill_type['name']
+    if bill_type!=None:    
+        billaccounts['bill_type']['value'] = str(billaccounts['bill_type']['value'])
+        billaccounts['bill_type']['label'] = bill_type['name']
+    else:
+        billaccounts['bill_type'] = None
     billaccounts['next_due_date'] = billaccounts['next_due_date'].strftime('%Y-%m-%d')
 
     key_to_search = 'value'
@@ -263,11 +266,12 @@ def list_bills(user_id:str):
         {"_id":bill_type_id},
         {"_id":0,"name":1}
         )
+        
 
         entry = {
             "_id":todo["_id"],
             "name":todo["name"],
-            "bill_type":bill_type["name"],
+            "bill_type":bill_type["name"] if bill_type!=None else None,
             "default_amount":todo["default_amount"],
             "current_amount":todo["current_amount"],
             "next_due_date":todo["next_due_date"].strftime('%Y-%m-%d'),

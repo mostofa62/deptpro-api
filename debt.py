@@ -389,7 +389,7 @@ debt_types_collection = my_col('debt_type')
 def get_typewise_dept_info():
 
 
-    total_dept_type = my_col('debt_type').count_documents({"deleted_at": None})
+    
 
     # Fetch the debt type cursor
     debt_type_cursor = my_col('debt_type').find(
@@ -399,13 +399,17 @@ def get_typewise_dept_info():
     
     # Create a list of _id values
     debttype_id_list = [item['_id'] for item in debt_type_cursor]
+   
 
-
-    # Aggregation pipeline with $lookup to get the name (label)
     pipeline = [
         # Step 1: Match documents with debt_type.value in debttype_id_list
-        {"$match": {"debt_type.value": {"$in": debttype_id_list}}},
-        
+        {
+            "$match": {
+                "debt_type.value": {"$in": debttype_id_list},
+                "deleted_at": None
+            }
+        },
+
         # Step 2: Lookup to join debt_type collection to get the name (label)
         {
             "$lookup": {
@@ -415,37 +419,67 @@ def get_typewise_dept_info():
                 "as": "debt_info"                   # Resulting array field for joined data
             }
         },
-        
+
         # Step 3: Unwind the debt_info array to flatten it
         {"$unwind": "$debt_info"},
-        
+
         # Step 4: Group by debt_type.value and count occurrences, include debt_type name
         {
             "$group": {
                 "_id": "$debt_type.value",          # Group by debt_type.value
-                "count": {"$sum": 1},               # Count occurrences
+                "count": {"$sum": 1},               # Count occurrences per debt type
                 "name": {"$first": "$debt_info.name"}  # Get the first name (label)
+            }
+        },
+
+        # Step 5: Calculate the total count by summing up all the individual counts
+        {
+            "$group": {
+                "_id": None,                        # No specific grouping field, aggregate the entire collection
+                "total_count": {"$sum": "$count"},  # Sum all the 'count' values from the grouped results
+                "grouped_results": {"$push": "$$ROOT"}  # Preserve all grouped results in an array
+            }
+        },
+
+        # Step 6: Use $project to format the output
+        {
+            "$project": {
+                "_id": 0,                           # Remove the _id field
+                "total_count": 1,                   # Include the total count
+                "grouped_results": 1                # Include the grouped results
             }
         }
     ]
 
-    # Perform the aggregation
-    debt_type_debt_counts = list(debt_accounts.aggregate(pipeline))
 
-    data_json = MongoJSONEncoder().encode(debt_type_debt_counts)
-    data_obj = json.loads(data_json)
+
+
+
+    # Perform the aggregation
+    debt_type_debt_all = list(debt_accounts.aggregate(pipeline))
+
+    debt_type_debt_counts = debt_type_debt_all[0]['grouped_results'] if debt_type_debt_all else []
+    total_dept_type = debt_type_debt_all[0]['total_count'] if debt_type_debt_all else 0
+    if len(debt_type_debt_counts) > 0:
+        data_json = MongoJSONEncoder().encode(debt_type_debt_counts)
+        debt_type_debt_counts = json.loads(data_json)
+
+    
 
 
     ## to find typewise account and there ammortization
 
     # Query to get debt accounts along with debt_type
-    deb_query = {"debt_type.value": {"$in": debttype_id_list}}
+    deb_query = {
+        "debt_type.value": {"$in": debttype_id_list},
+        "deleted_at":None
+    }
     debt_accounts_data = debt_accounts.find(deb_query, {'_id': 1, 'name': 1, 'debt_type': 1})
 
     # Fetch debt type names
     debt_types = debt_types_collection.find({'_id': {'$in': debttype_id_list}})    
     debt_type_names = {str(d['_id']): d['name'] for d in debt_types}
-    print(debt_type_names)
+    #print(debt_type_names)
 
     # Initialize a dictionary to store the final result
     data = {}
@@ -454,7 +488,7 @@ def get_typewise_dept_info():
     for account in debt_accounts_data:
         account_id = str(account['_id'])  # Convert ObjectId to string
         debt_type_id = str(account['debt_type']['value'])  # Get the debt type ID
-        debt_type_name = debt_type_names.get(debt_type_id, 'Unknown')  # Get the debt type name
+        #debt_type_name = debt_type_names.get(debt_type_id, 'Unknown')  # Get the debt type name
         dynamic_collection_name = f"debt_{account_id}"  # Dynamic collection name
 
         # Check if the collection exists
@@ -476,11 +510,11 @@ def get_typewise_dept_info():
                 # Initialize the month entry if not already present
                 if month not in data:
                     data[month] = {'month': month}
-                    data[month]['debt_names'] = []
+                    #data[month]['debt_names'] = []
 
                 # Update debt_names and amounts for the current month
-                if debt_type_name not in [d.get(debt_type_id) for d in data[month]['debt_names']]:
-                    data[month]['debt_names'].append({debt_type_id: debt_type_name})
+                # if debt_type_name not in [d.get(debt_type_id) for d in data[month]['debt_names']]:
+                #     data[month]['debt_names'].append({debt_type_id: debt_type_name})
                 
                 # Sum amounts for the same month and debt type
                 if debt_type_id in data[month]:
@@ -488,17 +522,17 @@ def get_typewise_dept_info():
                 else:
                     data[month][debt_type_id] = amount
             # Ensure all debt types are included in debt_names, even if their amount is zero
-            for month in data:
-                for debt_type_id in debt_type_names:
-                    if not any(debt_type_id in item for item in data[month]['debt_names']):
-                        data[month]['debt_names'].append({debt_type_id: debt_type_names[debt_type_id]})
+            # for month in data:
+            #     for debt_type_id in debt_type_names:
+            #         if not any(debt_type_id in item for item in data[month]['debt_names']):
+            #             data[month]['debt_names'].append({debt_type_id: debt_type_names[debt_type_id]})
 
             # Convert debt_names list to the required format
-            for month in data:
-                data[month]['debt_names'] = list(data[month]['debt_names'])            
+            # for month in data:
+            #     data[month]['debt_names'] = list(data[month]['debt_names'])            
 
     # Print or inspect the raw data
-    print("Raw Aggregated Data:", data)
+    #print("Raw Aggregated Data:", data)
 
     # Merge data by month and debt type
     # Prepare data for Recharts - merge months across all debt types
@@ -528,16 +562,17 @@ def get_typewise_dept_info():
     chart_data = list(merged_data.values()) if len(merged_data) > 0 else []
 
     # Print or return the final chart data
-    print("Final Chart Data:", chart_data)
+    #print("Final Chart Data:", chart_data)
 
 
     return jsonify({
         "payLoads":{            
-            "debt_type_debt_counts":data_obj,
+            "debt_type_debt_counts":debt_type_debt_counts,
             "total_dept_type":total_dept_type,
             "debt_type_ammortization":chart_data,
             #"debt_type_ammortization":normalized_data,
-            "data":data
+            #"data":data,
+            "debt_type_names":debt_type_names
         }        
     })
 
@@ -685,9 +720,14 @@ def get_debt(accntid:str):
         {"_id":debtaccounts['debt_type']['value']},
         {"_id":0,"name":1}
         )
-    
-    debtaccounts['debt_type']['value'] = str(debtaccounts['debt_type']['value'])
-    debtaccounts['debt_type']['label'] = debt_type['name']
+
+
+    if debt_type!=None:    
+        debtaccounts['debt_type']['value'] = str(debtaccounts['debt_type']['value'])
+        debtaccounts['debt_type']['label'] = debt_type['name']
+    else:
+        debtaccounts['debt_type'] = None
+
     debtaccounts['due_date'] = debtaccounts['due_date'].strftime('%Y-%m-%d')
 
     key_to_search = 'value'
@@ -840,12 +880,14 @@ def update_debt(accntid:str):
 
             
             newvalues = { "$set": {
+                "name": data.get("name"), 
                 # 'debt_type':{
                 #     'value':ObjectId(data['debt_type']['value'])
                 # },
                 'debt_type':newEntryOptionData(data['debt_type'],'debt_type',user_id),                   
                 'balance':balance,
                 "highest_balance": highest_balance,                
+                "minimum_payment": float(data.get("minimum_payment", 0)),
                 "monthly_payment": float(data.get("monthly_payment", 0)),
                 "credit_limit": float(data.get("credit_limit", 0)),
                 'interest_rate':interest_rate,
@@ -1097,13 +1139,13 @@ def get_dept_dashboard_data(user_id:str):
 
     debt_list = []
     
-    cursor = debt_accounts.find(query,{"_id":0,"user_id":0}).sort(sort_params).limit(page_size)
+    cursor = debt_accounts.find(query,{"user_id":0}).sort(sort_params).limit(page_size)
 
     for todo in cursor:
         paid_off_percentage = calculate_paid_off_percentage(todo['highest_balance'], todo['balance'])
         left_to_go = round(float(100) - float(paid_off_percentage),1)
         entry = {
-        
+            '_id':str(todo['_id']),
             'title':todo['name'],
             'progress':left_to_go,
             'amount':todo['balance']
