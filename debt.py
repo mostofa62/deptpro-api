@@ -428,15 +428,17 @@ def get_typewise_dept_info():
             "$group": {
                 "_id": "$debt_type.value",          # Group by debt_type.value
                 "count": {"$sum": 1},               # Count occurrences per debt type
+                "balance": {"$sum": {"$add": ["$balance", "$monthly_interest"]}},  # Sum balance and monthly_interest
                 "name": {"$first": "$debt_info.name"}  # Get the first name (label)
             }
         },
 
-        # Step 5: Calculate the total count by summing up all the individual counts
+        # Step 5: Calculate the total count and total balance by summing up all the individual counts and balances
         {
             "$group": {
                 "_id": None,                        # No specific grouping field, aggregate the entire collection
                 "total_count": {"$sum": "$count"},  # Sum all the 'count' values from the grouped results
+                "total_balance": {"$sum": "$balance"},  # Sum the already calculated balance (which includes balance and monthly_interest)
                 "grouped_results": {"$push": "$$ROOT"}  # Preserve all grouped results in an array
             }
         },
@@ -446,10 +448,12 @@ def get_typewise_dept_info():
             "$project": {
                 "_id": 0,                           # Remove the _id field
                 "total_count": 1,                   # Include the total count
+                "total_balance": 1,                 # Include the total balance
                 "grouped_results": 1                # Include the grouped results
             }
         }
     ]
+
 
 
 
@@ -460,6 +464,7 @@ def get_typewise_dept_info():
 
     debt_type_debt_counts = debt_type_debt_all[0]['grouped_results'] if debt_type_debt_all else []
     total_dept_type = debt_type_debt_all[0]['total_count'] if debt_type_debt_all else 0
+    total_balance = debt_type_debt_all[0]['total_balance'] if debt_type_debt_all else 0
     if len(debt_type_debt_counts) > 0:
         data_json = MongoJSONEncoder().encode(debt_type_debt_counts)
         debt_type_debt_counts = json.loads(data_json)
@@ -469,12 +474,29 @@ def get_typewise_dept_info():
 
     ## to find typewise account and there ammortization
 
+
+    
+
     # Query to get debt accounts along with debt_type
+    sort_params = [('due_date', 1)]
     deb_query = {
         "debt_type.value": {"$in": debttype_id_list},
         "deleted_at":None
     }
-    debt_accounts_data = debt_accounts.find(deb_query, {'_id': 1, 'name': 1, 'debt_type': 1})
+    debt_type_balances = {}
+
+    min_start_date_doc = debt_accounts.find_one(sort=[('start_date', 1)])
+    
+    if min_start_date_doc:
+        start_date = convertDateTostring(min_start_date_doc['start_date'],'%b %Y')
+    else:
+        start_date = convertDateTostring(datetime.now(),'%b %Y')
+
+
+    print('Minimum',start_date)
+
+    
+    debt_accounts_data = debt_accounts.find(deb_query, {'_id': 1, 'name': 1, 'debt_type': 1,'balance':1,'monthly_interest':1,'due_date':1}).sort(sort_params)
 
     # Fetch debt type names
     debt_types = debt_types_collection.find({'_id': {'$in': debttype_id_list}})    
@@ -487,9 +509,17 @@ def get_typewise_dept_info():
     # Step 2: Iterate over each debt account and retrieve data from corresponding dynamic collections
     for account in debt_accounts_data:
         account_id = str(account['_id'])  # Convert ObjectId to string
-        debt_type_id = str(account['debt_type']['value'])  # Get the debt type ID
-        #debt_type_name = debt_type_names.get(debt_type_id, 'Unknown')  # Get the debt type name
+        debt_type_id = str(account['debt_type']['value'])  # Get the debt type ID        
         dynamic_collection_name = f"debt_{account_id}"  # Dynamic collection name
+
+        account_balance = float(account['balance']+account['monthly_interest'])
+        print('balance',account_balance)
+
+        # Accumulate balance for the same debt type
+        if debt_type_id in debt_type_balances:
+            debt_type_balances[debt_type_id] += account_balance
+        else:
+            debt_type_balances[debt_type_id] = account_balance 
 
         # Check if the collection exists
         if dynamic_collection_name in mydb.list_collection_names():
@@ -503,36 +533,21 @@ def get_typewise_dept_info():
                 print(f"Error fetching data for collection {dynamic_collection_name}: {str(e)}")
                 continue  # Skip this account if there's an error
 
-             # Step 4: Structure the data in the required format
-            for record in monthly_data:
-                month = record.get('month')
-                amount = record.get('balance', 0)
-                # Initialize the month entry if not already present
-                if month not in data:
-                    data[month] = {'month': month}
-                    #data[month]['debt_names'] = []
+            # Step 4: Structure the data in the required format
+            if monthly_data:  # If there's data, add it to the correct month
+                for record in monthly_data:
+                    month = record.get('month')
+                    amount = record.get('balance', 0)
 
-                # Update debt_names and amounts for the current month
-                # if debt_type_name not in [d.get(debt_type_id) for d in data[month]['debt_names']]:
-                #     data[month]['debt_names'].append({debt_type_id: debt_type_name})
-                
-                # Sum amounts for the same month and debt type
-                if debt_type_id in data[month]:
-                    data[month][debt_type_id] += amount                
-                else:
-                    data[month][debt_type_id] = amount
-            # Ensure all debt types are included in debt_names, even if their amount is zero
-            # for month in data:
-            #     for debt_type_id in debt_type_names:
-            #         if not any(debt_type_id in item for item in data[month]['debt_names']):
-            #             data[month]['debt_names'].append({debt_type_id: debt_type_names[debt_type_id]})
+                    # Initialize the month entry if not already present
+                    if month not in data:
+                        data[month] = {'month': month}
 
-            # Convert debt_names list to the required format
-            # for month in data:
-            #     data[month]['debt_names'] = list(data[month]['debt_names'])            
-
-    # Print or inspect the raw data
-    #print("Raw Aggregated Data:", data)
+                    # Sum amounts for the same month and debt type
+                    if debt_type_id in data[month]:
+                        data[month][debt_type_id] += amount
+                    else:
+                        data[month][debt_type_id] = amount                                                  
 
     # Merge data by month and debt type
     # Prepare data for Recharts - merge months across all debt types
@@ -542,6 +557,7 @@ def get_typewise_dept_info():
 
         # Find all unique months
         all_months = set(data.keys())
+        all_months.add(start_date)
 
         # Sort all months by date
         def parse_month(month_str):
@@ -551,12 +567,23 @@ def get_typewise_dept_info():
                 return datetime.min  # Default to a minimal date if parsing fails
 
         all_months = sorted(all_months, key=parse_month)
+        print('all months',all_months)
 
         # Initialize merged_data with all months and set missing values to None
         for month in all_months:
             merged_data[month] = {'month': month}
             for debt_type in set(d for item in data.values() for d in item.keys() if d != 'month'):
-                merged_data[month][debt_type] = data.get(month, {}).get(debt_type, 0)  # Default to 0 if missing
+                #merged_data[month][debt_type] = data.get(month, {}).get(debt_type, 0)  # Default to 0 if missing
+                if month == start_date:
+                    # Use debt_type_balances for start_date
+                    merged_data[month][debt_type] = debt_type_balances.get(debt_type, 0)
+                elif parse_month(month) < parse_month(start_date):
+                    # For months before start_date, use start_date balances
+                    merged_data[month][debt_type] = debt_type_balances.get(debt_type, 0)
+                else:
+                    # For other months, get values from data or default to 0
+                    merged_data[month][debt_type] = data.get(month, {}).get(debt_type, 0)
+        
 
     # Convert to list of dicts for the frontend
     chart_data = list(merged_data.values()) if len(merged_data) > 0 else []
@@ -569,9 +596,10 @@ def get_typewise_dept_info():
         "payLoads":{            
             "debt_type_debt_counts":debt_type_debt_counts,
             "total_dept_type":total_dept_type,
+            "total_balance":total_balance,
             "debt_type_ammortization":chart_data,
             #"debt_type_ammortization":normalized_data,
-            #"data":data,
+            "data":data,
             "debt_type_names":debt_type_names
         }        
     })
@@ -598,6 +626,8 @@ def get_dept_all(accntid:str):
     debtaccounts['debt_type'] = debt_type['name']
     debtaccounts['due_date_word'] = debtaccounts['due_date'].strftime('%d %b, %Y')
     debtaccounts['due_date'] = debtaccounts['due_date'].strftime('%Y-%m-%d')
+    debtaccounts['start_date_word'] = debtaccounts['start_date'].strftime('%d %b, %Y')
+    debtaccounts['start_date'] = debtaccounts['start_date'].strftime('%Y-%m-%d')
     
 
     key_to_search = 'value'
@@ -729,6 +759,7 @@ def get_debt(accntid:str):
         debtaccounts['debt_type'] = None
 
     debtaccounts['due_date'] = debtaccounts['due_date'].strftime('%Y-%m-%d')
+    debtaccounts['start_date'] = debtaccounts['start_date'].strftime('%Y-%m-%d')
 
     key_to_search = 'value'
     value_to_search = int(debtaccounts['payoff_order'])
@@ -892,7 +923,8 @@ def update_debt(accntid:str):
                 "credit_limit": float(data.get("credit_limit", 0)),
                 'interest_rate':interest_rate,
                 "monthly_interest":monthly_interest,
-                "due_date": datetime.strptime(data['due_date'],"%Y-%m-%d"),                            
+                "due_date": datetime.strptime(data['due_date'],"%Y-%m-%d"),
+                "start_date": datetime.strptime(data['start_date'],"%Y-%m-%d"),                             
                 'inlclude_payoff':inlclude_payoff, 
                 'payoff_order':payoff_order,                
                 'reminder_days':reminder_days, 
