@@ -569,20 +569,24 @@ def get_typewise_dept_info():
         all_months = sorted(all_months, key=parse_month)
         print('all months',all_months)
 
-        # Initialize merged_data with all months and set missing values to None
+        # Initialize merged_data with all months and set missing values to debt_type_balances
         for month in all_months:
             merged_data[month] = {'month': month}
-            for debt_type in set(d for item in data.values() for d in item.keys() if d != 'month'):
-                #merged_data[month][debt_type] = data.get(month, {}).get(debt_type, 0)  # Default to 0 if missing
+            for debt_type in debt_type_balances:  # Iterate over all debt types
                 if month == start_date:
                     # Use debt_type_balances for start_date
                     merged_data[month][debt_type] = debt_type_balances.get(debt_type, 0)
                 elif parse_month(month) < parse_month(start_date):
-                    # For months before start_date, use start_date balances
+                    # For months before start_date, use debt_type_balances
                     merged_data[month][debt_type] = debt_type_balances.get(debt_type, 0)
                 else:
-                    # For other months, get values from data or default to 0
-                    merged_data[month][debt_type] = data.get(month, {}).get(debt_type, 0)
+                    # For other months, check if data is present
+                    if month in data and debt_type in data[month]:
+                        merged_data[month][debt_type] = data[month][debt_type]
+                    else:
+                        # Fill missing month data with last known debt_type_balances
+                        merged_data[month][debt_type] = merged_data[all_months[all_months.index(month)-1]].get(debt_type, debt_type_balances.get(debt_type, 0))
+
         
 
     # Convert to list of dicts for the frontend
