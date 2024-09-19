@@ -407,3 +407,163 @@ async def save_income():
             "message":message,
             "result":result
         })
+    
+
+
+@app.route('/api/income-typewise-info', methods=['GET'])
+def get_typewise_income_info():
+
+    # Fetch the income type cursor
+    income_type_cursor = my_col('income_source_types').find(
+        {"deleted_at": None},
+        {'_id': 1, 'name': 1}
+    )
+
+    # Create a list of _id values
+    incometype_id_list = [item['_id'] for item in income_type_cursor]
+
+
+    pipeline = [
+        # Step 1: Match documents with income_source.value in billtype_id_list
+        {
+            "$match": {
+                "income_source.value": {"$in": incometype_id_list},
+                "deleted_at": None
+            }
+        },
+
+        # Step 2: Lookup to join income_source collection to get the name (label)
+        {
+            "$lookup": {
+                "from": "income_source_types",                # The collection to join
+                "localField": "income_source.value",    # Field from the current collection
+                "foreignField": "_id",              # Field from the income_source collection
+                "as": "income_source_info"                   # Resulting array field for joined data
+            }
+        },
+
+        # Step 3: Unwind the income_source_info array to flatten it
+        {"$unwind": "$income_source_info"},
+
+        # Step 4: Group by income_source.value and count occurrences, include income_source name
+        {
+            "$group": {
+                "_id": "$income_source.value",          # Group by income_source.value
+                "count": {"$sum": 1},               # Count occurrences per bill type
+                "balance": {"$sum": "$monthly_gross_income"},  # Sum balance and monthly_interest
+                "name": {"$first": "$income_source_info.name"}  # Get the first name (label)
+            }
+        },
+
+        # Step 5: Calculate the total count and total balance by summing up all the individual counts and balances
+        {
+            "$group": {
+                "_id": None,                        # No specific grouping field, aggregate the entire collection
+                "total_count": {"$sum": "$count"},  # Sum all the 'count' values from the grouped results
+                "total_balance": {"$sum": "$balance"},  # Sum the already calculated balance (which includes balance and monthly_interest)
+                "grouped_results": {"$push": "$$ROOT"}  # Preserve all grouped results in an array
+            }
+        },
+
+        # Step 6: Use $project to format the output
+        {
+            "$project": {
+                "_id": 0,                           # Remove the _id field
+                "total_count": 1,                   # Include the total count
+                "total_balance": 1,                 # Include the total balance
+                "grouped_results": 1                # Include the grouped results
+            }
+        }
+    ]
+
+    # Perform the aggregation
+    income_source_type_all = list(collection.aggregate(pipeline))
+
+    income_source_type_counts = income_source_type_all[0]['grouped_results'] if income_source_type_all else []
+    total_income_source_type = income_source_type_all[0]['total_count'] if income_source_type_all else 0
+    total_balance = income_source_type_all[0]['total_balance'] if income_source_type_all else 0
+    if len(income_source_type_counts) > 0:
+        data_json = MongoJSONEncoder().encode(income_source_type_counts)
+        income_source_type_counts = json.loads(data_json)
+
+     # Fetch bill type names
+    income_source_types = my_col('income_source_types').find({'_id': {'$in': incometype_id_list}})    
+    income_source_type_names = {str(d['_id']): d['name'] for d in income_source_types}
+
+    twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    
+
+    # Define the aggregation pipeline
+    pipeline = [
+    # Step 1: Match documents with pay_date in the last 12 months and not deleted
+    {
+        "$match": {
+            "pay_date": {"$gte": twelve_months_ago},
+            "deleted_at": None
+        }
+    },
+    
+    # Step 2: Project to extract year and month from pay_date
+    {
+        "$project": {
+            "monthly_gross_income": 1,
+            "year_month": {
+                "$dateToString": {
+                    "format": "%Y-%m",
+                    "date": "$pay_date"
+                }
+            },
+            "year_month_word":{
+                "$dateToString": {
+                    "format": "%b, %Y",
+                    "date": "$pay_date"
+                }
+            }
+        }
+    },
+
+    # Step 3: Group by year_month and sum the balance
+    {
+        "$group": {
+            "_id": "$year_month",  # Group by the formatted month-year
+            "total_balance": {"$sum": "$monthly_gross_income"},
+            "year_month_word": {"$first": "$year_month_word"}  # Include the readable format
+        }
+    },
+
+    
+    
+    # Step 4: Optionally, sort by year_month
+    {
+        "$sort": {
+            "_id": 1  # Sort in ascending order of year_month
+        }
+    },
+
+
+    # Step 5: Calculate the total count and total balance
+    {
+        "$group": {
+            "_id": None,                        # No specific grouping field, aggregate the entire collection
+            "total_count": {"$sum": 1},        # Count the number of months (or documents)
+            "total_balance": {"$sum": "$total_balance"},  # Sum all the 'total_balance' values from the grouped results
+            "grouped_results": {"$push": {  # Preserve all grouped results in an array
+                "year_month": "$_id",
+                "year_month_word": "$year_month_word",
+                "total_balance": "$total_balance"
+            }}
+        }
+    }
+]
+    
+    year_month_wise_all = list(collection.aggregate(pipeline))
+
+    return jsonify({
+        "payLoads":{            
+            "income_source_type_counts":income_source_type_counts,
+            "total_income_source_type":total_income_source_type,
+            "total_balance":total_balance,
+            "income_source_type_names":income_source_type_names            
+        }        
+    })
