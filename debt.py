@@ -485,14 +485,14 @@ def get_typewise_dept_info():
     }
     debt_type_balances = {}
 
-    min_start_date_doc = debt_accounts.find_one(sort=[('start_date', 1)])
+    # min_start_date_doc = debt_accounts.find_one(sort=[('start_date', 1)])
     
-    if min_start_date_doc:
-        start_date = convertDateTostring(min_start_date_doc['start_date'],'%b %Y')
-    else:
-        start_date = convertDateTostring(datetime.now(),'%b %Y')
+    # if min_start_date_doc:
+    #     start_date = convertDateTostring(min_start_date_doc['start_date'],'%b %Y')
+    # else:
+    #     start_date = convertDateTostring(datetime.now(),'%b %Y')
 
-
+    start_date = convertDateTostring(datetime.now(),'%b %Y')
     print('Minimum',start_date)
 
     

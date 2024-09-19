@@ -821,3 +821,95 @@ def pay_bill_transaction():
                     "result":result
                 })
 
+
+
+
+bill_types_collection = my_col('bill_type')
+@app.route('/api/bill-typewise-info', methods=['GET'])
+def get_typewise_bill_info():
+    # Fetch the bill type cursor
+    bill_type_cursor = bill_types_collection.find(
+        {"deleted_at": None},
+        {'_id': 1, 'name': 1, 'parent': 1}
+    )
+
+    # Create a list of _id values
+    billtype_id_list = [item['_id'] for item in bill_type_cursor]
+
+    pipeline = [
+        # Step 1: Match documents with bill_type.value in billtype_id_list
+        {
+            "$match": {
+                "bill_type.value": {"$in": billtype_id_list},
+                "deleted_at": None
+            }
+        },
+
+        # Step 2: Lookup to join bill_type collection to get the name (label)
+        {
+            "$lookup": {
+                "from": "bill_type",                # The collection to join
+                "localField": "bill_type.value",    # Field from the current collection
+                "foreignField": "_id",              # Field from the bill_type collection
+                "as": "bill_info"                   # Resulting array field for joined data
+            }
+        },
+
+        # Step 3: Unwind the bill_info array to flatten it
+        {"$unwind": "$bill_info"},
+
+        # Step 4: Group by bill_type.value and count occurrences, include bill_type name
+        {
+            "$group": {
+                "_id": "$bill_type.value",          # Group by bill_type.value
+                "count": {"$sum": 1},               # Count occurrences per bill type
+                "balance": {"$sum": "$current_amount"},  # Sum balance and monthly_interest
+                "name": {"$first": "$bill_info.name"}  # Get the first name (label)
+            }
+        },
+
+        # Step 5: Calculate the total count and total balance by summing up all the individual counts and balances
+        {
+            "$group": {
+                "_id": None,                        # No specific grouping field, aggregate the entire collection
+                "total_count": {"$sum": "$count"},  # Sum all the 'count' values from the grouped results
+                "total_balance": {"$sum": "$balance"},  # Sum the already calculated balance (which includes balance and monthly_interest)
+                "grouped_results": {"$push": "$$ROOT"}  # Preserve all grouped results in an array
+            }
+        },
+
+        # Step 6: Use $project to format the output
+        {
+            "$project": {
+                "_id": 0,                           # Remove the _id field
+                "total_count": 1,                   # Include the total count
+                "total_balance": 1,                 # Include the total balance
+                "grouped_results": 1                # Include the grouped results
+            }
+        }
+    ]
+
+
+    # Perform the aggregation
+    bill_type_bill_all = list(bill_accounts.aggregate(pipeline))
+
+    bill_type_bill_counts = bill_type_bill_all[0]['grouped_results'] if bill_type_bill_all else []
+    total_dept_type = bill_type_bill_all[0]['total_count'] if bill_type_bill_all else 0
+    total_balance = bill_type_bill_all[0]['total_balance'] if bill_type_bill_all else 0
+    if len(bill_type_bill_counts) > 0:
+        data_json = MongoJSONEncoder().encode(bill_type_bill_counts)
+        bill_type_bill_counts = json.loads(data_json)
+
+     # Fetch bill type names
+    bill_types = bill_types_collection.find({'_id': {'$in': billtype_id_list}})    
+    bill_type_names = {str(d['_id']): d['name'] for d in bill_types}
+    #print(bill_type_names)
+
+    return jsonify({
+        "payLoads":{            
+            "bill_type_bill_counts":bill_type_bill_counts,
+            "total_dept_type":total_dept_type,
+            "total_balance":total_balance,
+            "bill_type_names":bill_type_names            
+        }        
+    })
