@@ -495,7 +495,7 @@ def get_typewise_income_info():
     
 
     # Define the aggregation pipeline
-    pipeline = [
+    """ pipeline = [
     # Step 1: Match documents with pay_date in the last 12 months and not deleted
     {
         "$match": {
@@ -557,7 +557,7 @@ def get_typewise_income_info():
     }
 ]
     
-    year_month_wise_all = list(collection.aggregate(pipeline))
+    year_month_wise_all = list(collection.aggregate(pipeline)) """
 
     return jsonify({
         "payLoads":{            
