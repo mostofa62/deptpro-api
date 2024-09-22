@@ -495,7 +495,7 @@ def get_typewise_income_info():
     
 
     # Define the aggregation pipeline
-    """ pipeline = [
+    pipeline = [
     # Step 1: Match documents with pay_date in the last 12 months and not deleted
     {
         "$match": {
@@ -507,7 +507,7 @@ def get_typewise_income_info():
     # Step 2: Project to extract year and month from pay_date
     {
         "$project": {
-            "monthly_gross_income": 1,
+            "monthly_net_income": 1,
             "year_month": {
                 "$dateToString": {
                     "format": "%Y-%m",
@@ -527,7 +527,8 @@ def get_typewise_income_info():
     {
         "$group": {
             "_id": "$year_month",  # Group by the formatted month-year
-            "total_balance": {"$sum": "$monthly_gross_income"},
+            "total_balance": {"$sum": "$monthly_net_income"},
+            "total_balance_gross": {"$sum": "$monthly_gross_income"},
             "year_month_word": {"$first": "$year_month_word"}  # Include the readable format
         }
     },
@@ -546,24 +547,46 @@ def get_typewise_income_info():
     {
         "$group": {
             "_id": None,                        # No specific grouping field, aggregate the entire collection
-            "total_count": {"$sum": 1},        # Count the number of months (or documents)
+            #"total_count": {"$sum": 1},        # Count the number of months (or documents)
             "total_balance": {"$sum": "$total_balance"},  # Sum all the 'total_balance' values from the grouped results
+            "total_balance_gross": {"$sum": "$total_balance_gross"},
             "grouped_results": {"$push": {  # Preserve all grouped results in an array
                 "year_month": "$_id",
                 "year_month_word": "$year_month_word",
                 "total_balance": "$total_balance"
             }}
         }
+    },
+
+    # Step 6: Use $project to format the output
+    {
+        "$project": {
+            "_id": 0,                           # Remove the _id field
+            #"total_count": 1,                   # Include the total count
+            "total_balance": 1,                 # Include the total balance
+            "grouped_results": 1                # Include the grouped results
+        }
     }
 ]
     
-    year_month_wise_all = list(collection.aggregate(pipeline)) """
+    year_month_wise_all = list(collection.aggregate(pipeline))
+
+    year_month_wise_counts = year_month_wise_all[0]['grouped_results'] if year_month_wise_all else []
+    #year_month_wise_type_t_count= year_month_wise_all[0]['total_count'] if year_month_wise_all else 0
+    year_month_wise_balance = year_month_wise_all[0]['total_balance'] if year_month_wise_all else 0
+    if len(year_month_wise_counts) > 0:
+        data_json = MongoJSONEncoder().encode(year_month_wise_counts)
+        year_month_wise_counts = json.loads(data_json)
 
     return jsonify({
         "payLoads":{            
             "income_source_type_counts":income_source_type_counts,
             "total_income_source_type":total_income_source_type,
             "total_balance":total_balance,
-            "income_source_type_names":income_source_type_names            
+            "income_source_type_names":income_source_type_names,
+            "year_month_wise_counts":year_month_wise_counts,
+            "year_month_wise_balance":year_month_wise_balance
+
+
         }        
     })

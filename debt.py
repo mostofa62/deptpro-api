@@ -1225,7 +1225,7 @@ def save_user_settings():
                 "user_id" :ObjectId(user_id)
             }
 
-            update_document = {'$set': {'monthly_budget': float(data['monthly_budget']), 'debt_payoff_method': data['debt_payoff_method']}} 
+            update_document = {'$set': {'minimum_payments': float(data['minimum_payments']),'monthly_budget': float(data['monthly_budget']), 'debt_payoff_method': data['debt_payoff_method']}} 
 
             user_settings = usersetting.update_one(filter_query, update_document, upsert=True)
             if user_settings.upserted_id:
