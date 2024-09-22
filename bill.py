@@ -734,12 +734,12 @@ def delete_bill_transaction(accntid:str):
 
 #payment
 
-@app.route("/api/pay-bill", methods=['POST'])
-def pay_bill_transaction():
+@app.route("/api/pay-bill/<string:accntid>", methods=['POST'])
+def pay_bill_transaction(accntid:str):
     if request.method == 'POST':
         data = json.loads(request.data)
         bill_trans_id = data['trans_id']
-        bill_account_id = None
+        bill_account_id = accntid
         trans_payment_id = None
         message = ''
         result = 0
@@ -757,7 +757,8 @@ def pay_bill_transaction():
                         'pay_date':pay_date,                                                                              
                         "created_at":datetime.now(),
                         "updated_at":datetime.now(),                        
-                        "bill_trans_id":ObjectId(bill_trans_id),                        
+                        "bill_trans_id":ObjectId(bill_trans_id),
+                        "bill_account_id":ObjectId(bill_account_id),                        
                         "deleted_at":None
                     },session=session)
 
@@ -774,10 +775,10 @@ def pay_bill_transaction():
                     #check previous 
                     previous_amount  = int(bill_transactions_row['amount'])
 
-                    payment_status =  0 if amount <= previous_amount else 1
+                    payment_status =  0 if amount < previous_amount else 1
                     
 
-                    bill_account_id = str(bill_transactions_row['bill_acc_id'])
+                    #bill_account_id = str(bill_transactions_row['bill_acc_id'])
 
                     newvalues = { "$set": {   
                         "payment_status":payment_status,

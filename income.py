@@ -492,10 +492,12 @@ def get_typewise_income_info():
 
     twelve_months_ago = datetime.now() - timedelta(days=365)
 
+    print(twelve_months_ago)
+
     
 
     # Define the aggregation pipeline
-    pipeline = [
+    """ pipeline = [
     # Step 1: Match documents with pay_date in the last 12 months and not deleted
     {
         "$match": {
@@ -567,7 +569,118 @@ def get_typewise_income_info():
             "grouped_results": 1                # Include the grouped results
         }
     }
+] """
+    
+
+    pipeline = [
+    # Step 1: Match documents with pay_date in the last 12 months and not deleted
+    {
+        "$match": {
+            "pay_date": {"$gte": twelve_months_ago},
+            "deleted_at": None
+        }
+    },
+    
+    # Step 2: Project to extract year and month from pay_date
+    {
+        "$project": {
+            "monthly_net_income": 1,
+            "monthly_gross_income": 1,
+            "year_month": {
+                "$dateToString": {
+                    "format": "%Y-%m",  # Format as "YYYY-MM"
+                    "date": "$pay_date"
+                }
+            },
+            "month": {
+                "$dateToString": {
+                    "format": "%m",  # Extract the month number (01-12)
+                    "date": "$pay_date"
+                }
+            },
+            "year": {
+                "$dateToString": {
+                    "format": "%Y",  # Extract the year
+                    "date": "$pay_date"
+                }
+            }
+        }
+    },
+
+    # Step 3: Group by year_month and sum the balance
+    {
+        "$group": {
+            "_id": "$year_month",  # Group by the formatted month-year
+            "total_balance": {"$sum": "$monthly_net_income"},
+            "total_balance_gross": {"$sum": "$monthly_gross_income"},
+            "year": {"$first": "$year"},  # Include the year
+            "month": {"$first": "$month"}   # Include the month
+        }
+    },
+
+    # Step 4: Create the formatted year_month_word
+    {
+        "$project": {
+            "_id": 1,
+            "total_balance": 1,
+            "total_balance_gross":1,
+            "year_month_word": {
+                "$concat": [
+                    {"$substr": [
+                        {"$arrayElemAt": [
+                            ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+                            {"$toInt": "$month"}  # Convert month string to integer
+                        ]}, 0, 3  # Get the first 3 letters of the month
+                    ]},
+                    ", ",
+                    "$year"  # Append the year
+                ]
+            }
+        }
+    },
+
+    # Step 5: Optionally, sort by year_month
+    {
+        "$sort": {
+            "_id": 1  # Sort in ascending order of year_month
+        }
+    },
+
+    # Step 6: Limit to 12 rows
+    {
+        "$limit": 12  # Limit the output to the most recent 12 months
+    },
+
+    # Step 7: Calculate the total count and total balance
+    {
+        "$group": {
+            "_id": None,  # No specific grouping field, aggregate the entire collection
+            "total_count": {"$sum": 1},  # Count the number of months (or documents)
+            "total_balance": {"$sum": "$total_balance"},  # Sum all the 'total_balance' values from the grouped results
+            "total_balance_gross": {"$sum": "$total_balance_gross"},
+            "grouped_results": {"$push": {  # Preserve all grouped results in an array
+                "year_month": "$_id",
+                "year_month_word": "$year_month_word",
+                "total_balance": "$total_balance",
+                "total_balance_gross":"$total_balance_gross"
+            }}
+        }
+    },
+
+    # Step 8: Use $project to format the output
+    {
+        "$project": {
+            "_id": 0,                           # Remove the _id field
+            #"total_count": 1,                   # Include the total count
+            "total_balance": 1,
+            "total_balance_gross":1,                 # Include the total balance
+            "grouped_results": 1                # Include the grouped results
+        }
+    }
+    
 ]
+    
+    
     
     year_month_wise_all = list(collection.aggregate(pipeline))
 
