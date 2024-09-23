@@ -12,11 +12,11 @@ from datetime import datetime,timedelta
 
 RepeatFrequency = [
         {'label':'Daily','value':1},
-        {'label':'Weekly','value':2},
-        {'label':'BiWeekly','value':3},
-        {'label':'Monthly','value':4},
-        {'label': 'Quarterly', 'value': 5},
-        {'label':'Annual','value':6}           
+        {'label':'Weekly','value':7},
+        {'label':'BiWeekly','value':14},
+        {'label':'Monthly','value':30},
+        {'label': 'Quarterly', 'value': 90},
+        {'label':'Annually','value':365}           
 ]
 
 @app.route("/api/incomesourceboost-dropdown/<string:user_id>", methods=['GET'])

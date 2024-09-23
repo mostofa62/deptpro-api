@@ -139,6 +139,16 @@ def get_bill_summary(accntid:str):
         "monthTransaction":monthTransaction,        
     })
 
+@app.route('/api/billutils',methods=['GET'])
+def get_bill_utils():
+
+    return jsonify({        
+        "repeat_count":repeat_count,
+        "repeat_frequency":repeat_frequency,
+        "reminder_days":reminder_days
+    })
+
+
 @app.route('/api/bill/<string:accntid>', methods=['GET'])
 def get_bill(accntid:str):
 
@@ -473,8 +483,8 @@ def save_bill_account():
                     autopay = int(data['autopay']) if 'autopay' in data else 0
                     repeat=int(data['repeat']) if 'repeat' in data else 0
                     repeat_count = 0
-                    repeat_frequency = 0
-                    reminder_days = 0
+                    repeat_frequency = int(data['repeat_frequency']['value'])
+                    reminder_days = int(data['reminder_days']['value'])
 
                     next_due_date = datetime.strptime(data['next_due_date'],"%Y-%m-%d")
                     #create bill account
@@ -482,7 +492,8 @@ def save_bill_account():
                         'name':data['name'],
                         'bill_type':{
                         'value':ObjectId(data['bill_type']['value'])
-                        }, 
+                        },
+                        'payor':data['payor'],  
                         'default_amount':amount,
                         'current_amount':amount, 
                         'next_due_date':next_due_date,
@@ -571,7 +582,8 @@ def update_bill(accntid:str):
             newvalues = { "$set": {
                 'bill_type':{
                     'value':ObjectId(data['bill_type']['value'])
-                },                   
+                },
+                'payor':data['payor'],                    
                 'default_amount':amount,                            
                 'repeat':repeat, 
                 'repeat_count':repeat_count,

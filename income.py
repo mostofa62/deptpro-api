@@ -71,6 +71,48 @@ def delete_income():
             "deleted_done":deleted_done
         })
 
+
+@app.route("/api/income-all/<string:id>", methods=['GET'])
+def get_income_all(id:str):
+    income = collection.find_one(
+        {"_id":ObjectId(id)},
+        {"_id":0}
+        )
+    
+    income['pay_date_word'] = income['pay_date'].strftime('%d %b, %Y')
+    income['pay_date'] = convertDateTostring(income['pay_date'],"%Y-%m-%d")
+    income['pay_date_boost_word'] = income['pay_date_boost'].strftime('%d %b, %Y')
+    income['pay_date_boost'] = convertDateTostring(income['pay_date_boost'],"%Y-%m-%d")
+    income['user_id'] = str(income['user_id'])
+
+    
+    income_source_type = my_col('income_source_types').find_one(
+        {"_id":income['income_source']['value']},
+        {"_id":0,"name":1}
+        )
+    
+    
+    income['income_source'] = income_source_type['name']
+
+    income['repeat'] = income['repeat']['label']
+    income['repeat_boost'] = income['repeat_boost']['label']
+
+    if income['income_boost_source']!=None:
+        income_boost_type = my_col('income_boost_types').find_one(
+            {"_id":income['income_boost_source']['value']},
+            {"_id":0,"name":1}
+            )
+        
+        
+        income['income_boost_source'] = income_boost_type['name']
+    
+
+    return jsonify({
+        "payLoads":{
+            "income":income
+        }
+    })
+
 @app.route("/api/income/<string:id>", methods=['GET'])
 def view_incomes(id:str):
     income = collection.find_one(
@@ -284,6 +326,30 @@ async def update_income(id:str):
         result = 0
         try:
 
+            monthly_net_income = float(data.get("monthly_net_income", 0))
+            monthly_gross_income = float(data.get("monthly_gross_income", 0))
+            income_boost = float(data.get("income_boost", 0))
+            repeat = data['repeat']
+            repeat_boost = data['repeat_boost']
+
+            # Get the number of months to calculate over (default to 12 months for a year)
+            months = int(request.args.get('months', 12))
+
+            # Calculate the total income immediately
+            total_gross_income = calculate_total_income_with_repeat(
+                monthly_gross_income,
+                income_boost,
+                repeat,
+                repeat_boost,
+                days=months * 30  # Convert months to days for calculation
+            )
+
+            deductions = data.get('deductions', 0)
+
+            # Calculate the net income including the income boost
+            total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+
+
             
 
             pay_date = convertStringTodate(data['pay_date'])
@@ -298,9 +364,12 @@ async def update_income(id:str):
 
                 'user_id':ObjectId(user_id),
 
-                'monthly_net_income':float(data.get("monthly_net_income", 0)),
-                'monthly_gross_income':float(data.get("monthly_gross_income", 0)),
-                
+                'monthly_net_income':monthly_net_income,
+                'monthly_gross_income':monthly_gross_income,
+                'income_boost':income_boost,
+
+                'total_gross_income':total_gross_income,
+                'total_net_income':total_net_income,
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
@@ -357,6 +426,29 @@ async def save_income():
         result = 0
         try:
 
+            monthly_net_income = float(data.get("monthly_net_income", 0))
+            monthly_gross_income = float(data.get("monthly_gross_income", 0))
+            income_boost = float(data.get("income_boost", 0))
+            repeat = data['repeat']
+            repeat_boost = data['repeat_boost']
+
+            # Get the number of months to calculate over (default to 12 months for a year)
+            months = int(request.args.get('months', 12))
+
+            # Calculate the total income immediately
+            total_gross_income = calculate_total_income_with_repeat(
+                monthly_gross_income,
+                income_boost,
+                repeat,
+                repeat_boost,
+                days=months * 30  # Convert months to days for calculation
+            )
+
+            deductions = data.get('deductions', 0)
+
+            # Calculate the net income including the income boost
+            total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+
             
 
             pay_date = convertStringTodate(data['pay_date'])
@@ -370,8 +462,12 @@ async def save_income():
 
                 'user_id':ObjectId(user_id),
 
-                'monthly_net_income':float(data.get("monthly_net_income", 0)),
-                'monthly_gross_income':float(data.get("monthly_gross_income", 0)),
+                'monthly_net_income':monthly_net_income,
+                'monthly_gross_income':monthly_gross_income,
+                'income_boost':income_boost,
+
+                'total_gross_income':total_gross_income,
+                'total_net_income':total_net_income,
                 
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
@@ -629,7 +725,7 @@ def get_typewise_income_info():
                     {"$substr": [
                         {"$arrayElemAt": [
                             ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-                            {"$toInt": "$month"}  # Convert month string to integer
+                            { "$subtract": [{ "$toInt": "$month" }, 1] }  # Convert month string to integer, { "$subtract": [{ "$toInt": "$month" }, 1] }  // Adjust for zero-based index
                         ]}, 0, 3  # Get the first 3 letters of the month
                     ]},
                     ", ",

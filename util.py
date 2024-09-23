@@ -86,3 +86,47 @@ def convertDateTostring(date_obj, format:str="%d %b, %Y"):
         date_string = date_obj.strftime(format)
 
     return date_string
+
+#income modules related
+# Define a mapping from labels to the number of days per interval
+REPEAT_INTERVALS = {
+    'Daily': 1,
+    'Weekly': 7,
+    'BiWeekly': 14,
+    'Monthly': 30,
+    'Quarterly': 90,
+    'Annually': 365,
+    'None': float('inf')  # One-time payments
+}
+
+
+def calculate_total_income_with_repeat(monthly_gross_income, income_boost, repeat, repeat_boost, days=30):
+    """
+    Calculate total income considering repeat and repeat_boost values.
+    - days: The number of days over which to calculate income (e.g., 30 for a month, 365 for a year).
+    """
+    total_gross_income = 0
+    
+    # Get the repeat interval in days for base income and income boost
+    base_repeat_interval = REPEAT_INTERVALS.get(repeat['label'], float('inf'))
+    boost_repeat_interval = REPEAT_INTERVALS.get(repeat_boost['label'], float('inf'))
+    
+    # Apply the base income based on its repeat value
+    if base_repeat_interval < float('inf'):
+        # Recurring income, calculate how many times it repeats in the given period
+        repeat_times = days // base_repeat_interval
+        total_gross_income = monthly_gross_income * repeat_times
+    else:
+        # One-time income, only apply once
+        total_gross_income = monthly_gross_income
+
+    # Apply the income boost based on its repeat_boost value
+    if boost_repeat_interval < float('inf'):
+        # Recurring boost, calculate how many times it repeats in the given period
+        repeat_boost_times = days // boost_repeat_interval
+        total_gross_income += income_boost * repeat_boost_times
+    else:
+        # One-time boost, only apply once
+        total_gross_income += income_boost
+
+    return total_gross_income
