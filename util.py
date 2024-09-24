@@ -100,6 +100,103 @@ REPEAT_INTERVALS = {
 }
 
 
+
+def calculate_total_monthly_gross_income(gross_input, boost, frequency, boost_frequency):
+    """
+    Calculate total monthly gross income based on the gross income, income boost, and their frequency.
+    
+    Parameters:
+    - gross_input: Base income amount (e.g., $2000)
+    - boost: Income boost amount (e.g., $500)
+    - frequency: The interval between base income payments (e.g., 'weekly', 'monthly', 'quarterly', 'annually')
+    - boost_frequency: The interval between boost payments (e.g., 'weekly', 'monthly', 'quarterly', 'annually')
+    
+    Returns:
+    - Total monthly gross income normalized to 30 days.
+    """
+    
+    """ # Frequency to day mapping
+    frequency_to_days = {
+        'daily': 1,
+        'weekly': 7,
+        'biweekly': 14,
+        'monthly': 30,
+        'quarterly': 90,
+        'annually': 365
+    } """
+    
+    # Convert frequency to days
+    frequency_days = REPEAT_INTERVALS.get(frequency)
+    boost_frequency_days = REPEAT_INTERVALS.get(boost_frequency)
+
+    print(frequency_days, boost_frequency_days)
+    
+    # Raise an error if the frequency is not recognized
+    if not frequency_days:
+        raise ValueError(f"Invalid frequency in gross: {frequency}")
+    if not boost_frequency_days:
+        raise ValueError(f"Invalid boost frequency in gross: {boost_frequency}")
+    
+    # Normalize base income to a 30-day period
+    normalized_gross_income = gross_input * (30 / frequency_days)
+    
+    # Normalize boost income to a 30-day period
+    normalized_boost_income = boost * (30 / boost_frequency_days)
+    
+    # Total monthly gross income
+    total_monthly_gross_income = normalized_gross_income + normalized_boost_income
+    
+    return total_monthly_gross_income
+
+def calculate_total_monthly_net_income(net_input, boost, frequency, boost_frequency):
+    """
+    Calculate total monthly net income based on the net income, income boost, and their frequency.
+    
+    Parameters:
+    - net_input: Base net income amount (e.g., $2000 after taxes/deductions)
+    - boost: Income boost amount (e.g., $500 as a bonus or extra payment)
+    - frequency: The interval between base net income payments (e.g., 'weekly', 'monthly', 'quarterly', 'annually')
+    - boost_frequency: The interval between boost payments (e.g., 'weekly', 'monthly', 'quarterly', 'annually')
+    
+    Returns:
+    - Total monthly net income normalized to 30 days.
+    """
+    
+    # Frequency to day mapping
+    """ frequency_to_days = {
+        'daily': 1,
+        'weekly': 7,
+        'biweekly': 14,
+        'monthly': 30,
+        'quarterly': 90,
+        'annually': 365
+    } """
+    
+    # Convert frequency to days
+    frequency_days = REPEAT_INTERVALS.get(frequency)
+    boost_frequency_days = REPEAT_INTERVALS.get(boost_frequency)
+    
+    # Raise an error if the frequency is not recognized
+    if not frequency_days:
+        raise ValueError(f"Invalid frequency in net: {frequency}")
+    if not boost_frequency_days:
+        raise ValueError(f"Invalid boost frequency in net: {boost_frequency}")
+    
+    # Normalize base net income to a 30-day period
+    normalized_net_income = net_input * (30 / frequency_days)
+    
+    # Normalize boost income to a 30-day period
+    normalized_boost_income = boost * (30 / boost_frequency_days)
+    
+    # Total monthly net income
+    total_monthly_net_income = normalized_net_income + normalized_boost_income
+    
+    return total_monthly_net_income
+
+
+
+
+
 def calculate_total_income_with_repeat(monthly_gross_income, income_boost, repeat, repeat_boost, days=30):
     """
     Calculate total income considering repeat and repeat_boost values.

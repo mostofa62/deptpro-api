@@ -926,3 +926,97 @@ def get_typewise_bill_info():
             "bill_type_names":bill_type_names            
         }        
     })
+
+
+
+
+
+
+@app.route('/api/bill-all/<string:accntid>', methods=['GET'])
+def get_bill_all(accntid:str):
+    
+    billaccounts = bill_accounts.find_one(
+        {"_id":ObjectId(accntid)},
+        {
+        "_id":0,
+        'user_id':0,
+        'latest_transaction_id':0        
+        }        
+        )
+    
+    bill_type = my_col('bill_type').find_one(
+        {"_id":billaccounts['bill_type']['value']},
+        {"_id":0,"name":1}
+        )
+    
+    #billaccounts['bill_type']['value'] = str(billaccounts['bill_type']['value'])
+    #billaccounts['bill_type']['label'] = bill_type['name']
+    billaccounts['bill_type'] = bill_type['name']
+    billaccounts['next_due_date_word'] = billaccounts['next_due_date'].strftime('%d %b, %Y')
+    billaccounts['next_due_date'] = billaccounts['next_due_date'].strftime('%Y-%m-%d')    
+        
+
+    billaccounts['default_amount'] = round(billaccounts['default_amount'],2)
+    billaccounts['current_amount'] = round(billaccounts['current_amount'],2)
+    
+
+    key_to_search = 'value'
+    value_to_search = int(billaccounts['reminder_days'])
+    matching_dicts = next((dictionary for dictionary in reminder_days if dictionary.get(key_to_search) == value_to_search),None)    
+    
+    # billaccounts['reminder_days'] = {
+    #     'value':value_to_search,
+    #     'label':matching_dicts['label']
+    # }
+
+    billaccounts['reminder_days'] = matching_dicts['label']
+
+    billaccounts['autopay'] = 'Yes'  if billaccounts['autopay'] > 0 else 'No'
+    billaccounts['repeat'] = 'Yes'  if billaccounts['repeat'] > 0 else 'No'
+
+
+    key_to_search = 'value'
+    value_to_search = int(billaccounts['repeat_frequency'])
+    matching_dicts = next((dictionary for dictionary in repeat_frequency if dictionary.get(key_to_search) == value_to_search),None)    
+    
+    billaccounts['repeat_frequency'] = matching_dicts['label']    
+
+    twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    query = {
+        #'role':{'$gte':10}
+        "bill_account_id":ObjectId(accntid),
+        "pay_date": {"$gte": twelve_months_ago},
+        "deleted_at":None
+    }
+    cursor = bill_payment.find(query,{
+        '_id':0,
+        'pay_date':1,        
+        'amount':1,        
+    })
+
+    data_list = []
+    for todo in cursor:
+        #print(todo)
+        
+
+        #todo['billing_month_year'] = f"{todo['month']}, {todo['year']}"
+        todo['pay_date_word'] = todo['pay_date'].strftime('%d %b, %Y')
+        todo['pay_date'] = todo['pay_date'].strftime('%Y-%m-%d')        
+        todo['amount'] = round(todo['amount'],2)              
+        data_list.append(todo)
+
+    #total_count = bill_payments.count_documents(query)
+    #data_list = list(cursor)
+    data_json = MongoJSONEncoder().encode(data_list)
+    data_obj = json.loads(data_json)
+
+    #print(data_obj)
+    
+
+    return jsonify({
+        "payLoads":{
+            "billaccounts":billaccounts,
+            "billpayments":data_obj,                           
+        }        
+    })

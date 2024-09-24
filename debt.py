@@ -677,7 +677,7 @@ def get_dept_all(accntid:str):
     query = {
         #'role':{'$gte':10}
         "debt_acc_id":ObjectId(accntid),
-        "created_at": {"$gte": twelve_months_ago},
+        "trans_date": {"$gte": twelve_months_ago},
         "deleted_at":None
     }
     cursor = debt_transactions.find(query,{

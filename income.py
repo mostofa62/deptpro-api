@@ -336,18 +336,34 @@ async def update_income(id:str):
             months = int(request.args.get('months', 12))
 
             # Calculate the total income immediately
-            total_gross_income = calculate_total_income_with_repeat(
+            """ total_gross_income = calculate_total_income_with_repeat(
                 monthly_gross_income,
                 income_boost,
                 repeat,
                 repeat_boost,
                 days=months * 30  # Convert months to days for calculation
+            ) """
+
+            total_gross_income = calculate_total_monthly_gross_income(
+                monthly_gross_income,
+                income_boost,
+                repeat['label'],
+                repeat_boost['label']                
             )
 
-            deductions = data.get('deductions', 0)
 
-            # Calculate the net income including the income boost
-            total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+
+            # deductions = data.get('deductions', 0)
+
+            # # Calculate the net income including the income boost
+            # total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+
+            total_net_income = calculate_total_monthly_net_income(
+                monthly_net_income,
+                income_boost,
+                repeat['label'],
+                repeat_boost['label']                
+            )
 
 
             
@@ -368,8 +384,8 @@ async def update_income(id:str):
                 'monthly_gross_income':monthly_gross_income,
                 'income_boost':income_boost,
 
-                'total_gross_income':total_gross_income,
-                'total_net_income':total_net_income,
+                'total_gross_income':round(total_gross_income,2),
+                'total_net_income':round(total_net_income,2),
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
@@ -436,18 +452,33 @@ async def save_income():
             months = int(request.args.get('months', 12))
 
             # Calculate the total income immediately
-            total_gross_income = calculate_total_income_with_repeat(
+            """ total_gross_income = calculate_total_income_with_repeat(
                 monthly_gross_income,
                 income_boost,
                 repeat,
                 repeat_boost,
                 days=months * 30  # Convert months to days for calculation
+            ) """
+
+
+            total_gross_income = calculate_total_monthly_gross_income(
+                monthly_gross_income,
+                income_boost,
+                repeat['label'],
+                repeat_boost['label']                
             )
 
-            deductions = data.get('deductions', 0)
+            #deductions = data.get('deductions', 0)
 
             # Calculate the net income including the income boost
-            total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+            #total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+
+            total_net_income = calculate_total_monthly_net_income(
+                monthly_net_income,
+                income_boost,
+                repeat['label'],
+                repeat_boost['label']                
+            )
 
             
 
@@ -466,8 +497,8 @@ async def save_income():
                 'monthly_gross_income':monthly_gross_income,
                 'income_boost':income_boost,
 
-                'total_gross_income':total_gross_income,
-                'total_net_income':total_net_income,
+                'total_gross_income':round(total_gross_income,2),
+                'total_net_income':round(total_net_income,2),
                 
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
