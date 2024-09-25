@@ -427,6 +427,71 @@ async def update_income(id:str):
     
 
 
+def newIncomeAccountsTransactions(income_data):
+    today = datetime.today()    
+    monthly_gross_income = income_data['monthly_gross_income']
+    monthly_net_income = income_data['monthly_net_income']
+    first_pay_date = income_data['pay_date']
+    base_income_frequency = income_data['repeat']  # Can be monthly, quarterly, annually
+    boost_amount = income_data['income_boost']
+    boost_frequency = income_data['repeat_boost']
+    pay_date_boost = income_data['pay_date_boost']
+    income_id = income_data['income_id']
+
+    
+
+
+    total_gross_income = 0
+    total_net_income = 0
+    income_details = []
+    current_date = first_pay_date
+
+    #print(base_income_frequency, boost_frequency)
+    #month_count =  calculate_income_month_count(first_pay_date)
+    #print('month counted',month_count)
+    while current_date <= today:
+    # for month in range(month_count):
+        #current_month = first_pay_date + timedelta(days=30 * month)
+
+        #print('current month',current_month, 'month',month)
+
+    #while current_date <= today:
+        base_gross_income = monthly_gross_income
+        base_net_income = monthly_net_income
+        
+        boost = 0
+        if boost_frequency:
+            boost = calculate_boost(current_date, first_pay_date, boost_frequency, boost_amount)
+
+        total_gross_for_period = base_gross_income + boost
+        total_net_for_period = base_net_income + boost
+        total_gross_income += total_gross_for_period
+        total_net_income += total_net_for_period
+
+        # Append details for the current period
+        income_details.append({
+            "period_start_word": current_date.strftime("%b, %Y"),
+            "period_start": current_date.strftime("%Y-%m"),
+            "creation_date":current_date,
+            "base_gross_income": base_gross_income,
+            "base_net_income": base_net_income,
+            "boost": boost,
+            "boost_amount":boost_amount,
+            "total_gross_for_period": total_gross_for_period,
+            'total_net_for_period':total_net_for_period,            
+            "income_id":ObjectId(income_id),
+            "created_at":datetime.now()
+        })
+        
+
+        # Move to the next period based on base income frequency
+        current_date = add_time(current_date, base_income_frequency)
+
+    return {
+        'income_details':income_details,
+        'total_net_income':total_net_income,
+        'total_gross_income':total_gross_income
+    }
 
 
 
@@ -440,94 +505,102 @@ async def save_income():
         income_id = None
         message = ''
         result = 0
-        try:
+        with client.start_session() as session:
+            with session.start_transaction():
+                try:
 
-            monthly_net_income = float(data.get("monthly_net_income", 0))
-            monthly_gross_income = float(data.get("monthly_gross_income", 0))
-            income_boost = float(data.get("income_boost", 0))
-            repeat = data['repeat']
-            repeat_boost = data['repeat_boost']
-
-            # Get the number of months to calculate over (default to 12 months for a year)
-            months = int(request.args.get('months', 12))
-
-            # Calculate the total income immediately
-            """ total_gross_income = calculate_total_income_with_repeat(
-                monthly_gross_income,
-                income_boost,
-                repeat,
-                repeat_boost,
-                days=months * 30  # Convert months to days for calculation
-            ) """
+                    monthly_net_income = float(data.get("monthly_net_income", 0))
+                    monthly_gross_income = float(data.get("monthly_gross_income", 0))
+                    income_boost = float(data.get("income_boost", 0))
+                    repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+                    repeat_boost = data['repeat_boost']['value'] if data['repeat_boost']['value'] > 0 else None
 
 
-            total_gross_income = calculate_total_monthly_gross_income(
-                monthly_gross_income,
-                income_boost,
-                repeat['label'],
-                repeat_boost['label']                
-            )
+                    total_gross_income = 0
+                    total_net_income = 0
 
-            #deductions = data.get('deductions', 0)
+                    pay_date = convertStringTodate(data['pay_date'])
+                    pay_date_boost = convertStringTodate(data['pay_date_boost'])                        
+                    next_pay_date = calculate_next_payment(pay_date, data['repeat']['value']) 
+                    next_boost_date = calculate_next_payment(pay_date_boost, data['repeat_boost']['value'])            
 
-            # Calculate the net income including the income boost
-            #total_net_income = total_gross_income - (deductions * (months // repeat['value']))
+                    append_data = {
+                        'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
+                        'income_boost_source':newEntryOptionData(data['income_boost_source'],'income_boost_types',user_id),                
 
-            total_net_income = calculate_total_monthly_net_income(
-                monthly_net_income,
-                income_boost,
-                repeat['label'],
-                repeat_boost['label']                
-            )
+                        'user_id':ObjectId(user_id),
 
-            
+                        'monthly_net_income':monthly_net_income,
+                        'monthly_gross_income':monthly_gross_income,
+                        'income_boost':income_boost,
 
-            pay_date = convertStringTodate(data['pay_date'])
-            pay_date_boost = convertStringTodate(data['pay_date_boost'])                        
-            next_pay_date = calculate_next_payment(pay_date, data['repeat']['value']) 
-            next_boost_date = calculate_next_payment(pay_date_boost, data['repeat_boost']['value'])            
+                        'total_gross_income':round(total_gross_income,2),
+                        'total_net_income':round(total_net_income,2),
+                        
+                        "created_at":datetime.now(),
+                        "updated_at":datetime.now(),
+                        "deleted_at":None,
 
-            append_data = {
-                'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
-                'income_boost_source':newEntryOptionData(data['income_boost_source'],'income_boost_types',user_id),                
+                        'pay_date':pay_date,
+                        'pay_date_boost':pay_date_boost,                
+                        'next_pay_date':next_pay_date,
+                        'next_boost_date':next_boost_date                   
+                        
 
-                'user_id':ObjectId(user_id),
+                        
+                    }
+                    #print('data',data)
+                    #print('appendata',append_data)            
 
-                'monthly_net_income':monthly_net_income,
-                'monthly_gross_income':monthly_gross_income,
-                'income_boost':income_boost,
+                    merge_data = data | append_data
 
-                'total_gross_income':round(total_gross_income,2),
-                'total_net_income':round(total_net_income,2),
-                
-                "created_at":datetime.now(),
-                "updated_at":datetime.now(),
-                "deleted_at":None,
+                    #print('mergedata',merge_data)
 
-                'pay_date':pay_date,
-                'pay_date_boost':pay_date_boost,                
-                'next_pay_date':next_pay_date,
-                'next_boost_date':next_boost_date                   
-                
+                    income_data = my_col('income').insert_one(merge_data,session=session)
+                    income_id = str(income_data.inserted_id)
 
-                
-            }
-            #print('data',data)
-            #print('appendata',append_data)            
+                    if repeat:
 
-            merge_data = data | append_data
+                        income_transaction = newIncomeAccountsTransactions({
+                            'monthly_gross_income':monthly_gross_income,
+                            'monthly_net_income':monthly_net_income,
+                            'pay_date':pay_date,
+                            'repeat':repeat,
+                            'income_boost':income_boost,
+                            'repeat_boost':repeat_boost,
+                            'pay_date_boost':pay_date_boost,
+                            'income_id':income_id
 
-            #print('mergedata',merge_data)
+                        })
+                        income_details = income_transaction['income_details']
+                        total_net_income = income_transaction['total_net_income']
+                        total_gross_income = income_transaction['total_gross_income']
+                        
 
-            income_data = my_col('income').insert_one(merge_data)
-            income_id = str(income_data.inserted_id)
-            result = 1 if income_id!=None else 0
-            message = 'Income account added Succefull'
-        except Exception as ex:
-            income_id = None
-            print('Income Save Exception: ',ex)
-            result = 0
-            message = 'Income account addition Failed'
+                        my_col(f"income_transactions").insert_many(income_details,session=session)
+
+                        newvalues = { "$set": {
+                            "total_gross_income":total_gross_income,
+                            "total_net_income":total_net_income,                                                                                                
+                            "updated_at":datetime.now()
+                        } }
+
+                        query = {
+                            "_id" :ObjectId(income_id)
+                        }
+
+                        my_col('income').update_one(query,newvalues,session=session)
+
+
+                    result = 1 if income_id!=None else 0
+                    message = 'Income account added Succefull'
+                    session.commit_transaction()
+                except Exception as ex:
+                    income_id = None
+                    print('Income Save Exception: ',ex)
+                    result = 0
+                    message = 'Income account addition Failed'
+                    session.abort_transaction()
 
         return jsonify({
             "income_id":income_id,

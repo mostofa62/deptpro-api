@@ -3,10 +3,11 @@ import math
 from typing import Any
 from bson.objectid import ObjectId
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 #import enum
 import jwt
+import calendar
 
 JWT_SECRET = os.environ["JWT_SECRET"]
 key = JWT_SECRET
@@ -227,3 +228,58 @@ def calculate_total_income_with_repeat(monthly_gross_income, income_boost, repea
         total_gross_income += income_boost
 
     return total_gross_income
+
+
+
+def calculate_income_month_count(pay_date):
+    today = datetime.today()
+    first_pay_date = pay_date
+
+    month_count = (today.year - first_pay_date.year) * 12 + today.month - first_pay_date.month
+
+    return month_count+1
+
+
+# Helper function to calculate the boost based on frequency
+
+
+def calculate_boost(current_date, first_pay_date, boost_frequency, boost_amount):
+    if boost_frequency == 7:
+        # Calculate if the current date is a multiple of 7 days from the first pay date
+        if (current_date - first_pay_date).days % 7 == 0:
+            return boost_amount
+    elif boost_frequency == 14:
+        # Calculate if the current date is a multiple of 14 days from the first pay date
+        if (current_date - first_pay_date).days % 14 == 0:
+            return boost_amount
+    elif boost_frequency == 30:
+        # Apply boost each month (ignore first month if needed by specific logic)
+        if (current_date.month - first_pay_date.month) % 1 == 0:  # Ensure it's after the first month
+            return boost_amount
+    elif boost_frequency == 90:        
+        # Apply boost every 3 months but skip the first month
+        if (current_date.month - first_pay_date.month) % 3 == 0:            
+            return boost_amount
+    elif boost_frequency == 365:
+        # Apply boost annually, skipping the first year if necessary
+        if (current_date.year - first_pay_date.year) % 1 == 0:
+            return boost_amount
+    return 0
+
+
+# Function to calculate the next payment date based on frequency
+def add_time(current_date, frequency, repeat_count=1):
+    if frequency == 30:
+        month = current_date.month - 1 + repeat_count
+        year = current_date.year + month // 12
+        month = month % 12 + 1
+        day = min(current_date.day, calendar.monthrange(year, month)[1])
+        return current_date.replace(year=year, month=month, day=day)
+    elif frequency == 90:
+        return add_time(current_date, "monthly", 3 * repeat_count)
+    elif frequency == 365:
+        return current_date.replace(year=current_date.year + repeat_count)
+    elif frequency == 7:
+        return current_date + timedelta(weeks=repeat_count)
+    elif frequency == 14:
+        return current_date + timedelta(weeks=2 * repeat_count)
