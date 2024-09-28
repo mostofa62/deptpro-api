@@ -10,6 +10,7 @@ from debttype import *
 from ammortization import *
 
 from income import *
+from incomeboost import *
 from incomeSourceBoost import *
 from savings import *
 from paymentboost import *
