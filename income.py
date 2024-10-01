@@ -1,6 +1,7 @@
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
+from incomeutil import generate_new_transaction_data_for_income
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -14,7 +15,7 @@ from decimal import Decimal
 client = myclient
 collection = my_col('income')
 income_source_types = my_col('income_source_types')
-
+income_transaction = my_col('income_transactions')
 
 
 
@@ -349,59 +350,96 @@ async def save_income():
         income_id = None
         message = ''
         result = 0
+        with client.start_session() as session:
+            with session.start_transaction():
         
-        try:
+                try:
 
-            net_income = float(data.get("net_income", 0))
-            gross_income = float(data.get("gross_income", 0))
-            
-            repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
-            
+                    net_income = float(data.get("net_income", 0))
+                    gross_income = float(data.get("gross_income", 0))
+                    
+                    repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+                    
 
-            pay_date = convertStringTodate(data['pay_date'])
+                    pay_date = convertStringTodate(data['pay_date'])
 
-            total_gross_income = 0
-            total_net_income = 0
-            
-            append_data = {
-                'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
-                
-                'user_id':ObjectId(user_id),
+                    total_gross_income = 0
+                    total_net_income = 0
 
-                'net_income':net_income,
-                'gross_income':gross_income,
-                'total_net_income':total_net_income,
-                'total_gross_income':total_gross_income,
-                
-                
-                "created_at":datetime.now(),
-                "updated_at":datetime.now(),
-                "deleted_at":None,
-
-                'pay_date':pay_date,
+                    commit = datetime.now()
+                    
+                    append_data = {
+                        'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
                         
-                
+                        'user_id':ObjectId(user_id),
 
-                
-            }
-            #print('data',data)
-            #print('appendata',append_data)            
+                        'net_income':net_income,
+                        'gross_income':gross_income,
+                        'total_net_income':total_net_income,
+                        'total_gross_income':total_gross_income,
+                        
+                        
+                        "created_at":datetime.now(),
+                        "updated_at":datetime.now(),
+                        "deleted_at":None,
 
-            merge_data = data | append_data
+                        'pay_date':pay_date,
+                        'next_pay_date':None,
+                        'commit':commit       
+                        
 
-            #print('mergedata',merge_data)
+                        
+                    }
+                    #print('data',data)
+                    #print('appendata',append_data)            
 
-            income_data = my_col('income').insert_one(merge_data)
-            income_id = str(income_data.inserted_id)
+                    merge_data = data | append_data
 
-            result = 1 if income_id!=None else 0
-            message = 'Income account added Succefull'
-            
-        except Exception as ex:
-            income_id = None
-            print('Income Save Exception: ',ex)
-            result = 0
-            message = 'Income account addition Failed'
+                    #print('mergedata',merge_data)
+
+                    income_data = collection.insert_one(merge_data,session=session)
+                    income_id = str(income_data.inserted_id)
+
+                    income_transaction_generate = generate_new_transaction_data_for_income(
+                        gross_income,
+                        net_income,
+                        pay_date,
+                        repeat,
+                        commit,
+                        ObjectId(income_id)
+                        )
+                    
+                    income_transaction_list = income_transaction_generate['income_transaction']
+                    total_gross_income = income_transaction_generate['total_gross_for_period']
+                    total_net_income = income_transaction_generate['total_net_for_period']
+                    next_pay_date = income_transaction_generate['next_pay_date']
+                    if len(income_transaction_list)> 0:                    
+                        income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
+
+
+                    income_query = {
+                        "_id" :ObjectId(income_id)
+                    }
+
+                    newvalues = { "$set": {
+                        "total_gross_income":total_gross_income, 
+                        "total_net_income":total_net_income, 
+                        "next_pay_date":next_pay_date,                                                                                                
+                        "updated_at":datetime.now()
+                    } }
+                    
+                    income_data = collection.update_one(income_query,newvalues,session=session)
+
+                    result = 1 if income_id!=None and income_data.modified_count else 0
+                    message = 'Income account added Succefull'
+                    session.commit_transaction()
+                    
+                except Exception as ex:
+                    income_id = None
+                    print('Income Save Exception: ',ex)
+                    result = 0
+                    message = 'Income account addition Failed'
+                    session.abort_transaction()
                     
 
         return jsonify({
