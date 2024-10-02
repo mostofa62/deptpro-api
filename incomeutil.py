@@ -2,6 +2,8 @@ import calendar
 from datetime import datetime,timedelta
 
 from bson import ObjectId
+
+import hashlib
 #this below 2 function will generate the amonunt based on frequency
 def calcuate_frequncey_wise_income(input, frequency):
     normalized_income = input * (30 / frequency)
@@ -96,12 +98,18 @@ def generate_new_transaction_data_for_income(
             else:
                 base_gross_income = calcuate_frequncey_wise_income(gross_input, frequency)
                 base_net_income = calcuate_frequncey_wise_income(net_input, frequency)
-        
+
+
+        base_gross_income = round(base_gross_income,2)
+        base_net_income = round(base_net_income,2)
 
         total_gross_for_period += base_gross_income
         total_net_for_period += base_net_income
         
         next_pay_date = move_next_time(current_date, frequency)
+
+        total_gross_for_period = round(total_gross_for_period,2)
+        total_net_for_period = round(total_net_for_period,2)
         
         
         income_transaction.append({
@@ -125,7 +133,7 @@ def generate_new_transaction_data_for_income(
 
 
         
-
+   
         
 
     return ({
@@ -136,3 +144,83 @@ def generate_new_transaction_data_for_income(
     })
 
 
+
+
+def generate_new_transaction_data_for_future_income(
+        gross_input,
+        net_input,
+        pay_date,
+        frequency               
+):
+    
+    income_transaction = []
+
+    current_date = pay_date
+    first_pay_date = current_date
+    today = datetime.now() + timedelta(days=365)
+    
+    #print(current_date, today)
+
+    total_gross_for_period = 0
+    total_net_for_period = 0
+
+    next_pay_date = None
+
+    while current_date <= today:
+
+        base_gross_income = gross_input
+        base_net_income = net_input
+        if frequency < 90:
+            
+            if frequency < 30 and current_date == first_pay_date:
+                base_gross_income = calculate_prorated_income(first_pay_date, gross_input, frequency)
+                base_net_income = calculate_prorated_income(first_pay_date, net_input, frequency)
+            else:
+                base_gross_income = calcuate_frequncey_wise_income(gross_input, frequency)
+                base_net_income = calcuate_frequncey_wise_income(net_input, frequency)
+
+
+        base_gross_income = round(base_gross_income,2)
+        base_net_income = round(base_net_income,2)
+
+        total_gross_for_period += base_gross_income
+        total_net_for_period += base_net_income
+        
+        next_pay_date = move_next_time(current_date, frequency)
+
+        total_gross_for_period = round(total_gross_for_period,2)
+        total_net_for_period = round(total_net_for_period,2)
+        
+        
+        income_transaction.append({
+            'month_word':current_date.strftime("%b, %Y"),
+            'month':current_date.strftime("%Y-%m"),
+            #'pay_date':current_date,
+            #"next_pay_date":next_pay_date,
+            #'gross_income':gross_input,
+            #'net_income':net_input,
+            'base_gross_income':base_gross_income,
+            'base_net_income':base_net_income,
+            "total_gross_for_period": total_gross_for_period,
+            'total_net_for_period':total_net_for_period                      
+            
+        })
+
+        # Move to the next period based on base income frequency
+        current_date = next_pay_date
+
+
+        
+   
+        
+
+    return ({
+        'income_transaction':income_transaction,
+        'total_gross_for_period':total_gross_for_period,
+        'total_net_for_period':total_net_for_period,
+        'next_pay_date':next_pay_date
+    })
+
+def generate_unique_id(month):
+    # Use hashlib to generate a hash string from the month
+    return hashlib.md5(month.encode()).hexdigest()
