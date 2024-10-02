@@ -69,7 +69,7 @@ def income_transactions_next():
         for entry in sublist:
             
             month = entry['month']
-            merged_data[month]['id'] = ObjectId()
+            #merged_data[month]['id'] = ObjectId()
             merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
             merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
             #merged_data[month]['total_gross_for_period'] += entry['total_gross_for_period']
@@ -79,7 +79,7 @@ def income_transactions_next():
             merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
             merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
 
-            merged_data[month]['id'] = generate_unique_id(month)
+            #merged_data[month]['id'] = generate_unique_id(month)
 
 
     # Convert the merged data back into a list if needed

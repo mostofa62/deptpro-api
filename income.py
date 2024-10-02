@@ -433,9 +433,12 @@ async def save_income():
                     
                     income_data = collection.update_one(income_query,newvalues,session=session)
 
-                    result = 1 if income_id!=None and income_data.modified_count else 0
+                    result = 1 if income_id!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
                     message = 'Income account added Succefull'
-                    session.commit_transaction()
+                    if result:
+                        session.commit_transaction()
+                    else:
+                        session.abort_transaction()
                     
                 except Exception as ex:
                     income_id = None
