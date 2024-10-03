@@ -25,30 +25,59 @@ def delete_income_boost():
         data = json.loads(request.data)
 
         id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
 
         income_boost_id = None
         message = None
         error = 0
         deleted_done = 0
 
-        try:
-            myquery = { "_id" :ObjectId(id)}
+        myquery = { "_id" :ObjectId(id)}        
+        previous_income = collection.find_one(myquery,{'commit':1})
+        previous_commit = previous_income['commit']
+        with client.start_session() as session:
+                with session.start_transaction():
 
-            newvalues = { "$set": {                                     
-                "deleted_at":datetime.now()                
-            } }
-            income_boost_data =  collection.update_one(myquery, newvalues)
-            income_boost_id = id if income_boost_data.modified_count else None
-            error = 0 if income_boost_data.modified_count else 1
-            deleted_done = 1 if income_boost_data.modified_count else 0
-            message = 'Income boost Deleted Successfully'if income_boost_data.modified_count else 'Income boost Deletion Failed'
+                    try:
 
-        except Exception as ex:
-            income_boost_id = None
-            print('Income boost Save Exception: ',ex)
-            message = 'Income boost Deletion Failed'
-            error  = 1
-            deleted_done = 0
+                        newvalues = { "$set": {                                     
+                            field:datetime.now()                
+                        } }
+                        
+                        income_boost_data =  collection.update_one(myquery, newvalues)                    
+                        income_boost_id = id if income_boost_data.modified_count else None
+
+
+                        #delete previous commits data
+                        income_data_delete = income_boost_transaction.update_many({
+                            'income_id':ObjectId(income_boost_id),
+                            'commit':previous_commit
+                        },{
+                            "$set":{
+                                field:datetime.now()
+                            }
+                        },session=session)
+
+
+                        error = 0 if income_boost_data.modified_count and income_data_delete.modified_count else 1
+                        deleted_done = 1 if income_boost_data.modified_count and income_data_delete.modified_count else 0                        
+
+                        if deleted_done:
+                            message = f'Income boost {action} Successfully'
+                            session.commit_transaction()
+                        else:
+                            message = f'Income boost {action} Failed'
+                            session.abort_transaction()
+
+                    except Exception as ex:
+                        income_boost_id = None
+                        print('Income boost Save Exception: ',ex)
+                        message = f'Income boost {action} Failed'
+                        error  = 1
+                        deleted_done = 0
+                        session.abort_transaction()
         
         return jsonify({
             "income_boost_id":income_boost_id,
