@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
-from incomeutil import generate_new_transaction_data_for_future_income, generate_new_transaction_data_for_income, generate_unique_id
+from incomeutil import generate_new_transaction_data_for_future_income, generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_income, generate_unique_id
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -16,7 +16,8 @@ from decimal import Decimal
 client = myclient
 collection = my_col('income_transactions')
 income = my_col('income')
-
+income_boost = my_col('income_boost')
+income_boost_transaction = my_col('income_boost_transactions')
 
 @app.route('/api/income-transactions-next', methods=['GET'])
 def income_transactions_next():
@@ -25,13 +26,16 @@ def income_transactions_next():
 
     #twelve_months_next = datetime.now() + timedelta(days=365)
 
-    pay_date = datetime.now()
+    
 
     # query = {
     #     "pay_date": {"$eq": pay_date},
     # }
 
-    cursor = income.find({},{
+    cursor = income.find({
+        'closed_at':None,
+        'deleted_at':None
+    },{
         'gross_income':1,
         'net_income':1,
         'pay_date':1,
@@ -84,12 +88,80 @@ def income_transactions_next():
 
     # Convert the merged data back into a list if needed
     result = [{"month": month, **data} for month, data in merged_data.items()]
+
+
+    cursor = income_boost.find({
+        'closed_at':None,
+        'deleted_at':None
+    },{
+        'income_boost':1,
+        'pay_date_boost':1,
+        'next_pay_date_boost':1,
+        'repeat_boost':1
+        })
+    
+    projection_list_boost = []
+
+    for todo in cursor:
+
+        income_transaction_data = generate_new_transaction_data_for_future_income_boost(
+
+            input_boost=todo['income_boost'],        
+            pay_date=todo['next_pay_date_boost'],
+            frequency=todo['repeat_boost']['value']
+        )
+        income_transaction = income_transaction_data['income_transaction']
+
+        projection_list_boost.append(income_transaction)
+
+
+    # Dictionary to store merged results
+    merged_data_boost = defaultdict(lambda: {
+        "base_input_boost": 0,
+       
+        #"total_gross_for_period": 0,
+        #"total_net_for_period": 0,
+        "month_word": ""
+    })
+
+    # Merging logic
+    for sublist in projection_list_boost:
+        for entry in sublist:
+            
+            month = entry['month']
+            #merged_data[month]['id'] = ObjectId()
+            merged_data_boost[month]['base_input_boost'] += round(entry['base_input_boost'],2)
+            
+            merged_data_boost[month]['month_word'] = entry['month_word']
+
+            merged_data_boost[month]['base_input_boost'] = round(merged_data_boost[month]['base_input_boost'],2)
+            
+
+            #merged_data[month]['id'] = generate_unique_id(month)
+
+
+    # Convert the merged data back into a list if needed
+    result_boost = [{"month": month, **data} for month, data in merged_data_boost.items()]
+
+    combined_dict = {item["month"]: item for item in result}
+
+    for boost_item in result_boost:
+        month = boost_item["month"]
+        if month in combined_dict:
+            combined_dict[month].update(boost_item)  # Merge data if 'month' exists
+        else:
+            combined_dict[month] = boost_item  # Add new entry if 'month' doesn't exist
+
+    # Convert back to list format
+    merged_list = list(combined_dict.values())
     
     
     return jsonify({
         "payLoads":{            
             
-               'projection_list':result,
+               #'projection_list':result,
+               #'projection_list_boost':result_boost,
+               'projection_list':merged_list
                      
 
 
@@ -108,7 +180,8 @@ def income_transactions_previous():
     {
         "$match": {
             "pay_date": {"$gte": twelve_months_ago},
-            "deleted_at": None
+            "deleted_at": None,
+            "closed_at":None
         }
     },
     
@@ -215,7 +288,8 @@ def list_income_transactions(income_id:str):
     query = {
         #'role':{'$gte':10}
         "income_id":ObjectId(income_id),
-        "deleted_at":None
+        "deleted_at":None,
+        "closed_at":None,
     }
     # if global_filter:
         
@@ -270,6 +344,124 @@ def list_income_transactions(income_id:str):
 
         todo['next_pay_date_word'] = todo['next_pay_date'].strftime('%d %b, %Y')
         todo['next_pay_date'] = convertDateTostring(todo['next_pay_date'],"%Y-%m-%d")                
+
+        
+
+
+        data_list.append(todo)
+    data_json = MongoJSONEncoder().encode(data_list)
+    data_obj = json.loads(data_json)
+
+    # Calculate total pages
+    total_pages = (total_count + page_size - 1) // page_size
+
+
+    #total balance , interest, monthly intereset paid off
+    # Aggregate query to sum the balance field
+    # pipeline = [
+    #     {"$match": query},  # Filter by user_id
+    #     # {
+    #     #     '$addFields': {
+    #     #         'total_monthly_income': {'$add': ['$gross_income', '$income_boost']}
+    #     #     }
+    #     # },
+    #     {"$group": {"_id": None, 
+    #                 "total_net_income": {"$sum": "$base_net_income"},
+    #                 "total_gross_income":{"$sum": "$base_gross_income"},                                                        
+    #                 }}  # Sum the balance
+    # ]
+
+    # # Execute the aggregation pipeline
+    # result = list(collection.aggregate(pipeline))
+
+    #  # Extract the total balance from the result
+    # total_net_income = result[0]['total_net_income'] if result else 0
+    # total_gross_income = result[0]['total_gross_income'] if result else 0
+    
+    
+
+    return jsonify({
+        'rows': data_obj,
+        'pageCount': total_pages,
+        'totalRows': total_count,
+        # 'extra_payload':{
+        #     'total_net_income':total_net_income,
+        #     'total_gross_income':total_gross_income,             
+        # }
+    })
+
+
+
+
+
+@app.route('/api/income-boost-transactions/<string:income_id>', methods=['POST'])
+def list_income_boost_transactions(income_id:str):
+    data = request.get_json()
+    page_index = data.get('pageIndex', 0)
+    page_size = data.get('pageSize', 10)
+    #global_filter = data.get('filter', '')
+    #sort_by = data.get('sortBy', [])
+
+    # Construct MongoDB filter query
+    query = {
+        #'role':{'$gte':10}
+        "income_id":ObjectId(income_id),
+        "deleted_at":None,
+        "closed_at":None,
+    }
+    # if global_filter:
+        
+
+    #     pattern_str = r'^\d{4}-\d{2}-\d{2}$'
+    #     pay_date = None
+        
+    #     #try:
+    #     if re.match(pattern_str, global_filter):
+    #         pay_date = datetime.strptime(global_filter,"%Y-%m-%d")
+            
+    #     #except ValueError:
+    #     else:
+    #         pay_date = None
+            
+
+    #     query["$or"] = [
+            
+    #         #{"earner": {"$regex": global_filter, "$options": "i"}},            
+    #         {"pay_date":pay_date},                                        
+    #         # Add other fields here if needed
+    #     ]
+
+    # Construct MongoDB sort parameters
+    sort_params = [
+        ('pay_date',-1)
+    ]
+    cursor = income_boost_transaction.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
+    # for sort in sort_by:
+    #     sort_field = sort['id']
+    #     sort_direction = -1 if sort['desc'] else 1
+    #     sort_params.append((sort_field, sort_direction))
+
+    # Fetch data from MongoDB
+    # if sort_params:
+    #     cursor = collection.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
+    # else:
+    #     # Apply default sorting or skip sorting
+    #     cursor = collection.find(query).skip(page_index * page_size).limit(page_size)
+
+
+
+    total_count = income_boost_transaction.count_documents(query)
+    #data_list = list(cursor)
+    data_list = []
+
+    for todo in cursor:
+
+
+        todo['pay_date_word'] = todo['pay_date'].strftime('%d %b, %Y')
+        todo['pay_date'] = convertDateTostring(todo['pay_date'],"%Y-%m-%d")
+
+        todo['next_pay_date_word'] = todo['next_pay_date_boost'].strftime('%d %b, %Y')
+        todo['next_pay_date_boost'] = convertDateTostring(todo['next_pay_date_boost'],"%Y-%m-%d")                
 
         
 

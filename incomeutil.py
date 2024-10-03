@@ -124,7 +124,9 @@ def generate_new_transaction_data_for_income(
             "total_gross_for_period": total_gross_for_period,
             'total_net_for_period':total_net_for_period,            
             "income_id":income_id,
-            'commit':commit            
+            'commit':commit,
+            "deleted_at":None,
+            "closed_at":None            
             
         })
 
@@ -224,3 +226,156 @@ def generate_new_transaction_data_for_future_income(
 def generate_unique_id(month):
     # Use hashlib to generate a hash string from the month
     return hashlib.md5(month.encode()).hexdigest()
+
+
+
+
+
+
+def generate_new_transaction_data_for_income_boost(
+        input_boost,
+        pay_date,
+        frequency,
+        commit,
+        income_id        
+):
+    
+    income_transaction = []
+
+    current_date = pay_date
+    first_pay_date = current_date
+    today = datetime.today()
+    
+    #print(current_date, today)
+
+    total_input_boost_for_period = 0
+    
+
+    next_pay_date_boost = None
+
+    while current_date <= today:
+
+        base_input_boost = input_boost
+        
+        if frequency < 90:
+            
+            if frequency < 30 and current_date == first_pay_date:
+                base_input_boost = calculate_prorated_income(first_pay_date, input_boost, frequency)
+                
+            else:
+                base_input_boost = calcuate_frequncey_wise_income(input_boost, frequency)
+                
+
+
+        base_input_boost = round(base_input_boost,2)
+        
+
+        total_input_boost_for_period += base_input_boost
+        
+        
+        next_pay_date_boost = move_next_time(current_date, frequency)
+
+        total_input_boost_for_period = round(total_input_boost_for_period,2)
+        
+        
+        
+        income_transaction.append({
+            'month_word':current_date.strftime("%b, %Y"),
+            'month':current_date.strftime("%Y-%m"),
+            'pay_date':current_date,
+            "next_pay_date_boost":next_pay_date_boost,
+            'input_boost':input_boost,
+            
+            'base_input_boost':base_input_boost,
+            
+            "total_input_boost_for_period": total_input_boost_for_period,
+                      
+            "income_id":income_id,
+            'commit':commit,
+            "deleted_at":None,
+            "closed_at":None            
+            
+        })
+
+        # Move to the next period based on base income frequency
+        current_date = next_pay_date_boost
+
+
+        
+   
+        
+
+    return ({
+        'income_transaction':income_transaction,
+        'total_input_boost_for_period':total_input_boost_for_period,
+        'next_pay_date_boost':next_pay_date_boost
+    })
+
+
+def generate_new_transaction_data_for_future_income_boost(
+        input_boost,
+        pay_date,
+        frequency               
+):
+    
+    income_transaction = []
+
+    current_date = pay_date
+    first_pay_date = current_date
+    today = datetime.now() + timedelta(days=365)
+    
+    #print(current_date, today)
+
+    total_input_boost_for_period = 0
+   
+
+    next_pay_date_boost = None
+
+    while current_date <= today:
+
+        base_input_boost = input_boost
+        
+        if frequency < 90:
+            
+            if frequency < 30 and current_date == first_pay_date:
+                base_input_boost = calculate_prorated_income(first_pay_date, input_boost, frequency)
+                
+            else:
+                base_input_boost = calcuate_frequncey_wise_income(input_boost, frequency)
+                
+
+
+        base_input_boost = round(input_boost,2)
+        
+
+        total_input_boost_for_period += base_input_boost
+        
+        
+        next_pay_date_boost = move_next_time(current_date, frequency)
+
+        total_input_boost_for_period = round(total_input_boost_for_period,2)
+        
+        
+        
+        income_transaction.append({
+            'month_word':current_date.strftime("%b, %Y"),
+            'month':current_date.strftime("%Y-%m"),
+            'base_input_boost':base_input_boost,        
+            "total_input_boost_for_period": total_input_boost_for_period                            
+            
+        })
+
+        # Move to the next period based on base income frequency
+        current_date = next_pay_date_boost
+
+
+        
+   
+        
+
+    return ({
+        'income_transaction':income_transaction,
+        'total_input_boost_for_period':total_input_boost_for_period,
+        'next_pay_date_boost':next_pay_date_boost
+    })
+

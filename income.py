@@ -96,7 +96,17 @@ def get_income_all(id:str):
 def view_incomes(id:str):
     income = collection.find_one(
         {"_id":ObjectId(id)},
-        {"_id":0}
+        {
+            "_id":0,
+            "commit":0,
+            "next_pay_date":0, 
+            #"total_gross_income":0, 
+            #"total_net_income":0,
+            "created_at":0,
+            "updated_at":0,
+            "deleted_at":0,
+            "closed_at":0
+        }
         )
     
     
@@ -194,6 +204,7 @@ def list_income(user_id:str):
         
 
         todo['pay_date'] = convertDateTostring(todo['pay_date'])
+        todo['next_pay_date'] = convertDateTostring(todo['next_pay_date'])
 
         
 
@@ -277,60 +288,76 @@ async def update_income(id:str):
         income_id = None
         message = ''
         result = 0
-        try:
+        with client.start_session() as session:
+            with session.start_transaction():
+                try:
 
-            net_income = float(data.get("net_income", 0))
-            gross_income = float(data.get("gross_income", 0))
-            
-            repeat = data['repeat']
+                    net_income = float(data.get("net_income", 0))
+                    gross_income = float(data.get("gross_income", 0))
+                    
+                    repeat = data['repeat']
 
-            pay_date = convertStringTodate(data['pay_date'])
+                    #pay_date = convertStringTodate(data['pay_date'])
 
-            total_gross_income = 0
-            total_net_income = 0
-            
+                    #close = int(data['close']) if 'close' in data else 0
+                    #closed_at = datetime.now() if close > 0 else None
 
-            append_data = {
-                'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
-              
-                'user_id':ObjectId(user_id),
+                    
+                    
 
-                'net_income':net_income,
-                'gross_income':gross_income,
+                    append_data = {
+                        'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
+                    
+                        'user_id':ObjectId(user_id),
 
-                'total_net_income':total_net_income,
-                'total_gross_income':total_gross_income,
-                
-                "created_at":datetime.now(),
-                "updated_at":datetime.now(),
-                "deleted_at":None,
+                        'net_income':net_income,
+                        'gross_income':gross_income,
 
-                'pay_date':pay_date,
-                                
-                
+                        
+                        
+                        
+                        "updated_at":datetime.now(),
+                        
+                        #"close":close,
+                        #"closed_at":closed_at
 
-                
-            }
-            #print('data',data)
-            #print('appendata',append_data)            
+                        #'pay_date':pay_date,
+                                        
+                        
 
-            merge_data = data | append_data
+                        
+                    }
+                    #print('data',data)
+                    #print('appendata',append_data)            
 
-            print('mergedata',merge_data)
+                    merge_data = data | append_data
 
-            myquery = { "_id" :ObjectId(id)}
+                    print('mergedata',merge_data)
 
-            newvalues = { "$set": merge_data }
+                    del merge_data['pay_date']
 
-            income_data = my_col('income').update_one(myquery, newvalues)
-            income_id = id if income_data.modified_count else None
-            result = 1 if income_data.modified_count else 0
-            message = 'Income account updated Succefull'
-        except Exception as ex:
-            income_id = None
-            print('Income Update Exception: ',ex)
-            result = 0
-            message = 'Income account update Failed'
+                    myquery = { "_id" :ObjectId(id)}
+
+                    newvalues = { "$set": merge_data }
+
+                    income_data = my_col('income').update_one(myquery, newvalues, session=session)
+                    income_id = id if income_data.modified_count else None
+
+                    
+                    result = 1 if income_data.modified_count else 0
+
+                    
+                    message = 'Income account updated Succefull'
+                    if result:
+                        session.commit_transaction()
+                    else:
+                        session.abort_transaction()
+                except Exception as ex:
+                    income_id = None
+                    print('Income Update Exception: ',ex)
+                    result = 0
+                    message = 'Income account update Failed'
+                    session.abort_transaction()
 
         return jsonify({
             "income_id":income_id,
@@ -366,6 +393,9 @@ async def save_income():
 
                     pay_date = convertStringTodate(data['pay_date'])
 
+
+                    #close = int(data['close']) if 'close' in data else 0
+
                     total_gross_income = 0
                     total_net_income = 0
 
@@ -385,6 +415,8 @@ async def save_income():
                         "created_at":datetime.now(),
                         "updated_at":datetime.now(),
                         "deleted_at":None,
+                        #"close":0,
+                        "closed_at":None,
 
                         'pay_date':pay_date,
                         'next_pay_date':None,
