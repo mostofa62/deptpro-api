@@ -25,30 +25,62 @@ def delete_income():
         data = json.loads(request.data)
 
         id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
 
         income_account_id = None
         message = None
         error = 0
         deleted_done = 0
 
-        try:
-            myquery = { "_id" :ObjectId(id)}
+        myquery = { "_id" :ObjectId(id)}
+        previous_income = collection.find_one(myquery,{'commit':1})
+        previous_commit = previous_income['commit']
 
-            newvalues = { "$set": {                                     
-                "deleted_at":datetime.now()                
-            } }
-            income_account_data =  collection.update_one(myquery, newvalues)
-            income_account_id = id if income_account_data.modified_count else None
-            error = 0 if income_account_data.modified_count else 1
-            deleted_done = 1 if income_account_data.modified_count else 0
-            message = 'Income account Deleted Successfully'if income_account_data.modified_count else 'Income account Deletion Failed'
+        with client.start_session() as session:
+                with session.start_transaction():
+                    
+                    try:
+                        myquery = { "_id" :ObjectId(id)}
 
-        except Exception as ex:
-            income_account_id = None
-            print('Income account Save Exception: ',ex)
-            message = 'Income account Deletion Failed'
-            error  = 1
-            deleted_done = 0
+                        newvalues = { "$set": {                                     
+                            field:datetime.now()                
+                        } }
+                        income_account_data =  collection.update_one(myquery, newvalues, session=session)
+                        income_account_id = id if income_account_data.modified_count else None
+
+
+                        #delete previous commits data
+                        income_data_delete = income_transaction.update_many({
+                            'income_id':ObjectId(income_account_id),
+                            'commit':previous_commit
+                        },{
+                            "$set":{
+                                field:datetime.now()
+                            }
+                        },session=session)
+
+
+                        error = 0 if income_account_data.modified_count and income_data_delete.modified_count else 1
+                        deleted_done = 1 if income_account_data.modified_count and income_data_delete.modified_count else 0
+                        
+                        
+
+                        if deleted_done:
+                            message = f'Income account {action} Successfully'
+                            session.commit_transaction()
+                        else:
+                            message = f'Income account {action} Failed'
+                            session.abort_transaction()
+
+                    except Exception as ex:
+                        income_account_id = None
+                        print('Income account Save Exception: ',ex)
+                        message = f'Income account {action} Failed'
+                        error  = 1
+                        deleted_done = 0
+                        session.abort_transaction()
         
         return jsonify({
             "income_account_id":income_account_id,
@@ -142,7 +174,8 @@ def list_income(user_id:str):
     query = {
         #'role':{'$gte':10}
         "user_id":ObjectId(user_id),
-        "deleted_at":None
+        "deleted_at":None,
+        "closed_at":None
     }
     if global_filter:
 
@@ -285,79 +318,136 @@ async def update_income(id:str):
 
         user_id = data['user_id']
 
-        income_id = None
+        income_id = id
         message = ''
         result = 0
-        with client.start_session() as session:
-            with session.start_transaction():
-                try:
 
-                    net_income = float(data.get("net_income", 0))
-                    gross_income = float(data.get("gross_income", 0))
+        myquery = { "_id" :ObjectId(income_id)}
+        previous_income = collection.find_one(myquery)
+
+        net_income = float(data.get("net_income", 0))
+        gross_income = float(data.get("gross_income", 0))
+        
+        repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+
+        previous_gross_income = float(previous_income['gross_income'])
+        previous_net_income = float(previous_income['net_income'])
+        previous_repeat = previous_income['repeat']['value'] if previous_income['repeat']['value'] > 0 else None
+        previous_commit = previous_income['commit']
+        pay_date = previous_income['pay_date']
+
+        change_found_gross = False if are_floats_equal(previous_gross_income, gross_income) else True
+        change_found_net = False if are_floats_equal(previous_net_income, net_income) else True
+        change_found_repat = False if previous_repeat == repeat else True
+
+        any_change = change_found_gross or change_found_net or change_found_repat
+
+        print('change_found_gross',change_found_gross)
+        print('change_found_net',change_found_net)
+        print('change_found_repat',change_found_repat)
+
+        print('any change',any_change)
+
+        append_data = {
+            'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),                        
+            'user_id':ObjectId(user_id),
+            'net_income':net_income,
+            'gross_income':gross_income,                                                       
+            "updated_at":datetime.now(),                                                                                   
+        }
+
+        merge_data = data | append_data
+
+        #print('mergedata',merge_data)
+        del merge_data['pay_date']
+
+        
+
+        #if we found any changes on gross_income, net_income or repeat values
+        if any_change:        
+
+            with client.start_session() as session:
+                with session.start_transaction():
+                    try:
+
+                        del merge_data['total_gross_income']
+                        del merge_data['total_net_income']
+                        #del merge_data['next_pay_date']
+
+                        #get latest commit
+                        commit = datetime.now() 
+                        #generate new trasnaction data and save them
+                        income_transaction_generate = generate_new_transaction_data_for_income(
+                        gross_income,
+                        net_income,
+                        pay_date,
+                        repeat,
+                        commit,
+                        ObjectId(income_id)
+                        )
                     
-                    repeat = data['repeat']
-
-                    #pay_date = convertStringTodate(data['pay_date'])
-
-                    #close = int(data['close']) if 'close' in data else 0
-                    #closed_at = datetime.now() if close > 0 else None
-
-                    
-                    
-
-                    append_data = {
-                        'income_source':newEntryOptionData(data['income_source'],'income_source_types',user_id),
-                    
-                        'user_id':ObjectId(user_id),
-
-                        'net_income':net_income,
-                        'gross_income':gross_income,
+                        income_transaction_list = income_transaction_generate['income_transaction']
+                        total_gross_income = income_transaction_generate['total_gross_for_period']
+                        total_net_income = income_transaction_generate['total_net_for_period']
+                        next_pay_date = income_transaction_generate['next_pay_date']
+                        if len(income_transaction_list)> 0:                    
+                            income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
+                        
 
                         
+
+                        #update latest commit and transaction summary
+                        new_data_value = {
+                            'commit':commit,
+                            "total_gross_income":total_gross_income, 
+                            "total_net_income":total_net_income, 
+                            "next_pay_date":next_pay_date,                                                                                                
+                            "updated_at":datetime.now()
+                        }
+                        new_merge_value = new_data_value | merge_data
+                        #print(new_merge_value)
+                        newvalues = { "$set": new_merge_value }                       
+                        income_data = collection.update_one(myquery, newvalues, session=session)
+
+
+                        #delete previous commits data
+                        income_data_delete = income_transaction.update_many({
+                            'income_id':ObjectId(income_id),
+                            'commit':previous_commit
+                        },{
+                            "$set":{
+                                'deleted_at':datetime.now()
+                            }
+                        },session=session)
                         
+
+                        result = income_id!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count                                   
                         
-                        "updated_at":datetime.now(),
-                        
-                        #"close":close,
-                        #"closed_at":closed_at
-
-                        #'pay_date':pay_date,
-                                        
-                        
-
-                        
-                    }
-                    #print('data',data)
-                    #print('appendata',append_data)            
-
-                    merge_data = data | append_data
-
-                    print('mergedata',merge_data)
-
-                    del merge_data['pay_date']
-
-                    myquery = { "_id" :ObjectId(id)}
-
-                    newvalues = { "$set": merge_data }
-
-                    income_data = my_col('income').update_one(myquery, newvalues, session=session)
-                    income_id = id if income_data.modified_count else None
-
-                    
-                    result = 1 if income_data.modified_count else 0
-
-                    
-                    message = 'Income account updated Succefull'
-                    if result:
-                        session.commit_transaction()
-                    else:
+                                                
+                        if result:
+                            message = 'Income account updated Succefull'
+                            session.commit_transaction()
+                        else:
+                            message = 'Income account update Failed'
+                            session.abort_transaction()
+                    except Exception as ex:
+                        income_id = None
+                        print('Income Update Exception: ',ex)
+                        result = 0
+                        message = 'Income account update Failed'
                         session.abort_transaction()
-                except Exception as ex:
-                    income_id = None
-                    print('Income Update Exception: ',ex)
-                    result = 0
-                    message = 'Income account update Failed'
-                    session.abort_transaction()
+        else:
+            newvalues = { "$set": merge_data }
+            try:
+                income_data = collection.update_one(myquery, newvalues)
+                result = 1 if income_data.modified_count else 0
+                message = 'Income account updated Succefull'
+            except Exception as ex:
+                income_id = None
+                print('Income Update Exception: ',ex)
+                result = 0
+                message = 'Income account update Failed'
+
 
         return jsonify({
             "income_id":income_id,
@@ -372,6 +462,7 @@ async def update_income(id:str):
 
 @app.route('/api/save-income-account', methods=['POST'])
 async def save_income():
+
     if request.method == 'POST':
         data = json.loads(request.data)
 
@@ -506,7 +597,8 @@ def get_typewise_income_info():
         {
             "$match": {
                 "income_source.value": {"$in": incometype_id_list},
-                "deleted_at": None
+                "deleted_at": None,
+                "closed_at":None
             }
         },
 

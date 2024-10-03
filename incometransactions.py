@@ -143,14 +143,21 @@ def income_transactions_next():
     # Convert the merged data back into a list if needed
     result_boost = [{"month": month, **data} for month, data in merged_data_boost.items()]
 
-    combined_dict = {item["month"]: item for item in result}
+    # Default fields with values 0
+    default_fields = {
+        "base_gross_income": 0.0,
+        "base_net_income": 0.0,
+        "base_input_boost": 0.0,
+    }
+
+    combined_dict = {item["month"]: {**default_fields, **item} for item in result}
 
     for boost_item in result_boost:
         month = boost_item["month"]
         if month in combined_dict:
             combined_dict[month].update(boost_item)  # Merge data if 'month' exists
         else:
-            combined_dict[month] = boost_item  # Add new entry if 'month' doesn't exist
+            combined_dict[month] = {**default_fields, **boost_item}
 
     # Convert back to list format
     merged_list = list(combined_dict.values())
