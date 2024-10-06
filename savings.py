@@ -82,8 +82,7 @@ def get_saving_all(id:str):
     
     saving['starting_date_word'] = saving['starting_date'].strftime('%d %b, %Y')
     saving['starting_date'] = convertDateTostring(saving['starting_date'],"%Y-%m-%d")
-    saving['pay_date_boost_word'] = saving['pay_date_boost'].strftime('%d %b, %Y')
-    saving['pay_date_boost'] = convertDateTostring(saving['pay_date_boost'],"%Y-%m-%d")    
+      
     saving['user_id'] = str(saving['user_id'])
 
     
@@ -96,17 +95,13 @@ def get_saving_all(id:str):
     saving['category'] = category_type['name']
 
     saving['repeat'] = saving['repeat']['label']
-    saving['repeat_boost'] = saving['repeat_boost']['label']
+
+    saving['interest_type'] = saving['interest_type']['label']
+    saving['savings_strategy'] = saving['savings_strategy']['label']
+    
 
 
-    if saving['saving_boost_source']!=None:
-        saving_boost_type = my_col('saving_boost_types').find_one(
-            {"_id":saving['saving_boost_source']['value']},
-            {"_id":0,"name":1}
-            )
-        
-       
-        saving['saving_boost_source'] = saving_boost_type['name']   
+   
     
 
     return jsonify({
@@ -345,7 +340,7 @@ def view_saving(id:str):
     
     
     saving['starting_date'] = convertDateTostring(saving['starting_date'],"%Y-%m-%d")
-    saving['pay_date_boost'] = convertDateTostring(saving['pay_date_boost'],"%Y-%m-%d")    
+       
     saving['user_id'] = str(saving['user_id'])
 
     
@@ -358,14 +353,7 @@ def view_saving(id:str):
     saving['category']['label'] = category_type['name']
 
 
-    if saving['saving_boost_source']!=None:
-        saving_boost_type = my_col('saving_boost_types').find_one(
-            {"_id":saving['saving_boost_source']['value']},
-            {"_id":0,"name":1}
-            )
-        
-        saving['saving_boost_source']['value'] = str(saving['saving_boost_source']['value'])
-        saving['saving_boost_source']['label'] = saving_boost_type['name']   
+   
     
 
     return jsonify({
@@ -407,7 +395,7 @@ def list_saving(user_id:str):
 
         query["$or"] = [
             
-            {"earner": {"$regex": global_filter, "$options": "i"}},            
+            {"saver": {"$regex": global_filter, "$options": "i"}},            
             {"starting_date":starting_date},            
             {"category.value": {"$in":category_types_id_list}},                 
             # Add other fields here if needed
@@ -440,17 +428,11 @@ def list_saving(user_id:str):
             )
             todo['category'] =  category_type['name']
 
-        if todo['saving_boost_source']!=None:
-            saving_boost_id = todo['saving_boost_source']['value']
-            saving_boost_type = my_col('saving_boost_types').find_one(
-            {"_id":saving_boost_id},
-            {"_id":0,"name":1}
-            )
-            todo['saving_boost_source'] =  saving_boost_type['name']
+        
         
 
         todo['starting_date'] = convertDateTostring(todo['starting_date'])
-        todo['pay_date_boost'] = convertDateTostring(todo['pay_date_boost'])       
+             
         
 
 
@@ -532,11 +514,11 @@ async def update_saving(id:str):
         try:
 
             starting_date = convertStringTodate(data['starting_date'])
-            pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            
         
             append_data = {
                 'category':newEntryOptionData(data['category'],'category_types',user_id),
-                'saving_boost_source':newEntryOptionData(data['saving_boost_source'],'saving_boost_types',user_id),                                                
+                
 
                 'user_id':ObjectId(user_id),
 
@@ -550,7 +532,7 @@ async def update_saving(id:str):
                 "deleted_at":None,
 
                 'starting_date':starting_date,
-                'pay_date_boost':pay_date_boost,                                
+                                          
   
             }
             #print('data',data)
@@ -564,7 +546,7 @@ async def update_saving(id:str):
 
             newvalues = { "$set": merge_data }
 
-            saving_data = my_col('saving').update_one(myquery, newvalues)
+            saving_data = collection.update_one(myquery, newvalues)
             saving_id = id if saving_data.modified_count else None
             result = 1 if saving_data.modified_count else 0
             message = 'Saving account updated Succefull'
@@ -598,12 +580,10 @@ async def save_saving():
         try:
 
             
-            starting_date = convertStringTodate(data['starting_date'])
-            pay_date_boost = convertStringTodate(data['pay_date_boost']) 
+            starting_date = convertStringTodate(data['starting_date'])            
         
             append_data = {
-                'category':newEntryOptionData(data['category'],'category_types',user_id),
-                'saving_boost_source':newEntryOptionData(data['saving_boost_source'],'saving_boost_types',user_id),                                
+                'category':newEntryOptionData(data['category'],'category_types',user_id),                
 
                 'user_id':ObjectId(user_id),
 
@@ -616,10 +596,7 @@ async def save_saving():
                 "updated_at":datetime.now(),
                 "deleted_at":None,
 
-                'starting_date':starting_date,
-                'pay_date_boost':pay_date_boost,
-
-                'months_contributed': 0                                
+                'starting_date':starting_date,                                            
   
             }
             #print('data',data)
@@ -629,7 +606,7 @@ async def save_saving():
 
             #print('mergedata',merge_data)
 
-            saving_data = my_col('saving').insert_one(merge_data)
+            saving_data = collection.insert_one(merge_data)
             saving_id = str(saving_data.inserted_id)
             result = 1 if saving_id!=None else 0
             message = 'Saving account added Succefull'

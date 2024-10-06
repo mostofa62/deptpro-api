@@ -19,6 +19,17 @@ RepeatFrequency = [
         {'label':'Annually','value':365}           
 ]
 
+
+SavingInterestType = [
+    {'label':'Simple','value':1},
+    {'label':'Compound','value':2}
+]
+
+SavingStrategyType = [
+    {'label':'Fixed Contribution','value':1},
+    {'label':'Savings Challenge','value':2},
+]
+
 @app.route("/api/incomesourceboost-dropdown/<string:user_id>", methods=['GET'])
 def incomesourceboost_dropdown(user_id:str):
     income_source_types = my_col('income_source_types').find(
@@ -54,7 +65,8 @@ def incomesourceboost_dropdown(user_id:str):
         "payLoads":{
             'income_source':income_source_types_list,
             "income_boost_source":income_boost_types_list,
-            'repeat_frequency':RepeatFrequency
+            'repeat_frequency':RepeatFrequency,
+           
         }
     })
 
@@ -97,6 +109,8 @@ def savingcategory_dropdown(user_id:str):
         "payLoads":{
             'category':category_types_list,
             "saving_boost_source":saving_boost_types_list,            
-            'repeat_frequency':RepeatFrequency
+            'repeat_frequency':RepeatFrequency,
+            'saving_interest_type':SavingInterestType,
+            'saving_strategy_type':SavingStrategyType
         }
     })

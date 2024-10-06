@@ -70,14 +70,15 @@ def get_saving_boost_all(id:str):
     saving['user_id'] = str(saving['user_id'])
 
 
-    if saving['saving_boost_source']!=None:
-        saving_boost_type = my_col('saving_boost_types').find_one(
-            {"_id":saving['saving_boost_source']['value']},
-            {"_id":0,"name":1}
-            )
-        
-       
-        saving['saving_boost_source'] = saving_boost_type['name']   
+    
+    saving_boost_type = my_col('saving_boost_types').find_one(
+        {"_id":saving['saving_boost_source']['value']},
+        {"_id":0,"name":1}
+        )    
+    
+    saving['saving_boost_source'] = saving_boost_type['name'] 
+
+    saving['repeat_boost'] = saving['repeat_boost']['label']  
     
 
     return jsonify({
@@ -320,17 +321,13 @@ def view_saving_boost(id:str):
     saving['user_id'] = str(saving['user_id'])
 
     
+    saving_boost_type = my_col('saving_boost_types').find_one(
+        {"_id":saving['saving_boost_source']['value']},
+        {"_id":0,"name":1}
+        )
     
-
-
-    if saving['saving_boost_source']!=None:
-        saving_boost_type = my_col('saving_boost_types').find_one(
-            {"_id":saving['saving_boost_source']['value']},
-            {"_id":0,"name":1}
-            )
-        
-        saving['saving_boost_source']['value'] = str(saving['saving_boost_source']['value'])
-        saving['saving_boost_source']['label'] = saving_boost_type['name']   
+    saving['saving_boost_source']['value'] = str(saving['saving_boost_source']['value'])
+    saving['saving_boost_source']['label'] = saving_boost_type['name']   
     
 
     return jsonify({
@@ -354,27 +351,28 @@ def list_saving_boost(user_id:str):
     if global_filter:
 
         #saving type filter
-        category_types = my_col('category_types').find(
+        saving_boost_type = my_col('saving_boost_types').find(
                 {'name':{"$regex":global_filter,"$options":"i"}},
                 {'_id':1}
             )
-        category_types_list = list(category_types)
-        category_types_id_list = [d.pop('_id') for d in category_types_list]
+        
+        saving_boost_type_list = list(saving_boost_type)
+        saving_boost_type_id_list = [d.pop('_id') for d in saving_boost_type_list]
 
         pattern_str = r'^\d{4}-\d{2}-\d{2}$'
-        starting_date = None        
+        pay_date_boost = None        
         #try:
         if re.match(pattern_str, global_filter):
-            starting_date = datetime.strptime(global_filter,"%Y-%m-%d")            
+            pay_date_boost = datetime.strptime(global_filter,"%Y-%m-%d")            
         #except ValueError:
         else:
-            starting_date = None            
+            pay_date_boost = None            
 
         query["$or"] = [
             
             {"saver": {"$regex": global_filter, "$options": "i"}},            
-            {"starting_date":starting_date},            
-            {"category.value": {"$in":category_types_id_list}},                 
+            {"pay_date_boost":pay_date_boost},            
+            {"saving_boost_source.value": {"$in":saving_boost_type_id_list}},                 
             # Add other fields here if needed
         ]
 
@@ -396,25 +394,18 @@ def list_saving_boost(user_id:str):
     #data_list = list(cursor)
     data_list = []
 
-    for todo in cursor:
-        if todo['category']!=None:
-            category_id = todo['category']['value']
-            category_type = my_col('category_types').find_one(
-            {"_id":category_id},
-            {"_id":0,"name":1}
-            )
-            todo['category'] =  category_type['name']
+    for todo in cursor:        
 
-        if todo['saving_boost_source']!=None:
-            saving_boost_id = todo['saving_boost_source']['value']
-            saving_boost_type = my_col('saving_boost_types').find_one(
-            {"_id":saving_boost_id},
-            {"_id":0,"name":1}
-            )
-            todo['saving_boost_source'] =  saving_boost_type['name']
+        
+        saving_boost_id = todo['saving_boost_source']['value']
+        saving_boost_type = my_col('saving_boost_types').find_one(
+        {"_id":saving_boost_id},
+        {"_id":0,"name":1}
+        )
+        todo['saving_boost_source'] =  saving_boost_type['name']
         
 
-        todo['starting_date'] = convertDateTostring(todo['starting_date'])
+        
         todo['pay_date_boost'] = convertDateTostring(todo['pay_date_boost'])       
         
 
@@ -432,9 +423,7 @@ def list_saving_boost(user_id:str):
     pipeline = [
         {"$match": query},  # Filter by user_id        
         {"$group": {"_id": None, 
-                    "total_goal_amount": {"$sum": "$goal_amount"},
-                    "total_starting_amount":{"$sum": "$starting_amount"},
-                    "total_contribution" :{"$sum": "$contribution"}                                      
+                    "total_saving_boost": {"$sum": "$saving_boost"},                                                          
                     }}  # Sum the balance
     ]
 
@@ -442,18 +431,14 @@ def list_saving_boost(user_id:str):
     result = list(collection.aggregate(pipeline))
 
      # Extract the total balance from the result
-    total_goal_amount = result[0]['total_goal_amount'] if result else 0
-    total_starting_amount = result[0]['total_starting_amount'] if result else 0
-    total_contribution = result[0]['total_contribution'] if result else 0
+    total_saving_boost = result[0]['total_saving_boost'] if result else 0    
         
     return jsonify({
         'rows': data_obj,
         'pageCount': total_pages,
         'totalRows': total_count,
         'extra_payload':{
-            'total_goal_amount':total_goal_amount,
-            'total_starting_amount':total_starting_amount,
-            'total_contribution':total_contribution                       
+            'total_saving_boost':total_saving_boost,                                  
         }
     })
 
@@ -484,7 +469,7 @@ def newEntryOptionData(data_obj:any, collectionName:str, user_id:str):
 
 
 
-@app.route('/api/save-saving-boost-account/<string:id>', methods=['POST'])
+@app.route('/api/save-saving-boost/<string:id>', methods=['POST'])
 async def update_saving_boost(id:str):
     if request.method == 'POST':
         data = json.loads(request.data)
@@ -549,7 +534,7 @@ async def update_saving_boost(id:str):
 
 
 
-@app.route('/api/save-saving-boost-account', methods=['POST'])
+@app.route('/api/save-saving-boost', methods=['POST'])
 async def save_saving_boost():
     if request.method == 'POST':
         data = json.loads(request.data)
