@@ -1,6 +1,7 @@
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
+from savingutil import calculate_breakdown
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -15,6 +16,7 @@ client = myclient
 collection = my_col('saving')
 category_types = my_col('category_types')
 saving_source_types = my_col('saving_source_types')
+contributions = my_col('saving_contributions')
 
 # Helper function to calculate interest and progress
 def calculate_savings(savings):
@@ -80,8 +82,15 @@ def get_saving_all(id:str):
         {"_id":0}
         )
     
-    saving['starting_date_word'] = saving['starting_date'].strftime('%d %b, %Y')
+    saving['starting_date_word'] = convertDateTostring(saving['starting_date'],'%d %b, %Y')
     saving['starting_date'] = convertDateTostring(saving['starting_date'],"%Y-%m-%d")
+
+    saving['next_contribution_date_word'] = convertDateTostring(saving['next_contribution_date'],'%d %b, %Y')
+    saving['next_contribution_date'] = convertDateTostring(saving['next_contribution_date'],"%Y-%m-%d")
+
+
+    saving['goal_reached_word'] = convertDateTostring(saving['goal_reached'],'%d %b, %Y')
+    saving['goal_reached'] = convertDateTostring(saving['goal_reached'],"%Y-%m-%d")
       
     saving['user_id'] = str(saving['user_id'])
 
@@ -508,53 +517,115 @@ async def update_saving(id:str):
 
         user_id = data['user_id']
 
-        saving_id = None
+        saving_id = id
         message = ''
         result = 0
-        try:
 
-            starting_date = convertStringTodate(data['starting_date'])
-            
         
-            append_data = {
-                'category':newEntryOptionData(data['category'],'category_types',user_id),
+
+        starting_date = convertStringTodate(data['starting_date'])
+        goal_amount = round(float(data.get("goal_amount", 0)),2)
+        interest = round(float(data.get("interest", 0)),2)
+        starting_amount = round(float(data.get("starting_amount", 0)),2)
+        contribution = round(float(data.get("contribution", 0)),2)
+        repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+        
+
+        commit = datetime.now()            
+        goal_reached = None
                 
+        
 
-                'user_id':ObjectId(user_id),
+        contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat)
+        breakdown = contribution_breakdown['breakdown']
+        total_balance = contribution_breakdown['total_balance']
+        progress  = contribution_breakdown['progress']
+        next_contribution_date = contribution_breakdown['next_contribution_date']
+        goal_reached = contribution_breakdown['goal_reached']
 
-                'goal_amount':float(data.get("goal_amount", 0)),
-                'interest':float(data.get("interest", 0)),
-                'starting_amount':float(data.get("starting_amount", 0)),
-                'contribution':float(data.get("contribution", 0)),
-                
-                "created_at":datetime.now(),
-                "updated_at":datetime.now(),
-                "deleted_at":None,
+        len_breakdown = len(breakdown)
 
-                'starting_date':starting_date,
-                                          
-  
-            }
-            #print('data',data)
-            #print('appendata',append_data)            
+        if next_contribution_date == None:
+            goal_reached = goal_reached if len_breakdown > 0 else None
 
-            merge_data = data | append_data
+        append_data = {
+            'category':newEntryOptionData(data['category'],'category_types',user_id),                
+            'user_id':ObjectId(user_id),
+            'goal_amount':goal_amount,
+            'interest':interest,
+            'starting_amount':starting_amount,
+            'contribution':contribution,                    
+            "updated_at":datetime.now(),
+            "deleted_at":None,
+            "closed_at":None,
+            "goal_reached":goal_reached,
+            'starting_date':starting_date,
+            'next_contribution_date':next_contribution_date,
+            'total_balance':total_balance, 
+            'progress':progress,
+            'commit':commit                                             
 
-            print('mergedata',merge_data)
+        }
+        merge_data = data | append_data
 
-            myquery = { "_id" :ObjectId(id)}
+        myquery = { "_id" :ObjectId(id)}
 
-            newvalues = { "$set": merge_data }
+        newvalues = { "$set": merge_data }
 
+        if len_breakdown < 1:
+            
             saving_data = collection.update_one(myquery, newvalues)
-            saving_id = id if saving_data.modified_count else None
+            saving_id = str(saving_data.inserted_id)
             result = 1 if saving_data.modified_count else 0
-            message = 'Saving account updated Succefull'
-        except Exception as ex:
-            saving_id = None
-            print('Saving Update Exception: ',ex)
-            result = 0
-            message = 'Saving account update Failed'
+
+            if result:
+                message = 'Saving account update Succefull'
+              
+            else:
+                message = 'Saving account update Failed'
+        else:
+
+            with client.start_session() as session:
+                with session.start_transaction():
+            
+                    try:
+
+                        breakdown_data = []
+                        for todo in breakdown:
+                            breakdown_data.append({
+                                'saving_id':ObjectId(id),
+                                'deleted_at':None,
+                                'closed_at':None,
+                                "goal_reached":goal_reached,
+                                'commit':commit,
+                                **todo
+                            })
+                        
+                        contribution_data = contributions.insert_many(breakdown_data,session=session )
+                        
+
+                                                
+                        saving_data = collection.update_one(myquery,newvalues,session=session)
+                        result = 1 if saving_id!=None and contribution_data.acknowledged and saving_data.modified_count else 0
+                        
+                        if result:
+                            message = 'Saving account added Succefull'
+                            session.commit_transaction()
+                        else:
+                            message = 'Saving account addition Failed'
+                            session.abort_transaction()
+
+                    except Exception as ex:
+                        saving_id = None
+                        print('Saving Save Exception: ',ex)
+                        result = 0
+                        message = 'Saving account addition Failed'
+                        session.abort_transaction()
+
+
+           
+           
+       
 
         return jsonify({
             "saving_id":saving_id,
@@ -577,44 +648,114 @@ async def save_saving():
         saving_id = None
         message = ''
         result = 0
-        try:
 
-            
-            starting_date = convertStringTodate(data['starting_date'])            
+        starting_date = convertStringTodate(data['starting_date'])
+        goal_amount = round(float(data.get("goal_amount", 0)),2)
+        interest = round(float(data.get("interest", 0)),2)
+        starting_amount = round(float(data.get("starting_amount", 0)),2)
+        contribution = round(float(data.get("contribution", 0)),2)
+        repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
         
-            append_data = {
-                'category':newEntryOptionData(data['category'],'category_types',user_id),                
 
-                'user_id':ObjectId(user_id),
-
-                'goal_amount':float(data.get("goal_amount", 0)),
-                'interest':float(data.get("interest", 0)),
-                'starting_amount':float(data.get("starting_amount", 0)),
-                'contribution':float(data.get("contribution", 0)),
+        commit = datetime.now()            
+        goal_reached = None
                 
-                "created_at":datetime.now(),
-                "updated_at":datetime.now(),
-                "deleted_at":None,
+        
 
-                'starting_date':starting_date,                                            
-  
-            }
-            #print('data',data)
-            #print('appendata',append_data)            
+        contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat)
+        breakdown = contribution_breakdown['breakdown']
+        total_balance = contribution_breakdown['total_balance']
+        progress  = contribution_breakdown['progress']
+        next_contribution_date = contribution_breakdown['next_contribution_date']
+        goal_reached = contribution_breakdown['goal_reached']
 
-            merge_data = data | append_data
+        len_breakdown = len(breakdown)
 
-            #print('mergedata',merge_data)
+        if next_contribution_date == None:
+            goal_reached = goal_reached if len_breakdown > 0 else None
 
+        append_data = {
+            'category':newEntryOptionData(data['category'],'category_types',user_id),                
+            'user_id':ObjectId(user_id),
+            'goal_amount':goal_amount,
+            'interest':interest,
+            'starting_amount':starting_amount,
+            'contribution':contribution,        
+            "created_at":datetime.now(),
+            "updated_at":datetime.now(),
+            "deleted_at":None,
+            "closed_at":None,
+            "goal_reached":goal_reached,
+            'starting_date':starting_date,
+            'next_contribution_date':next_contribution_date,
+            'total_balance':total_balance, 
+            'progress':progress,
+            'commit':commit                                             
+
+        }
+        merge_data = data | append_data
+
+        if len_breakdown < 1:
             saving_data = collection.insert_one(merge_data)
             saving_id = str(saving_data.inserted_id)
             result = 1 if saving_id!=None else 0
-            message = 'Saving account added Succefull'
-        except Exception as ex:
-            saving_id = None
-            print('Saving Save Exception: ',ex)
-            result = 0
-            message = 'Saving account addition Failed'
+
+            if result:
+                message = 'Saving account added Succefull'
+              
+            else:
+                message = 'Saving account addition Failed'
+                
+
+        else:
+            
+
+            with client.start_session() as session:
+                with session.start_transaction():
+            
+                    try:
+                        
+                        saving_data = collection.insert_one(merge_data,session=session)
+
+                        breakdown_data = []
+                        for todo in breakdown:
+                            breakdown_data.append({
+                                'saving_id':saving_data.inserted_id,
+                                'deleted_at':None,
+                                'closed_at':None,
+                                "goal_reached":goal_reached,
+                                'commit':commit,
+                                **todo
+                            })
+                        
+                        contribution_data = contributions.insert_many(breakdown_data,session=session )
+
+                        saving_id = str(saving_data.inserted_id)
+
+                        saving_query = {
+                            "_id" :ObjectId(saving_id)
+                        }
+
+                        newvalues = { "$set": {                                                     
+                            "goal_reached":goal_reached,                                                                                               
+                            "updated_at":datetime.now()
+                        } }
+                        saving_data = collection.update_one(saving_query,newvalues,session=session)
+                        result = 1 if saving_id!=None and contribution_data.acknowledged and saving_data.modified_count else 0
+                        
+                        if result:
+                            message = 'Saving account added Succefull'
+                            session.commit_transaction()
+                        else:
+                            message = 'Saving account addition Failed'
+                            session.abort_transaction()
+
+                    except Exception as ex:
+                        saving_id = None
+                        print('Saving Save Exception: ',ex)
+                        result = 0
+                        message = 'Saving account addition Failed'
+                        session.abort_transaction()
 
         return jsonify({
             "saving_id":saving_id,

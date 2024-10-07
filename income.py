@@ -511,7 +511,9 @@ async def save_income():
 
                         'pay_date':pay_date,
                         'next_pay_date':None,
-                        'commit':commit       
+                        'commit':commit,
+                        "deleted_at":None,
+                        "closed_at":None       
                         
 
                         
@@ -557,10 +559,12 @@ async def save_income():
                     income_data = collection.update_one(income_query,newvalues,session=session)
 
                     result = 1 if income_id!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
-                    message = 'Income account added Succefull'
+                    
                     if result:
+                        message = 'Income account added Succefull'
                         session.commit_transaction()
                     else:
+                        message = 'Income account addition Failed'
                         session.abort_transaction()
                     
                 except Exception as ex:
