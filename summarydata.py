@@ -16,9 +16,15 @@ debt_accounts = my_col('debt_accounts')
 usersetting = my_col('user_settings')
 income_transactions = my_col('income_transactions')
 income_boost_transaction = my_col('income_boost_transactions')
+saving = my_col('saving')
+bill_transactions = my_col('bill_transactions')
 
 @app.route('/api/header-summary-data/<string:user_id>', methods=['GET'])
 def header_summary_data(user_id:str):
+
+
+    # Get the current date
+    current_date = datetime.now()
 
     
     # Aggregate query to sum the balance field
@@ -124,8 +130,78 @@ def header_summary_data(user_id:str):
     total_monthly_net_income = month_wise_all[0]['total_balance_net'] if month_wise_all else 0
 
 
+    # Aggregation pipeline
+    pipeline = [
+        {
+            '$match': {
+                'deleted_at': None,
+                'closed_at': None
+            }
+        },
+        {
+            '$group': {
+                '_id': None,
+                'total_progress': { '$sum': '$progress' },
+                'total_count': { '$sum': 1 }
+            }
+        },
+        {
+            '$project': {
+                '_id': 0,
+                'average_progress': { 
+                    '$cond': { 
+                        'if': { '$ne': [ '$total_count', 0 ] },
+                        'then': { '$divide': [ '$total_progress', '$total_count' ] },
+                        'else': 0
+                    }
+                }
+            }
+        }
+    ]
+
+    # Execute the aggregation pipeline
+    saving_average = list(saving.aggregate(pipeline))
+
+    saving_average_progress = saving_average[0]['average_progress'] if saving_average else 0
+
+    # Extract the year and month
+    target_year = current_date.year
+    target_month = current_date.month
+
+
+    # Extract the target year and month
+    target_year = current_date.year
+    target_month = current_date.month
+
+    # Aggregation pipeline to sum the 'amount' field for the given month and year
+    pipeline = [
+        {
+            '$match': {
+                '$expr': {
+                    '$and': [
+                        { '$eq': [{ '$year': '$due_date' }, target_year] },
+                        { '$eq': [{ '$month': '$due_date' }, target_month] }
+                    ]
+                }
+            }
+        },
+        {
+            '$group': {
+                '_id': None,
+                'total_amount': { '$sum': '$amount' }
+            }
+        }
+    ]
+
+    # Execute the aggregation
+    result = list(bill_transactions.aggregate(pipeline))
+
+    monthly_bill_totals = result[0]['total_amount'] if result else 0
+
+
 
     return jsonify({
+        "saving_progress":saving_average_progress,
         "debt_total_balance":total_balance,
         'monthly_budget':monthly_budget,
         'total_monthly_minimum':total_monthly_minimum,
@@ -134,7 +210,7 @@ def header_summary_data(user_id:str):
         'active_debt_account':active_debt_account,
         "month_debt_free":latest_month_debt_free,
         "total_monthly_net_income":total_monthly_net_income,
-        "total_monthly_bill_expese":2300             
+        "total_monthly_bill_expese":monthly_bill_totals             
     })
 
 
