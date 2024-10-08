@@ -51,7 +51,7 @@ def saving_contributions_next():
 
         saving_contribution_data = calculate_breakdown_future(
 
-            initial_amount=todo['starting_amount'],
+            initial_amount=todo['total_balance'],
             contribution=todo['contribution'],
             annual_interest_rate=todo['interest'],
             start_date = todo['next_contribution_date'],

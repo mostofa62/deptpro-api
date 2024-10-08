@@ -52,9 +52,7 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
             
             # Calculate next contribution date
             next_contribution_date = current_date + delta
-            # Stop if the next contribution date exceeds the current date
-            if next_contribution_date > current_datetime_now:
-                break
+            
             
             days_in_period = (next_contribution_date - current_date).days
             interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
@@ -77,9 +75,14 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
                 "contribution_date":current_date,
                 "next_contribution_date": next_contribution_date           
             })
+
+            # Stop if the next contribution date exceeds the current date
+            if next_contribution_date > current_datetime_now:
+                break
             
             # Move to the next period based on the contribution frequency
             current_date += delta
+
 
     total_balance = balance
 
