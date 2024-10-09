@@ -403,6 +403,14 @@ def list_saving_boost(user_id:str):
         {"_id":0,"name":1}
         )
         todo['saving_boost_source'] =  saving_boost_type['name']
+
+
+        saving_id = todo['saving']['value']
+        saving = my_col('saving').find_one(
+        {"_id":saving_id},
+        {"_id":0,"saver":1}
+        )
+        todo['saving'] =  saving['saver']
         
 
         
@@ -486,6 +494,10 @@ async def update_saving_boost(id:str):
             pay_date_boost = convertStringTodate(data['pay_date_boost'])
         
             append_data = {
+
+                'saving':{
+                    'value':ObjectId(data['saving']['value'])
+                },
                 
                 'saving_boost_source':newEntryOptionData(data['saving_boost_source'],'saving_boost_types',user_id),                                                
 
@@ -553,6 +565,10 @@ async def save_saving_boost():
             pay_date_boost = convertStringTodate(data['pay_date_boost']) 
         
             append_data = {
+
+                'saving':{
+                    'value':ObjectId(data['saving']['value'])
+                },
                 
                 'saving_boost_source':newEntryOptionData(data['saving_boost_source'],'saving_boost_types',user_id),                                
 

@@ -38,16 +38,22 @@ def calculate_next_payment(pay_date, repeat_value):
 
 # Function to calculate the next payment date based on frequency
 def move_next_time(current_date, frequency, repeat_count=1):
-    if frequency <= 30:
+    if frequency == 30:
         month = current_date.month - 1 + repeat_count
         year = current_date.year + month // 12
         month = month % 12 + 1
-        day = min(current_date.day, calendar.monthrange(year, month)[1])
+        day = min(current_date.day, calendar.monthrange(year, month)[1])        
         return current_date.replace(year=year, month=month, day=day)
     elif frequency == 90:
         return move_next_time(current_date, 30, 3 * repeat_count)
     elif frequency == 365:
-        return current_date.replace(year=current_date.year + repeat_count)    
+        return current_date.replace(year=current_date.year + repeat_count)
+    elif frequency <= 14:
+        # Move by 28 days for weekly frequency
+        new_date = current_date + timedelta(days=28)  # 4 weeks
+        return new_date
+    """ elif frequency == 14:
+        return current_date + timedelta(weeks=2 * repeat_count) """
 
 
 def calculate_prorated_income(pay_date, input, frequency):
@@ -56,6 +62,21 @@ def calculate_prorated_income(pay_date, input, frequency):
     # Calculate the number of days left in the month after the pay date
     days_remaining_in_month = last_day_of_month - pay_date.day + 1    
     # Calculate daily income rate based on the gross input and frequency
+
+    if frequency in [7,14]:
+        if days_remaining_in_month > 7 and days_remaining_in_month < 14:
+                days_remaining_in_month = 7
+                
+        if days_remaining_in_month > 14 and days_remaining_in_month < 21:
+                days_remaining_in_month = 14
+                
+        if days_remaining_in_month > 21 and days_remaining_in_month < 28:
+                days_remaining_in_month = 21
+            
+        if days_remaining_in_month > 28:
+            days_remaining_in_month = 28
+
+
     daily_rate = input / frequency    
     # Calculate the prorated gross income for the remaining days in the month
     prorated_income = daily_rate * days_remaining_in_month    

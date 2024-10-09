@@ -86,6 +86,21 @@ def savingcategory_dropdown(user_id:str):
         category_types_list.append({'value':str(todo['_id']),'label':todo['name']})
 
 
+    savings = my_col('saving').find(
+        {
+
+            "deleted_at":None,
+            "user_id": ObjectId(user_id)
+        },
+        {'_id': 1, 'saver': 1, 'user_id': 1}
+        )
+    saving_list = []
+    for todo in savings:
+        #print(todo)
+        name  =  todo['saver']              
+        saving_list.append({'value':str(todo['_id']),'label':name})
+
+
     saving_boost_types = my_col('saving_boost_types').find(
         {
 
@@ -111,6 +126,7 @@ def savingcategory_dropdown(user_id:str):
             "saving_boost_source":saving_boost_types_list,            
             'repeat_frequency':RepeatFrequency,
             'saving_interest_type':SavingInterestType,
-            'saving_strategy_type':SavingStrategyType
+            'saving_strategy_type':SavingStrategyType,
+            'saving_list':saving_list
         }
     })

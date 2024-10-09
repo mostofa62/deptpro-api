@@ -390,6 +390,7 @@ async def update_income(id:str):
                         total_gross_income = income_transaction_generate['total_gross_for_period']
                         total_net_income = income_transaction_generate['total_net_for_period']
                         next_pay_date = income_transaction_generate['next_pay_date']
+                        income_transaction_data = None
                         if len(income_transaction_list)> 0:                    
                             income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
                         
@@ -421,7 +422,7 @@ async def update_income(id:str):
                         },session=session)
                         
 
-                        result = income_id!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count                                   
+                        result = income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count                                   
                         
                                                 
                         if result:
@@ -541,6 +542,7 @@ async def save_income():
                     total_gross_income = income_transaction_generate['total_gross_for_period']
                     total_net_income = income_transaction_generate['total_net_for_period']
                     next_pay_date = income_transaction_generate['next_pay_date']
+                    income_transaction_data = None
                     if len(income_transaction_list)> 0:                    
                         income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
 
@@ -558,7 +560,7 @@ async def save_income():
                     
                     income_data = collection.update_one(income_query,newvalues,session=session)
 
-                    result = 1 if income_id!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
+                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
                     
                     if result:
                         message = 'Income account added Succefull'
