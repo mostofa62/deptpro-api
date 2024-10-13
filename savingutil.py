@@ -102,7 +102,9 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
 
 # Function to calculate breakdown based on frequency
-def calculate_breakdown_future(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency):
+def calculate_breakdown_future(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency,saving_boost=0,
+                               saving_boost_date=None
+):
     # n = 12  # Compounded monthly (for interest)
     # monthly_rate = annual_interest_rate / n  # Monthly interest rate (same across frequencies)
 
@@ -147,12 +149,14 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     if next_contribution_date >= current_datetime_now:
     
         while balance < goal_amount:
+            #print('balance',balance)
             
             # Calculate next contribution date
             next_contribution_date = current_date + delta
             
             
             days_in_period = (next_contribution_date - current_date).days
+            #print('days_in_period',days_in_period)
             interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
             
             balance += interest + contribution
@@ -160,11 +164,17 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             
             # Calculate progress towards the goal
             progress = (balance / goal_amount) * 100
+
+            month_string = current_date.strftime('%Y-%m')
+
+            if month_string == saving_boost_date and saving_boost > 0:
+                contribution += saving_boost
+                balance += saving_boost
             
             # Append the current breakdown data
             months_breakdown.append({
                 "period": month,
-                "month": current_date.strftime('%Y-%m'),
+                "month": month_string,
                 "month_word": current_date.strftime('%b, %Y'),
                 "interest": round(interest, 2),
                 "contribution": contribution,
@@ -175,7 +185,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             })
             
             # Move to the next period based on the contribution frequency
-            current_date += delta
+            current_date = next_contribution_date
 
     total_balance = balance
 

@@ -15,6 +15,7 @@ from decimal import Decimal
 
 collection = my_col('saving_contributions')
 saving = my_col('saving')
+saving_boost = my_col('saving_boost')
 
 @app.route('/api/saving-contributions-next', methods=['GET'])
 def saving_contributions_next():
@@ -47,16 +48,82 @@ def saving_contributions_next():
     
     projection_list = []
 
-    for todo in cursor:        
+    # Query to match saving.value and filter repeat_boost.value > 0
+    
+
+    for todo in cursor: 
+        #for frequncy based
+        pipeline_boost = [
+        {
+            '$match': {
+                'saving.value': todo['_id'],
+                'deleted_at':None,
+                'repeat_boost.value': {'$gt': 0}
+            }
+            },
+            {
+                '$group': {
+                    '_id': None,
+                    'total_repeat_boost': {'$sum': '$repeat_boost.value'},
+                    'total_saving_boost': {'$sum': '$saving_boost'}
+                }
+            }
+        ]
+
+        # Execute the aggregation
+        result_boost = list(saving_boost.aggregate(pipeline_boost))
+
+        # Get the sums if any results found
+        total_repeat_boost = result_boost[0]['total_repeat_boost'] if result_boost else 0
+        total_saving_boost = result_boost[0]['total_saving_boost'] if result_boost else 0
+
+        #print(total_repeat_boost, total_saving_boost)
+
+
+        total_balance = todo['total_balance'] + total_saving_boost if  total_repeat_boost > 0 else todo['total_balance']
+        #print(total_balance,todo['total_balance'])
+        contribution = todo['contribution'] + total_saving_boost if  total_repeat_boost > 0 else todo['contribution']
+
+        #for one time boosting
+        pipeline_boost_onetime = [
+        {
+            '$match': {
+                'saving.value': todo['_id'],
+                'deleted_at':None,
+                'repeat_boost.value': {'$lt': 1}
+            }
+            },
+            {
+                '$group': {
+                    '_id': None,
+                    'total_saving_boost': {'$sum': '$saving_boost'}
+                }
+            }
+        ]
+
+        # Execute the aggregation
+        result_boost_onetime = list(saving_boost.aggregate(pipeline_boost_onetime))
+
+        total_saving_boost_onetime = result_boost_onetime[0]['total_saving_boost'] if result_boost_onetime else 0
+
+        #print(total_saving_boost_onetime)
+        #print(total_balance, contribution)
+
+        #total_balance = todo['total_balance']
+        #contribution = todo['contribution']
+        saving_boost_date = todo['next_contribution_date'].strftime('%Y-%m') if total_saving_boost_onetime > 0 else None
+        
 
         saving_contribution_data = calculate_breakdown_future(
 
-            initial_amount=todo['total_balance'],
-            contribution=todo['contribution'],
+            initial_amount=total_balance,
+            contribution=contribution,
             annual_interest_rate=todo['interest'],
             start_date = todo['next_contribution_date'],
             goal_amount = todo['goal_amount'],
-            frequency=todo['repeat']['value']
+            frequency=todo['repeat']['value'],
+            saving_boost=total_saving_boost_onetime,
+            saving_boost_date=saving_boost_date
         )
         saving_contribution = saving_contribution_data['breakdown']
 

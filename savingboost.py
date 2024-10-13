@@ -14,7 +14,7 @@ from decimal import Decimal
 client = myclient
 collection = my_col('saving_boost')
 saving_source_types = my_col('saving_source_types')
-
+saving = my_col('saving')
 
 
 
@@ -78,7 +78,15 @@ def get_saving_boost_all(id:str):
     
     saving['saving_boost_source'] = saving_boost_type['name'] 
 
-    saving['repeat_boost'] = saving['repeat_boost']['label']  
+    saving['repeat_boost'] = saving['repeat_boost']['label']
+
+
+    saving_ac = my_col('saving').find_one(
+        {"_id":saving['saving']['value']},
+        {"_id":0,"saver":1}
+        )
+    
+    saving['saving'] =  saving_ac['saver']  
     
 
     return jsonify({
@@ -327,7 +335,15 @@ def view_saving_boost(id:str):
         )
     
     saving['saving_boost_source']['value'] = str(saving['saving_boost_source']['value'])
-    saving['saving_boost_source']['label'] = saving_boost_type['name']   
+    saving['saving_boost_source']['label'] = saving_boost_type['name']
+
+
+    saving_ac = my_col('saving').find_one(
+        {"_id":saving['saving']['value']},
+        {"_id":0,"saver":1}
+        )
+    saving['saving']['value'] =  str(saving['saving']['value']) 
+    saving['saving']['label'] =  saving_ac['saver']  
     
 
     return jsonify({
@@ -487,11 +503,16 @@ async def update_saving_boost(id:str):
         saving_id = None
         message = ''
         result = 0
-        autopay = int(data['autopay']) if 'autopay' in data else 0
+
+        saving_boost = collection.find_one({'_id':ObjectId(id)})
+        #autopay = int(data['autopay']) if 'autopay' in data else 0
+        saving_ac = saving.find_one({'_id':ObjectId(saving_boost['saving']['value'])})
+        
         try:
 
             
-            pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            #pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            pay_date_boost = saving_ac['next_contribution_date']
         
             append_data = {
 
@@ -504,7 +525,7 @@ async def update_saving_boost(id:str):
                 'user_id':ObjectId(user_id),
 
                 'saving_boost':float(data.get("saving_boost", 0)),
-                'autopay':autopay,
+                #'autopay':autopay,
                 
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
@@ -557,12 +578,15 @@ async def save_saving_boost():
         message = ''
         result = 0
 
-        autopay = int(data['autopay']) if 'autopay' in data else 0
+        saving_ac = saving.find_one({'_id':ObjectId(data['saving']['value'])})
+
+        #autopay = int(data['autopay']) if 'autopay' in data else 0
         try:
 
             
             
-            pay_date_boost = convertStringTodate(data['pay_date_boost']) 
+            #pay_date_boost = convertStringTodate(data['pay_date_boost']) 
+            pay_date_boost = saving_ac['next_contribution_date']
         
             append_data = {
 
@@ -575,7 +599,7 @@ async def save_saving_boost():
                 'user_id':ObjectId(user_id),
 
                 'saving_boost':float(data.get("saving_boost", 0)),
-                'autopay':autopay,
+                #'autopay':autopay,
                 
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),

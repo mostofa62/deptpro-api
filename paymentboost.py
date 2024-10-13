@@ -30,12 +30,20 @@ def list_boosts(user_id:str):
     }
     if global_filter:
 
+        pattern_str = r'^\d{4}-\d{2}-\d{2}$'
+        pay_date_boost = None        
+        #try:
+        if re.match(pattern_str, global_filter):
+            pay_date_boost = datetime.strptime(global_filter,"%Y-%m-%d")            
+        #except ValueError:
+        else:
+            pay_date_boost = None
+
         
 
         query["$or"] = [
             
-            {"month.label": {"$regex": global_filter, "$options": "i"}},
-            {"year.value": {"$regex": global_filter, "$options": "i"}},
+            {"pay_date_boost":pay_date_boost},
             {"amount": {"$regex": global_filter, "$options": "i"}},            
                            
             # Add other fields here if needed
@@ -60,7 +68,9 @@ def list_boosts(user_id:str):
     data_list = []
 
     for todo in cursor:
-        todo['billing_month_year'] = f"{todo['month']['label']}, {todo['year']['value']}"
+        #todo['billing_month_year'] = f"{todo['month']['label']}, {todo['year']['value']}"
+        todo['pay_date_boost_word'] = todo['pay_date_boost'].strftime('%d %b, %Y') 
+        todo['pay_date_boost'] = convertDateTostring(todo['pay_date_boost'],'%Y-%m-%d') 
         data_list.append(todo)
     data_json = MongoJSONEncoder().encode(data_list)
     data_obj = json.loads(data_json)
@@ -95,13 +105,12 @@ async def save_boost():
             
 
            
-
+            pay_date_boost = convertStringTodate(data['pay_date_boost']) 
             append_data = {
                 
 
                 'user_id':ObjectId(user_id),
-
-                
+                'pay_date_boost':pay_date_boost,
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
@@ -150,10 +159,11 @@ async def update_boost():
         message = ''
         result = 0
         try:
-
+            pay_date_boost = convertStringTodate(data['pay_date_boost']) 
      
             append_data = {
-                'user_id':ObjectId(user_id),                
+                'user_id':ObjectId(user_id),
+                'pay_date_boost':pay_date_boost,                
                 "updated_at":datetime.now(),                               
             }                     
 

@@ -90,15 +90,27 @@ def savingcategory_dropdown(user_id:str):
         {
 
             "deleted_at":None,
-            "user_id": ObjectId(user_id)
+            "user_id": ObjectId(user_id),
+            'goal_reached':None
         },
-        {'_id': 1, 'saver': 1, 'user_id': 1}
+        {
+            '_id': 1, 
+            'saver': 1, 
+            'user_id': 1, 
+            'repeat':1, 
+            'next_contribution_date':1
+        }
         )
     saving_list = []
     for todo in savings:
         #print(todo)
         name  =  todo['saver']              
-        saving_list.append({'value':str(todo['_id']),'label':name})
+        saving_list.append({
+            'value':str(todo['_id']),
+            'label':name,
+            'repeat_boost':todo['repeat'],            
+            'pay_date_boost':convertDateTostring(todo['next_contribution_date'],"%Y-%m-%d")
+            })
 
 
     saving_boost_types = my_col('saving_boost_types').find(
