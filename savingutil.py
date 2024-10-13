@@ -150,6 +150,19 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     
         while balance < goal_amount:
             #print('balance',balance)
+
+            # print('contribution',contribution)
+            month_string = current_date.strftime('%Y-%m')
+           
+            saving_boost_contribution = 0 
+            if month_string == saving_boost_date:
+                 #print(month_string,saving_boost_date)
+                 #print(contribution, balance)
+                 saving_boost_contribution = contribution +  saving_boost
+            #     #balance += saving_boost
+           
+
+           
             
             # Calculate next contribution date
             next_contribution_date = current_date + delta
@@ -158,18 +171,16 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             days_in_period = (next_contribution_date - current_date).days
             #print('days_in_period',days_in_period)
             interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
-            
-            balance += interest + contribution
+            if saving_boost_contribution > 0:
+                balance += interest + saving_boost_contribution
+            else:
+                balance += interest + contribution
             month += 1
             
             # Calculate progress towards the goal
             progress = (balance / goal_amount) * 100
 
-            month_string = current_date.strftime('%Y-%m')
-
-            if month_string == saving_boost_date and saving_boost > 0:
-                contribution += saving_boost
-                balance += saving_boost
+           
             
             # Append the current breakdown data
             months_breakdown.append({
@@ -177,7 +188,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
                 "month": month_string,
                 "month_word": current_date.strftime('%b, %Y'),
                 "interest": round(interest, 2),
-                "contribution": contribution,
+                "contribution": saving_boost_contribution if saving_boost_contribution > 0 else contribution,
                 "total_balance": round(balance, 2),
                 "progress": round(progress, 2),
                 "contribution_date":current_date,
