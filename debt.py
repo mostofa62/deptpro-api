@@ -850,7 +850,12 @@ def save_debt_account():
                 "user_id":ObjectId(user_id),
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
-                "deleted_at":None                
+                "deleted_at":None,
+
+                "months_to_payoff":0,
+                "month_debt_free":None,
+                "total_payment_sum":0,
+                "total_interest_sum":0                
             }
 
           
@@ -1038,6 +1043,7 @@ def list_debts(user_id:str):
             "payor":todo["payor"],
             "balance":round(todo["balance"],2),
             "interest_rate":todo["interest_rate"],
+            "minimum_payment":round(todo["minimum_payment"],2),
             "monthly_payment":round(todo["monthly_payment"],2),
             "monthly_interest":round(todo["monthly_interest"],2),
             "due_date":todo["due_date"].strftime('%Y-%m-%d'),

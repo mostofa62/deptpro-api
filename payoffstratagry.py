@@ -109,11 +109,44 @@ def get_payoff_strategy_account(user_id:str):
         "deleted_at":None
     }
 
-    debt_accounts_data = debt_accounts.find(deb_query, {'_id': 1, 'name': 1, 'balance':1,'interest_rate':1,'monthly_payment':1,'credit_limit':1})
+    debt_accounts_data = debt_accounts.find(deb_query, 
+    {
+        '_id': 1, 
+        'name': 1, 
+        'balance':1,
+        'interest_rate':1,
+        'monthly_interest':1,
+        'monthly_payment':1,
+        'credit_limit':1,
+        'month_debt_free':1,
+        'months_to_payoff':1,
+        'total_interest_sum':1,
+        'total_payment_sum':1
+    })
 
-    debt_accounts_list = list(debt_accounts_data)
+    #debt_accounts_list = list(debt_accounts_data)
+    debt_accounts_list = []
+    max_months_to_payoff = 0
+    total_paid = 0
+    total_interest = 0
+    
+
+    for todo in debt_accounts_data:
+        total_paid += todo['total_payment_sum']
+        total_interest += todo['total_interest_sum']
+        max_months_to_payoff = todo['months_to_payoff'] if todo['months_to_payoff'] > max_months_to_payoff else max_months_to_payoff        
+        todo['month_debt_free_word'] = convertDateTostring(todo['month_debt_free'],"%b %Y")
+        debt_accounts_list.append(todo)
 
     
+    total_paid = round(total_paid,0)
+    total_interest = round(total_interest,0)
+
+
+
+    paid_off = max(debt_accounts_list, key=lambda x:x["month_debt_free"])
+
+    paid_off = convertDateTostring(paid_off['month_debt_free'],"%b %Y") if paid_off!=None else None
 
     debt_accounts_list = sort_debts_payoff(debt_accounts_list, debt_payoff_method)
 
@@ -121,9 +154,15 @@ def get_payoff_strategy_account(user_id:str):
     data_json = MongoJSONEncoder().encode(debt_accounts_list)
     debt_accounts_list = json.loads(data_json)
 
+    sorted_month_wise = sorted(debt_accounts_list,key = lambda x:x['month_debt_free'])
+
     return jsonify({
-           
-            "debt_accounts_list":debt_accounts_list            
+            "total_paid":total_paid,
+            "total_interest":total_interest,
+            "paid_off":paid_off,
+            "max_months_to_payoff":max_months_to_payoff,
+            "debt_accounts_list":debt_accounts_list,
+            "sorted_month_wise":sorted_month_wise            
         })
 
     
