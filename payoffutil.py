@@ -1,4 +1,49 @@
+from dateutil.relativedelta import relativedelta  # This handles month increments correctly
 
+def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit, current_date, monthly_budget):
+    amortization_schedule = []
+    
+    # Convert interest rate to decimal
+    interest_rate_decimal = interest_rate / 100
+    
+    while balance > 0:
+        balance = min(balance, credit_limit)
+        
+        # Calculate interest for the current balance
+        interest = balance * interest_rate_decimal / 12
+        
+        # Calculate the maximum payment we can make considering the monthly budget
+        payment = min(monthly_payment, monthly_budget)
+        
+        # Calculate snowball amount
+        snowball_amount = min(payment, balance + interest) - interest
+        
+        # Calculate principal payment
+        principle = snowball_amount
+        principle = min(principle, balance)
+        balance -= principle
+        
+        if balance < 0:
+            balance = 0
+        
+        # Calculate total payment (principle + interest)
+        total_payment = principle + interest
+        
+        # Record this month's data
+        amortization_schedule.append({
+            'month': current_date.strftime("%b %Y"),
+            'month_debt_free': current_date,
+            'balance': round(balance, 2),
+            'total_payment': round(total_payment, 2),
+            'snowball_amount': round(snowball_amount, 2),
+            'interest': round(interest, 2),
+            'principle': round(principle, 2)
+        })
+        
+        # Move to the next month using relativedelta to increment by one month
+        current_date += relativedelta(months=1)
+    
+    return amortization_schedule
 
 
 # Define sorting method (for example, Debt Snowball - lowest balance first)

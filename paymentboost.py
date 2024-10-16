@@ -105,12 +105,14 @@ async def save_boost():
             
 
            
-            pay_date_boost = convertStringTodate(data['pay_date_boost']) 
+            pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            month = convertDateTostring(pay_date_boost,"%b %Y") 
             append_data = {
                 
 
                 'user_id':ObjectId(user_id),
                 'pay_date_boost':pay_date_boost,
+                'month':month,
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
