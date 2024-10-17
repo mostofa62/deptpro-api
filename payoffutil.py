@@ -6,6 +6,9 @@ def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit
     # Convert interest rate to decimal
     interest_rate_decimal = interest_rate / 100
     
+    # Calculate a date 5 years from the original current date
+    limit_years = current_date + relativedelta(years=2)
+    
     while balance > 0:
         balance = min(balance, credit_limit)
         
@@ -39,9 +42,15 @@ def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit
             'interest': round(interest, 2),
             'principle': round(principle, 2)
         })
+
+        #print('current_date',current_date)
+        if current_date > limit_years:
+            break
         
         # Move to the next month using relativedelta to increment by one month
         current_date += relativedelta(months=1)
+        
+        
     
     return amortization_schedule
 

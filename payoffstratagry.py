@@ -164,13 +164,19 @@ def get_payoff_strategy_account(user_id:str):
     max_months_to_payoff = 0
     total_paid = 0
     total_interest = 0
-    
+    #print(debt_type_names)
 
     for todo in debt_accounts_data:
         total_paid += todo['total_payment_sum']
         total_interest += todo['total_interest_sum']
         max_months_to_payoff = todo['months_to_payoff'] if todo['months_to_payoff'] > max_months_to_payoff else max_months_to_payoff        
         todo['month_debt_free_word'] = convertDateTostring(todo['month_debt_free'],"%b %Y")
+        
+        dept_type_id = str(todo['debt_type']['value'])
+        
+        if dept_type_id in debt_type_names:
+            #print(dept_type_id)            
+            todo['dept_type_word'] = debt_type_names[dept_type_id]       
         debt_accounts_list.append(todo)
 
     
@@ -228,10 +234,14 @@ def get_payoff_strategy_account(user_id:str):
             debt_type_balances[debt_type_id] += account_balance
         else:
             debt_type_balances[debt_type_id] = account_balance """
+        monthly_data = []
 
-        monthly_data = calculate_amortization(account['balance'], account['interest_rate'],account['monthly_payment'], account['credit_limit'], initail_date,payoff_strategy['monthly_budget']) 
+        try:
+            monthly_data = calculate_amortization(account['balance'], account['interest_rate'],account['monthly_payment'], account['credit_limit'], initail_date,payoff_strategy['monthly_budget']) 
+        except Exception as ex:
+            print('Exception handling',ex)
 
-        if monthly_data:  # If there's data, add it to the correct month
+        if len(monthly_data) > 0:  # If there's data, add it to the correct month
             for record in monthly_data:
                 month = record.get('month')
                 amount = record.get('balance', 0)
@@ -347,19 +357,59 @@ def get_payoff_strategy_account(user_id:str):
     # Convert to list of dicts for the frontend
     all_data = list(merged_data.values()) if len(merged_data) > 0 else []
 
+    chart_data = []
 
-    chart_data = [
-    {
-            "month": entry["month"],
-            "boost":entry["boost"],
-            **{
-                key: details["balance"]
-                for key, details in entry.items()
-                if isinstance(details, dict) and "balance" in details
+    if len(all_data) > 0:
+        chart_data = [
+        {
+                "month": entry["month"],
+                "boost":entry["boost"],
+                **{
+                    key: details["balance"]
+                    for key, details in entry.items()
+                    if isinstance(details, dict) and "balance" in details
+                }
             }
-        }
-        for entry in all_data
-    ]
+            for entry in all_data
+        ]
+
+
+    output = []
+    debt_ids = {key for entry in all_data for key in entry if key not in ["boost", "month"]}
+
+    # Process each entry
+    for entry in all_data:
+        row = [entry["month"]]
+        total_snowball = 0
+        total_interest = 0
+        total_balance = 0
+        total_payment = 0
+        
+        # Add balances for each debt ID dynamically
+        for debt_id in debt_ids:
+            balance = entry.get(debt_id, {}).get("balance", 0)
+            snowball_amount = entry.get(debt_id, {}).get("snowball_amount", 0)
+            interest = entry.get(debt_id, {}).get("interest", 0)
+            payment = entry.get(debt_id, {}).get("total_payment", 0)
+            
+            row.append(balance)
+            total_snowball += snowball_amount
+            total_interest += interest
+            total_balance += balance
+            total_payment += payment
+
+            total_snowball = round(total_snowball,2)
+            total_interest = round(total_interest,2)
+            total_balance = round(total_balance,2)
+            total_payment = round(total_payment,2)
+        
+        # Add total snowball amount, boost, and total interest to the row
+        row.extend([total_snowball, entry["boost"], total_interest,total_balance,total_payment])
+        output.append(row)
+
+    # Add headers for display
+    headers = ["month"] + [f"{debt_id}" for debt_id in debt_ids] + ["total_snowball", "boost", "total_interest","total_balance","total_payment"]
+    output.insert(0, headers)
 
 
     
@@ -373,9 +423,9 @@ def get_payoff_strategy_account(user_id:str):
             #"sorted_month_wise":sorted_month_wise,
             
             "debt_type_ammortization":chart_data,
-            "data":data,
+            #"data":data,
             "debt_type_names":debt_type_names,
-            "all_data":all_data            
+            "all_data":output            
         })
 
     
