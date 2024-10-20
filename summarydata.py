@@ -30,17 +30,18 @@ def header_summary_data(user_id:str):
     # Aggregate query to sum the balance field
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
-        {
-            '$addFields': {
-                'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
-            }
-        },
+        # {
+        #     '$addFields': {
+        #         'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
+        #     }
+        # },
 
         {
             "$group": {
                 "_id": None, 
                 "total_balance": {"$sum": "$balance"},
-                "total_monthly_minimum": {"$sum": "$total_monthly_minimum"},
+                # "total_monthly_minimum": {"$sum": "$total_monthly_minimum"},
+                "total_monthly_minimum": {"$sum": "$monthly_payment"},
 
                 "total_balance": {"$sum": "$balance"},
                 "total_highest_balance":{"$sum": "$highest_balance"},

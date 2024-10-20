@@ -823,7 +823,7 @@ def save_debt_account():
                 "payor": data.get("payor"), 
                 "balance":balance ,                
                 "highest_balance": highest_balance,
-                "minimum_payment": float(data.get("minimum_payment", 0)),                
+                #"minimum_payment": float(data.get("minimum_payment", 0)),                
                 "monthly_payment": float(data.get("monthly_payment", 0)),
                 "credit_limit": float(data.get("credit_limit", 0)),
                 "interest_rate": interest_rate,
@@ -927,7 +927,7 @@ def update_debt(accntid:str):
                 'debt_type':newEntryOptionData(data['debt_type'],'debt_type',user_id),                   
                 'balance':balance,
                 "highest_balance": highest_balance,                
-                "minimum_payment": float(data.get("minimum_payment", 0)),
+                #"minimum_payment": float(data.get("minimum_payment", 0)),
                 "monthly_payment": float(data.get("monthly_payment", 0)),
                 "credit_limit": float(data.get("credit_limit", 0)),
                 'interest_rate':interest_rate,
@@ -1043,7 +1043,7 @@ def list_debts(user_id:str):
             "payor":todo["payor"],
             "balance":round(todo["balance"],2),
             "interest_rate":todo["interest_rate"],
-            "minimum_payment":round(todo["minimum_payment"],2),
+            #"minimum_payment":round(todo["minimum_payment"],2),
             "monthly_payment":round(todo["monthly_payment"],2),
             "monthly_interest":round(todo["monthly_interest"],2),
             "due_date":todo["due_date"].strftime('%Y-%m-%d'),
@@ -1068,7 +1068,7 @@ def list_debts(user_id:str):
                     "total_highest_balance":{"$sum": "$highest_balance"},
                     "total_monthly_payment":{"$sum": "$monthly_payment"},                    
                     "total_monthly_interest":{"$sum": "$monthly_interest"},
-                    "total_minimum_payment":{"$sum": "$minimum_payment"},
+                    #"total_minimum_payment":{"$sum": "$minimum_payment"},
                     }}  # Sum the balance
     ]
 
@@ -1081,7 +1081,7 @@ def list_debts(user_id:str):
     total_monthly_payment = result[0]['total_monthly_payment'] if result else 0
     total_monthly_interest = result[0]['total_monthly_interest'] if result else 0
     total_paid_off = calculate_paid_off_percentage(total_highest_balance,total_balance)
-    total_minimum_payment = result[0]['total_minimum_payment'] if result else 0
+    #total_minimum_payment = result[0]['total_minimum_payment'] if result else 0
 
     return jsonify({
         'rows': data_obj,
@@ -1092,7 +1092,7 @@ def list_debts(user_id:str):
             'total_monthly_payment':total_monthly_payment,
             'total_monthly_interest':total_monthly_interest,
             'total_paid_off':total_paid_off,
-            'total_minimum_payment':total_minimum_payment
+            #'total_minimum_payment':total_minimum_payment
         }
         
     })
@@ -1106,17 +1106,18 @@ def get_dept_header_data(user_id:str):
     # Aggregate query to sum the balance field
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
-        {
-            '$addFields': {
-                'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
-            }
-        },
+        # {
+        #     '$addFields': {
+        #         'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
+        #     }
+        # },
 
         {
             "$group": {
                 "_id": None, 
                 "total_balance": {"$sum": "$balance"},
-                "total_monthly_minimum": {"$sum": "$total_monthly_minimum"},
+                #"total_monthly_minimum": {"$sum": "$total_monthly_minimum"},
+                "total_monthly_minimum": {"$sum": "$monthly_payment"},
 
                 "total_balance": {"$sum": "$balance"},
                 "total_highest_balance":{"$sum": "$highest_balance"},
