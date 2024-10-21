@@ -15,29 +15,39 @@ bill_accounts = my_col('bill_accounts')
 bill_transactions = my_col('bill_transactions')
 bill_payment = my_col('bill_payment')
 
-repeat_count = [
-    {'value':0, 'label':'None'},
-    {'value':1, 'label':'1'},
-    {'value':2, 'label':'2'},
-    {'value':3, 'label':'3'},
-    {'value':4, 'label':'4'},
-    {'value':5, 'label':'5'},
-    {'value':6, 'label':'6'},
-    {'value':7, 'label':'7'},
-    {'value':8, 'label':'8'},
-    {'value':9, 'label':'9'},
-    {'value':10, 'label':'10'},
-    {'value':11, 'label':'11'},
-    {'value':12, 'label':'12'},
+# repeat_count = [
+#     {'value':0, 'label':'None'},
+#     {'value':1, 'label':'1'},
+#     {'value':2, 'label':'2'},
+#     {'value':3, 'label':'3'},
+#     {'value':4, 'label':'4'},
+#     {'value':5, 'label':'5'},
+#     {'value':6, 'label':'6'},
+#     {'value':7, 'label':'7'},
+#     {'value':8, 'label':'8'},
+#     {'value':9, 'label':'9'},
+#     {'value':10, 'label':'10'},
+#     {'value':11, 'label':'11'},
+#     {'value':12, 'label':'12'},
 
-]
+# ]
 
-repeat_frequency = [
+""" repeat_frequency = [
     {'value':0, 'label':'None'},
     {'value':1, 'label':'Week(s)'},
     {'value':2, 'label':'Month(s)'},
     {'value':3, 'label':'Year(s)'},    
 
+] """
+
+repeat_frequency = [
+        {'value':0, 'label':'None'},
+        {'label':'Daily','value':1},
+        {'label':'Weekly','value':7},
+        {'label':'BiWeekly','value':14},
+        {'label':'Monthly','value':30},
+        {'label': 'Quarterly', 'value': 90},
+        {'label':'Annually','value':365}           
 ]
 
 reminder_days = [
@@ -143,7 +153,7 @@ def get_bill_summary(accntid:str):
 def get_bill_utils():
 
     return jsonify({        
-        "repeat_count":repeat_count,
+        # "repeat_count":repeat_count,
         "repeat_frequency":repeat_frequency,
         "reminder_days":reminder_days
     })
@@ -169,14 +179,14 @@ def get_bill(accntid:str):
         billaccounts['bill_type'] = None
     billaccounts['next_due_date'] = billaccounts['next_due_date'].strftime('%Y-%m-%d')
 
-    key_to_search = 'value'
+    """ key_to_search = 'value'
     value_to_search = int(billaccounts['repeat_count'])
     matching_dicts = next((dictionary for dictionary in repeat_count if dictionary.get(key_to_search) == value_to_search),None)    
     
     billaccounts['repeat_count'] = {
         'value':value_to_search,
         'label':matching_dicts['label']
-    }
+    } """
 
 
     key_to_search = 'value'
@@ -202,7 +212,7 @@ def get_bill(accntid:str):
 
     return jsonify({
         "billaccounts":billaccounts,
-        "repeat_count":repeat_count,
+        # "repeat_count":repeat_count,
         "repeat_frequency":repeat_frequency,
         "reminder_days":reminder_days
     })
@@ -276,17 +286,25 @@ def list_bills(user_id:str):
         {"_id":bill_type_id},
         {"_id":0,"name":1}
         )
+
+        key_to_search = 'value'
+        value_to_search = int(todo['repeat_frequency'])
+        matching_dicts = next((dictionary for dictionary in repeat_frequency if dictionary.get(key_to_search) == value_to_search),None)    
+        
+        todo['repeat_frequency'] = matching_dicts['label'] 
         
 
         entry = {
             "_id":todo["_id"],
             "name":todo["name"],
+            "payor":todo["payor"],
             "bill_type":bill_type["name"] if bill_type!=None else None,
             "default_amount":todo["default_amount"],
             "current_amount":todo["current_amount"],
-            "next_due_date":todo["next_due_date"].strftime('%Y-%m-%d'),
+            "next_due_date":convertDateTostring(todo["next_due_date"]),
             "autopay":todo["autopay"],
-            "repeat":todo["repeat"]
+            "repeat":todo["repeat"],
+            "repeat_frequency":todo['repeat_frequency']
             
         }
         data_list.append(entry)
@@ -482,23 +500,23 @@ def save_bill_account():
                     amount  = int(data['default_amount'])
                     autopay = int(data['autopay']) if 'autopay' in data else 0
                     repeat=int(data['repeat']) if 'repeat' in data else 0
-                    repeat_count = 0
+                    # repeat_count = 0
                     repeat_frequency = int(data['repeat_frequency']['value'])
                     reminder_days = int(data['reminder_days']['value'])
 
-                    next_due_date = datetime.strptime(data['next_due_date'],"%Y-%m-%d")
+                    next_due_date = convertStringTodate(data['next_due_date'])
                     #create bill account
                     bill_acc_data = bill_accounts.insert_one({           
                         'name':data['name'],
                         'bill_type':{
                         'value':ObjectId(data['bill_type']['value'])
                         },
-                        'payor':data['payor'],  
+                        'payor':data['payor'] if 'payor' in  data else None,
                         'default_amount':amount,
                         'current_amount':amount, 
                         'next_due_date':next_due_date,
                         'repeat':repeat, 
-                        'repeat_count':repeat_count,
+                        # 'repeat_count':repeat_count,
                         'repeat_frequency':repeat_frequency, 
                         'reminder_days':reminder_days, 
                         'autopay':autopay,
@@ -576,17 +594,17 @@ def update_bill(accntid:str):
             amount  = int(data['default_amount'])
             autopay = int(data['autopay']) if 'autopay' in data else 0
             repeat=int(data['repeat']) if 'repeat' in data else 0
-            repeat_count = int(data['repeat_count']['value'])
+            # repeat_count = int(data['repeat_count']['value'])
             repeat_frequency = int(data['repeat_frequency']['value'])
             reminder_days = int(data['reminder_days']['value'])
             newvalues = { "$set": {
                 'bill_type':{
                     'value':ObjectId(data['bill_type']['value'])
                 },
-                'payor':data['payor'],                    
+                'payor':data['payor'] if 'payor' in  data else None,                    
                 'default_amount':amount,                            
                 'repeat':repeat, 
-                'repeat_count':repeat_count,
+                # 'repeat_count':repeat_count,
                 'repeat_frequency':repeat_frequency, 
                 'reminder_days':reminder_days, 
                 'autopay':autopay,
@@ -952,8 +970,8 @@ def get_bill_all(accntid:str):
     #billaccounts['bill_type']['value'] = str(billaccounts['bill_type']['value'])
     #billaccounts['bill_type']['label'] = bill_type['name']
     billaccounts['bill_type'] = bill_type['name']
-    billaccounts['next_due_date_word'] = billaccounts['next_due_date'].strftime('%d %b, %Y')
-    billaccounts['next_due_date'] = billaccounts['next_due_date'].strftime('%Y-%m-%d')    
+    billaccounts['next_due_date_word'] = convertDateTostring(billaccounts['next_due_date'])
+    billaccounts['next_due_date'] = convertDateTostring(billaccounts['next_due_date'],'%Y-%m-%d')    
         
 
     billaccounts['default_amount'] = round(billaccounts['default_amount'],2)

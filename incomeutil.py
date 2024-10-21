@@ -400,3 +400,11 @@ def generate_new_transaction_data_for_future_income_boost(
         'next_pay_date_boost':next_pay_date_boost
     })
 
+
+
+
+def calculate_total_income_for_sepecific_month(data, target_month):
+    # Sum gross_income and net_income for documents where the month matches target_month    
+    total_monthly_gross_income = sum(doc["total_gross_for_period"] for doc in data if doc["month"] == target_month)
+    total_monthly_net_income = sum(doc["total_net_for_period"] for doc in data if doc["month"] == target_month)
+    return total_monthly_gross_income, total_monthly_net_income
