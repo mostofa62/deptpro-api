@@ -19,6 +19,8 @@ income_boost_transaction = my_col('income_boost_transactions')
 saving = my_col('saving')
 bill_transactions = my_col('bill_transactions')
 
+app_data = my_col('app_data')
+
 @app.route('/api/header-summary-data/<string:user_id>', methods=['GET'])
 def header_summary_data(user_id:str):
 
@@ -79,56 +81,13 @@ def header_summary_data(user_id:str):
 
 
     #income and incomeboost
-    current_monnt = datetime.now().strftime('%Y-%m')
+    app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
 
-    pipeline = [
-        # Step 1: Match documents with pay_date in the last 12 months and not deleted
-        {
-            "$match": {
-                "month": current_monnt,
-                "deleted_at": None,
-                "closed_at":None
-            }
-        },
-        
-        # Step 2: Project to extract year and month from pay_date
-        {
-            "$project": {
-                "base_net_income": 1,
-                "base_gross_income": 1,
-                #"month_word":1,
-                "month":1            
-            }
-        },
+    total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
 
-        # Step 3: Group by year_month and sum the balance
-        {
-            "$group": {
-                "_id": "$month",  # Group by the formatted month-year
-                "total_balance_net": {"$sum": "$base_net_income"},
-                "total_balance_gross": {"$sum": "$base_gross_income"},
-                #"month_word": {"$first": "$month_word"},  # Include the year
-                "month": {"$first": "$month"}   # Include the month
-            }
-        },
+    total_monthly_boost_income = app_datas['total_current_boost_income'] if  app_datas!=None and 'total_current_boost_income' in app_datas else 0
 
-        # Step 4: Create the formatted year_month_word
-        {
-            "$project": {
-                "_id": 1,
-                "total_balance_net": 1,
-                "total_balance_gross":1,
-                # "month_word":1            
-            }
-        },
-
-
-       
-    ]
-
-    month_wise_all = list(income_transactions.aggregate(pipeline))
-
-    total_monthly_net_income = month_wise_all[0]['total_balance_net'] if month_wise_all else 0
+    total_monthly_net_income += total_monthly_boost_income
 
 
     # Aggregation pipeline

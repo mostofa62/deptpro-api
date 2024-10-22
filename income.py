@@ -1,6 +1,7 @@
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
+from incomefunctions import update_current_income
 from incomeutil import calculate_total_income_for_sepecific_month, generate_new_transaction_data_for_income
 from app import app
 from db import my_col,myclient
@@ -17,6 +18,7 @@ collection = my_col('income')
 income_source_types = my_col('income_source_types')
 income_transaction = my_col('income_transactions')
 usersettings = my_col('user_settings')
+income_monthly_log = my_col('income_monthly_log')
 
 
 @app.route('/api/delete-income', methods=['POST'])
@@ -363,13 +365,14 @@ async def update_income(id:str):
         del merge_data['pay_date']
 
         
-
+        
         #if we found any changes on gross_income, net_income or repeat values
         if any_change:        
 
             with client.start_session() as session:
                 with session.start_transaction():
                     try:
+                        total_monthly_net_income = 0
 
                         del merge_data['total_gross_income']
                         del merge_data['total_net_income']
@@ -395,6 +398,7 @@ async def update_income(id:str):
                         income_transaction_data = None
                         if len(income_transaction_list)> 0:                    
                             income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
+                            total_monthly_net_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
                                                 
                         
 
@@ -421,15 +425,40 @@ async def update_income(id:str):
                                 'deleted_at':datetime.now()
                             }
                         },session=session)
-                        
 
-                        result = income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count                                   
+
+
+                        filter_query = {
+                            "income_id" :ObjectId(income_id)
+                        }
+
+                        update_document = {'$set': {
+                                #'income_id': ObjectId(income_id),
+                                'total_monthly_net_income': total_monthly_net_income,
+                                'month':commit.strftime('%Y-%m'),
+                                "deleted_at": None,
+                                "closed_at":None                 
+                            }
+                        }
+
+                        income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+
+                        #print(income_monthly_log_data)
+                        monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
+
+                        
+                        
+                        
+                        result = 1 if income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count and monthly_log_result  else 0                                 
+
+                        print(total_monthly_net_income,income_monthly_log_data.modified_count, result)
                         
                                                 
-                        if result:
+                        if result:                            
                             message = 'Income account updated Succefull'
-                            session.commit_transaction()
-                        else:
+                            session.commit_transaction()                            
+                            update_current_income(user_id)
+                        else:                            
                             message = 'Income account update Failed'
                             session.abort_transaction()
                     except Exception as ex:
@@ -477,6 +506,8 @@ async def save_income():
             with session.start_transaction():
         
                 try:
+
+                    total_monthly_net_income = 0
 
                     net_income = float(data.get("net_income", 0))
                     gross_income = float(data.get("gross_income", 0))
@@ -546,6 +577,7 @@ async def save_income():
                     income_transaction_data = None
                     if len(income_transaction_list)> 0:                    
                         income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
+                        total_monthly_net_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
                         
 
 
@@ -563,14 +595,31 @@ async def save_income():
                     income_data = collection.update_one(income_query,newvalues,session=session)
 
                     
+                    filter_query = {
+                            "income_id" :ObjectId(income_id)
+                        }
 
+                    update_document = {'$set': {
+                            #'income_id': ObjectId(income_id),
+                            'total_monthly_net_income': total_monthly_net_income,
+                            'month':commit.strftime('%Y-%m'),
+                            "deleted_at": None,
+                            "closed_at":None                 
+                        }
+                    }
+
+                    income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+
+                    #print(income_monthly_log_data)
+                    monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
                     
 
-                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
+                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count and monthly_log_result else 0
                     
                     if result:
                         message = 'Income account added Succefull'
                         session.commit_transaction()
+                        update_current_income(user_id)
                     else:
                         message = 'Income account addition Failed'
                         session.abort_transaction()

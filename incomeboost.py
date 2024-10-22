@@ -1,7 +1,8 @@
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
-from incomeutil import generate_new_transaction_data_for_income_boost
+from incomefunctions import update_current_boost
+from incomeutil import calculate_total_income_for_sepecific_month, generate_new_transaction_data_for_income_boost
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -16,7 +17,7 @@ client = myclient
 collection = my_col('income_boost')
 income_boost_types = my_col('income_boost_types')
 income_boost_transaction = my_col('income_boost_transactions')
-
+income_boost_monthly_log = my_col('income_boost_monthly_log')
 
 
 @app.route('/api/delete-income-boost', methods=['POST'])
@@ -363,6 +364,8 @@ async def update_income_boost(id:str):
                 with session.start_transaction():
                     try:
 
+                        total_monthly_boost_income = 0
+
 
                         del merge_data['total_income_boost']
                         commit = datetime.now()
@@ -381,6 +384,7 @@ async def update_income_boost(id:str):
                         next_pay_date_boost = income_transaction_generate['next_pay_date_boost']
                         if len(income_transaction_list)> 0:                    
                             income_transaction_data = income_boost_transaction.insert_many(income_transaction_list,session=session)
+                            total_monthly_boost_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m'),'base_input_boost' )
 
             
                         #update latest commit and transaction summary
@@ -405,13 +409,32 @@ async def update_income_boost(id:str):
                                 'deleted_at':datetime.now()
                             }
                         },session=session)
+
+                        filter_query = {
+                            "income_id" :ObjectId(income_id)
+                        }
+
+                        update_document = {'$set': {
+                                #'income_id': ObjectId(income_id),
+                                'total_monthly_boost_income': total_monthly_boost_income,
+                                'month':commit.strftime('%Y-%m'),
+                                "deleted_at": None,
+                                "closed_at":None                 
+                            }
+                        }
+
+                        income_monthly_log_data = income_boost_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+
+                        #print(income_monthly_log_data)
+                        monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
                         
 
-                        result = income_id!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count
+                        result = income_id!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count and monthly_log_result
 
                         if result:
                             message = 'Income boost added Succefull'
                             session.commit_transaction()
+                            update_current_boost(user_id)
                         else:
                             message = 'Income boost addition Failed'
                             session.abort_transaction()
@@ -466,6 +489,8 @@ async def save_income_boost():
             with session.start_transaction():
         
                 try:
+
+                    total_monthly_boost_income = 0
 
                     
                     income_boost = float(data.get("income_boost", 0))                    
@@ -530,6 +555,7 @@ async def save_income_boost():
                     next_pay_date_boost = income_transaction_generate['next_pay_date_boost']
                     if len(income_transaction_list)> 0:                    
                         income_transaction_data = income_boost_transaction.insert_many(income_transaction_list,session=session)
+                        total_monthly_boost_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m'),'base_input_boost' )
 
 
                     income_query = {
@@ -544,13 +570,32 @@ async def save_income_boost():
                     
                     income_data = collection.update_one(income_query,newvalues,session=session)
 
-                    result = income_id!=None and income_transaction_data.acknowledged and income_data.modified_count
+                    filter_query = {
+                            "income_id" :ObjectId(income_id)
+                        }
+
+                    update_document = {'$set': {
+                            #'income_id': ObjectId(income_id),
+                            'total_monthly_boost_income': total_monthly_boost_income,
+                            'month':commit.strftime('%Y-%m'),
+                            "deleted_at": None,
+                            "closed_at":None                 
+                        }
+                    }
+
+                    income_monthly_log_data = income_boost_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+
+                    #print(income_monthly_log_data)
+                    monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
+
+                    result = income_id!=None and income_transaction_data.acknowledged and income_data.modified_count and monthly_log_result
 
                     
 
                     if result:
                         message = 'Income boost added Succefull'
                         session.commit_transaction()
+                        update_current_boost(user_id)
                     else:
                         message = 'Income boost addition Failed'
                         session.abort_transaction()
