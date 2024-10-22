@@ -177,22 +177,26 @@ def saving_contributions_next():
     })
 
 
-
+@app.route('/api/saving-contributions-previous/<saving_id>', methods=['GET'])
 @app.route('/api/saving-contributions-previous', methods=['GET'])
-def saving_contributions_previous():
-
-
+def saving_contributions_previous(saving_id=None):
 
     twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    match_query = {
+        "contribution_date": {"$gte": twelve_months_ago},
+        "deleted_at": None,
+        "closed_at":None,
+    }
+    if saving_id!=None:
+        match_query["saving_id"] = ObjectId(saving_id)
+
+    
 
     pipeline = [
     # Step 1: Match documents with contribution_date in the last 12 months and not deleted
     {
-        "$match": {
-            "contribution_date": {"$gte": twelve_months_ago},
-            "deleted_at": None,
-            "closed_at":None
-        }
+        "$match": match_query
     },
     
     # Step 2: Project to extract year and month from contribution_date
@@ -275,10 +279,36 @@ def saving_contributions_previous():
         data_json = MongoJSONEncoder().encode(year_month_wise_counts)
         year_month_wise_counts = json.loads(data_json)
 
+
+    total_monthly_balance = 0
+
+    cuurent_month = datetime.now().strftime('%Y-%m')
+
+    if saving_id!=None:
+
+        pipeline = [
+            {
+                "$match": {
+                    "month": cuurent_month,  # Filter documents for the specified month
+                    "saving_id":ObjectId(saving_id)
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$month",  # Group by month
+                    "total_balance": { "$sum": "$total_balance" }  # Sum total_balance for the matched month
+                }
+            }
+        ]
+
+        # Execute the aggregation
+        results = list(collection.aggregate(pipeline))
+        total_monthly_balance = results[0]['total_balance'] if results else 0 
     return jsonify({
         "payLoads":{            
             
-            "year_month_wise_counts":year_month_wise_counts,            
+            "year_month_wise_counts":year_month_wise_counts,
+            "total_monthly_balance":total_monthly_balance            
 
 
         }        
