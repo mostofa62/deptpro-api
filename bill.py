@@ -284,8 +284,19 @@ def list_bills(user_id:str):
         bill_type_id = todo['bill_type']['value']
         bill_type = my_col('bill_type').find_one(
         {"_id":bill_type_id},
-        {"_id":0,"name":1}
+        {"_id":0,"name":1,"parent":1}
         )
+
+        bill_type_parent = None
+
+        if bill_type['parent']!=None:
+            bill_type_parent = my_col('bill_type').find_one(
+            {"_id":bill_type['parent']},
+            {"_id":0,"name":1}
+            )
+
+        #print(bill_type_parent)
+
 
         key_to_search = 'value'
         value_to_search = int(todo['repeat_frequency'])
@@ -299,11 +310,12 @@ def list_bills(user_id:str):
             "name":todo["name"],
             "payor":todo["payor"],
             "bill_type":bill_type["name"] if bill_type!=None else None,
+            "bill_type_parent":bill_type_parent["name"] if bill_type_parent!=None else None,
             "default_amount":todo["default_amount"],
             "current_amount":todo["current_amount"],
             "next_due_date":convertDateTostring(todo["next_due_date"]),
             "autopay":todo["autopay"],
-            "repeat":todo["repeat"],
+            #"repeat":todo["repeat"],
             "repeat_frequency":todo['repeat_frequency']
             
         }
@@ -499,7 +511,7 @@ def save_bill_account():
 
                     amount  = int(data['default_amount'])
                     autopay = int(data['autopay']) if 'autopay' in data else 0
-                    repeat=int(data['repeat']) if 'repeat' in data else 0
+                    #repeat=int(data['repeat']) if 'repeat' in data else 0
                     # repeat_count = 0
                     repeat_frequency = int(data['repeat_frequency']['value'])
                     reminder_days = int(data['reminder_days']['value'])
@@ -515,7 +527,7 @@ def save_bill_account():
                         'default_amount':amount,
                         'current_amount':amount, 
                         'next_due_date':next_due_date,
-                        'repeat':repeat, 
+                        #'repeat':repeat, 
                         # 'repeat_count':repeat_count,
                         'repeat_frequency':repeat_frequency, 
                         'reminder_days':reminder_days, 
@@ -593,7 +605,7 @@ def update_bill(accntid:str):
                     }
             amount  = int(data['default_amount'])
             autopay = int(data['autopay']) if 'autopay' in data else 0
-            repeat=int(data['repeat']) if 'repeat' in data else 0
+            #repeat=int(data['repeat']) if 'repeat' in data else 0
             # repeat_count = int(data['repeat_count']['value'])
             repeat_frequency = int(data['repeat_frequency']['value'])
             reminder_days = int(data['reminder_days']['value'])
@@ -603,7 +615,7 @@ def update_bill(accntid:str):
                 },
                 'payor':data['payor'] if 'payor' in  data else None,                    
                 'default_amount':amount,                            
-                'repeat':repeat, 
+                #'repeat':repeat, 
                 # 'repeat_count':repeat_count,
                 'repeat_frequency':repeat_frequency, 
                 'reminder_days':reminder_days, 
@@ -964,8 +976,18 @@ def get_bill_all(accntid:str):
     
     bill_type = my_col('bill_type').find_one(
         {"_id":billaccounts['bill_type']['value']},
+        {"_id":0,"name":1,"parent":1}
+        )
+    
+    bill_type_parent = None
+
+    if bill_type['parent']!=None:
+        bill_type_parent = my_col('bill_type').find_one(
+        {"_id":bill_type['parent']},
         {"_id":0,"name":1}
         )
+    
+    billaccounts['bill_type_parent'] = bill_type_parent['name'] if bill_type_parent!=None else None
     
     #billaccounts['bill_type']['value'] = str(billaccounts['bill_type']['value'])
     #billaccounts['bill_type']['label'] = bill_type['name']
@@ -990,7 +1012,7 @@ def get_bill_all(accntid:str):
     billaccounts['reminder_days'] = matching_dicts['label']
 
     billaccounts['autopay'] = 'Yes'  if billaccounts['autopay'] > 0 else 'No'
-    billaccounts['repeat'] = 'Yes'  if billaccounts['repeat'] > 0 else 'No'
+    # billaccounts['repeat'] = 'Yes'  if billaccounts['repeat'] > 0 else 'No'
 
 
     key_to_search = 'value'

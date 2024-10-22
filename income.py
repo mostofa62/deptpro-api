@@ -473,8 +473,6 @@ async def save_income():
         income_id = None
         message = ''
         result = 0
-        total_monthly_gross_income = 0
-        total_monthly_net_income = 0
         with client.start_session() as session:
             with session.start_transaction():
         
@@ -548,17 +546,7 @@ async def save_income():
                     income_transaction_data = None
                     if len(income_transaction_list)> 0:                    
                         income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
-                        total_monthly_gross_income, total_monthly_net_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m'))
-
-
-                    usersettings_data = usersettings.update_one(
-                            {'user_id':ObjectId(user_id)},
-                            { "$set": {
-                                'total_monthly_gross_income':total_monthly_gross_income,
-                                'total_monthly_net_income':total_monthly_net_income,
-                            } }
-                            ,session=session 
-                        )
+                        
 
 
                     income_query = {
@@ -578,7 +566,7 @@ async def save_income():
 
                     
 
-                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count and usersettings_data.modified_count else 0
+                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
                     
                     if result:
                         message = 'Income account added Succefull'

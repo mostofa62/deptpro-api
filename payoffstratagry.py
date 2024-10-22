@@ -167,8 +167,10 @@ def get_payoff_strategy_account(user_id:str):
     #print(debt_type_names)
 
     for todo in debt_accounts_data:
+        if 'months_to_payoff' not in todo:
+            continue
         total_paid += todo['total_payment_sum']
-        total_interest += todo['total_interest_sum']
+        total_interest += todo['total_interest_sum'] if 'total_interest_sum' in todo else 0
         max_months_to_payoff = todo['months_to_payoff'] if todo['months_to_payoff'] > max_months_to_payoff else max_months_to_payoff        
         todo['month_debt_free_word'] = convertDateTostring(todo['month_debt_free'],"%b %Y")
         
