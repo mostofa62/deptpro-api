@@ -18,9 +18,93 @@ collection = my_col('income_transactions')
 income = my_col('income')
 income_boost = my_col('income_boost')
 income_boost_transaction = my_col('income_boost_transactions')
+income_monthly_log = my_col('income_monthly_log')
+app_data = my_col('app_data')
+@app.route('/api/income-transactions-next/<income_id>', methods=['GET'])
+def income_transactions_next_one(income_id):
 
-@app.route('/api/income-transactions-next', methods=['GET'])
-def income_transactions_next():
+
+    current_month = datetime.now().strftime('%Y-%m')
+    income_monthly_log_data = income_monthly_log.find_one({
+        'income_id':ObjectId(income_id)
+    })
+    total_monthly_net_income = income_monthly_log_data['total_monthly_net_income'] if  income_monthly_log_data!=None and 'total_monthly_net_income' in income_monthly_log_data else 0
+    total_monthly_gross_income = income_monthly_log_data['total_monthly_gross_income'] if  income_monthly_log_data!=None and 'total_monthly_gross_income' in income_monthly_log_data else 0    
+
+    projection_list = []
+    todo = income.find_one({
+        'closed_at':None,
+        'deleted_at':None,
+        '_id':ObjectId(income_id)
+    },{
+        'gross_income':1,
+        'net_income':1,
+        'pay_date':1,
+        'next_pay_date':1,
+        'repeat':1
+        })
+    
+    if todo !=None:
+        income_transaction_data = generate_new_transaction_data_for_future_income(
+
+            gross_input=todo['gross_income'],
+            net_input=todo['net_income'],
+            pay_date=todo['next_pay_date'],
+            frequency=todo['repeat']['value']
+        )
+        income_transaction = income_transaction_data['income_transaction']
+
+        projection_list.append(income_transaction)
+
+    # Dictionary to store merged results
+    merged_data = defaultdict(lambda: {
+        "base_gross_income": 0,
+        "base_net_income": 0,
+        #"total_gross_for_period": 0,
+        #"total_net_for_period": 0,
+        "month_word": ""
+    })
+
+    # Merging logic
+    if len(projection_list) > 0:
+        for sublist in projection_list:
+            for entry in sublist:
+                
+                month = entry['month']                
+                if month == current_month:
+                    merged_data[month]['base_gross_income'] = round(total_monthly_gross_income,2)
+                    merged_data[month]['base_net_income'] = round(total_monthly_net_income,2)
+                #merged_data[month]['id'] = ObjectId()
+                merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
+                merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
+                #merged_data[month]['total_gross_for_period'] += entry['total_gross_for_period']
+                #merged_data[month]['total_net_for_period'] += entry['total_net_for_period']
+                merged_data[month]['month_word'] = entry['month_word']
+
+                merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
+                merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
+
+            #merged_data[month]['id'] = generate_unique_id(month)
+
+
+    # Convert the merged data back into a list if needed
+    result = [{"month": month, **data} for month, data in merged_data.items()]
+
+    return jsonify({
+        "payLoads":{            
+            
+               #'projection_list':result,
+               #'projection_list_boost':result_boost,
+               'projection_list':result
+                     
+
+
+        }        
+    })
+
+
+@app.route('/api/income-transactions-next-all/<user_id>', methods=['GET'])
+def income_transactions_next(user_id:str):
 
 
 
@@ -31,6 +115,13 @@ def income_transactions_next():
     # query = {
     #     "pay_date": {"$eq": pay_date},
     # }
+
+    #income and incomeboost
+    current_month = datetime.now().strftime('%Y-%m')
+    app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
+
+    total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
+    total_monthly_gross_income = app_datas['total_current_gross_income'] if  app_datas!=None and 'total_current_gross_income' in app_datas else 0
 
     cursor = income.find({
         'closed_at':None,
@@ -46,7 +137,7 @@ def income_transactions_next():
     projection_list = []
 
     for todo in cursor:
-
+        
         income_transaction_data = generate_new_transaction_data_for_future_income(
 
             gross_input=todo['gross_income'],
@@ -73,6 +164,10 @@ def income_transactions_next():
         for entry in sublist:
             
             month = entry['month']
+            if month == current_month:
+                merged_data[month]['base_gross_income'] = round(total_monthly_gross_income+entry['base_gross_income'],2)
+                merged_data[month]['base_net_income'] = round(total_monthly_net_income+entry['base_net_income'],2)
+                
             #merged_data[month]['id'] = ObjectId()
             merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
             merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
@@ -174,22 +269,26 @@ def income_transactions_next():
 
         }        
     })
-
+@app.route('/api/income-transactions-previous/<income_id>', methods=['GET'])
 @app.route('/api/income-transactions-previous', methods=['GET'])
-def income_transactions_previous():
+def income_transactions_previous(income_id=None):
 
 
 
     twelve_months_ago = datetime.now() - timedelta(days=365)
 
+    match_query = {
+        "pay_date": {"$gte": twelve_months_ago},
+        "deleted_at": None,
+        "closed_at":None,
+    }
+    if income_id!=None:
+        match_query["income_id"] = ObjectId(income_id)
+
     pipeline = [
     # Step 1: Match documents with pay_date in the last 12 months and not deleted
     {
-        "$match": {
-            "pay_date": {"$gte": twelve_months_ago},
-            "deleted_at": None,
-            "closed_at":None
-        }
+        "$match": match_query
     },
     
     # Step 2: Project to extract year and month from pay_date
@@ -272,11 +371,17 @@ def income_transactions_previous():
         data_json = MongoJSONEncoder().encode(year_month_wise_counts)
         year_month_wise_counts = json.loads(data_json)
 
+    total_monthly_balance = 0    
+    if income_id!=None:
+        income_monthly_log_data = income_monthly_log.find_one({'income_id':ObjectId(income_id)})
+        if income_monthly_log_data!=None:
+            total_monthly_balance = income_monthly_log_data['total_monthly_net_income']
+
     return jsonify({
         "payLoads":{            
             
             "year_month_wise_counts":year_month_wise_counts,            
-
+            "total_monthly_balance":total_monthly_balance
 
         }        
     })

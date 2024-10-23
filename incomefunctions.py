@@ -22,6 +22,7 @@ def update_current_income(user_id:str):
         # Step 2: Project to extract year and month from pay_date
         {
             "$project": {
+                "total_monthly_gross_income":1,
                 "total_monthly_net_income": 1,                                    
                 #"month_word":1,
                 "month":1            
@@ -32,7 +33,8 @@ def update_current_income(user_id:str):
         {
             "$group": {
                 "_id": "$month",  # Group by the formatted month-year
-                "total_monthly_net_income": {"$sum": "$total_monthly_net_income"},                                    
+                "total_monthly_net_income": {"$sum": "$total_monthly_net_income"},
+                "total_monthly_gross_income": {"$sum": "$total_monthly_gross_income"},                                    
                 "month": {"$first": "$month"}   # Include the month
             }
         },
@@ -41,6 +43,7 @@ def update_current_income(user_id:str):
         {
             "$project": {
                 "_id": 1,
+                "total_monthly_gross_income":1,
                 "total_monthly_net_income": 1,                                      
             }
         },
@@ -52,6 +55,7 @@ def update_current_income(user_id:str):
     month_wise_all = list(income_monthly_log.aggregate(pipeline_log))
 
     total_current_net_income = month_wise_all[0]['total_monthly_net_income'] if month_wise_all else 0
+    total_current_gross_income = month_wise_all[0]['total_monthly_gross_income'] if month_wise_all else 0
 
     filter_query = {
         "user_id" :ObjectId(user_id)
@@ -59,7 +63,9 @@ def update_current_income(user_id:str):
 
     update_document = {'$set': {
             #'minimum_payments': float(data['minimum_payments']),
-            'total_current_net_income': total_current_net_income,                 
+            'total_current_gross_income':total_current_gross_income,
+            'total_current_net_income': total_current_net_income,
+                             
         }
     }
 

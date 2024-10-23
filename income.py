@@ -19,7 +19,7 @@ income_source_types = my_col('income_source_types')
 income_transaction = my_col('income_transactions')
 usersettings = my_col('user_settings')
 income_monthly_log = my_col('income_monthly_log')
-
+app_data = my_col('app_data')
 
 @app.route('/api/delete-income', methods=['POST'])
 def delete_income():
@@ -236,10 +236,18 @@ def list_income(user_id:str):
             )
             todo['income_source'] =  income_source_type['name']
 
-        
+    #     income_monthly_log_data = income_monthly_log.find_one({
+    #     'income_id':ObjectId(todo['_id'])
+    # },{'total_monthly_net_income':1, 'total_monthly_gross_income':1})
+
+    #     total_monthly_net_income = income_monthly_log_data['total_monthly_net_income'] if  income_monthly_log_data!=None and 'total_monthly_net_income' in income_monthly_log_data else 0
+    #     total_monthly_gross_income = income_monthly_log_data['total_monthly_gross_income'] if  income_monthly_log_data!=None and 'total_monthly_gross_income' in income_monthly_log_data else 0    
 
         todo['pay_date'] = convertDateTostring(todo['pay_date'])
         todo['next_pay_date'] = convertDateTostring(todo['next_pay_date'])
+
+        # todo['total_monthly_net_income'] = total_monthly_net_income
+        # todo['total_monthly_gross_income'] = total_monthly_gross_income
 
         
 
@@ -254,7 +262,7 @@ def list_income(user_id:str):
 
     #total balance , interest, monthly intereset paid off
     # Aggregate query to sum the balance field
-    pipeline = [
+    """ pipeline = [
         {"$match": query},  # Filter by user_id
         # {
         #     '$addFields': {
@@ -268,11 +276,16 @@ def list_income(user_id:str):
     ]
 
     # Execute the aggregation pipeline
-    result = list(collection.aggregate(pipeline))
+    result = list(income_monthly_log.aggregate(pipeline))
 
      # Extract the total balance from the result
     total_net_income = result[0]['total_net_income'] if result else 0
-    total_gross_income = result[0]['total_gross_income'] if result else 0
+    total_gross_income = result[0]['total_gross_income'] if result else 0 """
+
+    app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
+
+    total_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
+    total_gross_income = app_datas['total_current_gross_income'] if  app_datas!=None and 'total_current_gross_income' in app_datas else 0
     
     
 
@@ -373,6 +386,7 @@ async def update_income(id:str):
                 with session.start_transaction():
                     try:
                         total_monthly_net_income = 0
+                        total_monthly_gross_income = 0
 
                         del merge_data['total_gross_income']
                         del merge_data['total_net_income']
@@ -398,7 +412,7 @@ async def update_income(id:str):
                         income_transaction_data = None
                         if len(income_transaction_list)> 0:                    
                             income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
-                            total_monthly_net_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
+                            total_monthly_net_income, total_monthly_gross_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
                                                 
                         
 
@@ -434,6 +448,7 @@ async def update_income(id:str):
 
                         update_document = {'$set': {
                                 #'income_id': ObjectId(income_id),
+                                'total_monthly_gross_income':total_monthly_gross_income,
                                 'total_monthly_net_income': total_monthly_net_income,
                                 'month':commit.strftime('%Y-%m'),
                                 "deleted_at": None,
@@ -451,7 +466,7 @@ async def update_income(id:str):
                         
                         result = 1 if income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count and monthly_log_result  else 0                                 
 
-                        print(total_monthly_net_income,income_monthly_log_data.modified_count, result)
+                        print(total_monthly_net_income, total_monthly_gross_income,income_monthly_log_data.modified_count, result)
                         
                                                 
                         if result:                            
@@ -508,6 +523,7 @@ async def save_income():
                 try:
 
                     total_monthly_net_income = 0
+                    total_monthly_gross_income = 0
 
                     net_income = float(data.get("net_income", 0))
                     gross_income = float(data.get("gross_income", 0))
@@ -577,7 +593,7 @@ async def save_income():
                     income_transaction_data = None
                     if len(income_transaction_list)> 0:                    
                         income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
-                        total_monthly_net_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
+                        total_monthly_net_income, total_monthly_gross_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
                         
 
 
@@ -601,6 +617,7 @@ async def save_income():
 
                     update_document = {'$set': {
                             #'income_id': ObjectId(income_id),
+                            'total_monthly_gross_income':total_monthly_gross_income,
                             'total_monthly_net_income': total_monthly_net_income,
                             'month':commit.strftime('%Y-%m'),
                             "deleted_at": None,

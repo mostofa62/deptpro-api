@@ -42,6 +42,9 @@ def delete_saving():
         data = json.loads(request.data)
 
         id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
 
         saving_account_id = None
         message = None
@@ -52,18 +55,23 @@ def delete_saving():
             myquery = { "_id" :ObjectId(id)}
 
             newvalues = { "$set": {                                     
-                "deleted_at":datetime.now()                
-            } }
+                            field:datetime.now()                
+                        } }
             saving_account_data =  collection.update_one(myquery, newvalues)
             saving_account_id = id if saving_account_data.modified_count else None
             error = 0 if saving_account_data.modified_count else 1
             deleted_done = 1 if saving_account_data.modified_count else 0
-            message = 'Saving account Deleted Successfully'if saving_account_data.modified_count else 'Saving account Deletion Failed'
+            if deleted_done:
+                message = f'Saving account {action} Successfully'
+                
+            else:
+                message = f'Saving account {action} Failed'
+                            
 
         except Exception as ex:
             saving_account_id = None
             print('Saving account Save Exception: ',ex)
-            message = 'Saving account Deletion Failed'
+            message = f'Saving account {action} Failed'
             error  = 1
             deleted_done = 0
         
@@ -137,7 +145,8 @@ def get_typewise_saving_info():
         {
             "$match": {
                 "category.value": {"$in": savingtype_id_list},
-                "deleted_at": None
+                "deleted_at": None,
+                "closed_at":None
             }
         },
 
@@ -393,7 +402,8 @@ def list_saving(user_id:str):
     query = {
         #'role':{'$gte':10}
         "user_id":ObjectId(user_id),
-        "deleted_at":None
+        "deleted_at":None,
+        "closed_at":None
     }
     if global_filter:
 

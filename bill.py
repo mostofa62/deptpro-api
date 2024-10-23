@@ -230,7 +230,8 @@ def list_bills(user_id:str):
     query = {
         #'role':{'$gte':10}
         "user_id":ObjectId(user_id),
-        "deleted_at":None
+        "deleted_at":None,
+        "closed_at":None
     }
     
     
@@ -537,7 +538,8 @@ def save_bill_account():
                         "updated_at":datetime.now(),                        
                         "user_id":ObjectId(data["user_id"]),
                         "latest_transaction_id":None,
-                        "deleted_at":None
+                        "deleted_at":None,
+                        "closed_at":None
                     },session=session)
 
                     bill_account_id = str(bill_acc_data.inserted_id)
@@ -553,7 +555,8 @@ def save_bill_account():
                         "user_id":ObjectId(data["user_id"]),
                         "bill_acc_id":ObjectId(bill_account_id),
                         "payment_status":0,
-                        "deleted_at":None
+                        "deleted_at":None,
+                        "closed_at":None
                     },session=session)
 
                     bill_trans_id = str(bill_trans_data.inserted_id)
@@ -652,6 +655,9 @@ def delete_bill():
         data = json.loads(request.data)
 
         id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
 
         bill_account_id = None
         message = None
@@ -662,18 +668,22 @@ def delete_bill():
             myquery = { "_id" :ObjectId(id)}
 
             newvalues = { "$set": {                                     
-                "deleted_at":datetime.now()                
-            } }
+                            field:datetime.now()                
+                        } }
             bill_account_data =  bill_accounts.update_one(myquery, newvalues)
             bill_account_id = id if bill_account_data.modified_count else None
             error = 0 if bill_account_data.modified_count else 1
             deleted_done = 1 if bill_account_data.modified_count else 0
-            message = 'Bill account Deleted Successfully'if bill_account_data.modified_count else 'Bill account Deletion Failed'
+            if deleted_done:
+                message = f'Bill account {action} Successfully'
+                
+            else:
+                message = f'Bill account {action} Failed' 
 
         except Exception as ex:
             bill_account_id = None
             print('Bill account Save Exception: ',ex)
-            message = 'Bill account Deletion Failed'
+            message = f'Bill account {action} Failed' 
             error  = 1
             deleted_done = 0
         
@@ -884,7 +894,8 @@ def get_typewise_bill_info():
         {
             "$match": {
                 "bill_type.value": {"$in": billtype_id_list},
-                "deleted_at": None
+                "deleted_at": None,
+                "closed_at":None
             }
         },
 

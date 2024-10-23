@@ -352,28 +352,37 @@ def delete_debt():
         data = json.loads(request.data)
 
         id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
 
         debt_account_id = None
         message = None
         error = 0
         deleted_done = 0
 
+        
+
         try:
             myquery = { "_id" :ObjectId(id)}
 
             newvalues = { "$set": {                                     
-                "deleted_at":datetime.now()                
-            } }
+                            field:datetime.now()                
+                        } }
             debt_account_data =  debt_accounts.update_one(myquery, newvalues)
             debt_account_id = id if debt_account_data.modified_count else None
             error = 0 if debt_account_data.modified_count else 1
             deleted_done = 1 if debt_account_data.modified_count else 0
-            message = 'Debt account Deleted Successfully'if debt_account_data.modified_count else 'Debt account Deletion Failed'
+            if deleted_done:
+                message = f'Debt account {action} Successfully'
+                
+            else:
+                message = f'Debt account {action} Failed'            
 
         except Exception as ex:
             debt_account_id = None
             print('Debt account Save Exception: ',ex)
-            message = 'Debt account Deletion Failed'
+            message = f'Debt account {action} Failed'
             error  = 1
             deleted_done = 0
         
@@ -406,7 +415,8 @@ def get_typewise_dept_info():
         {
             "$match": {
                 "debt_type.value": {"$in": debttype_id_list},
-                "deleted_at": None
+                "deleted_at": None,
+                "closed_at":None
             }
         },
 
@@ -851,6 +861,7 @@ def save_debt_account():
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
+                "closed_at":None,
 
                 "months_to_payoff":0,
                 "month_debt_free":None,
@@ -976,7 +987,8 @@ def list_debts(user_id:str):
     query = {
         #'role':{'$gte':10}
         "user_id":ObjectId(user_id),
-        "deleted_at":None
+        "deleted_at":None,
+        "closed_at":None
     }
     
     
@@ -1173,7 +1185,8 @@ def get_dept_dashboard_data(user_id:str):
     page_size = 5
     query = {
         'user_id':ObjectId(user_id),
-        'deleted_at':None
+        'deleted_at':None,
+        "closed_at":None
     }
 
     sort_params = [
