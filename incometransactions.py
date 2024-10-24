@@ -19,6 +19,7 @@ income = my_col('income')
 income_boost = my_col('income_boost')
 income_boost_transaction = my_col('income_boost_transactions')
 income_monthly_log = my_col('income_monthly_log')
+income_boost_monthly_log = my_col('income_boost_monthly_log')
 app_data = my_col('app_data')
 @app.route('/api/income-transactions-next/<income_id>', methods=['GET'])
 def income_transactions_next_one(income_id):
@@ -96,6 +97,87 @@ def income_transactions_next_one(income_id):
                #'projection_list':result,
                #'projection_list_boost':result_boost,
                'projection_list':result
+                     
+
+
+        }        
+    })
+
+
+
+@app.route('/api/income-boost-transactions-next/<income_id>', methods=['GET'])
+def income_boost_transactions_next_one(income_id):
+
+
+    current_month = datetime.now().strftime('%Y-%m')
+    income_boost_monthly_log_data = income_boost_monthly_log.find_one({
+        'income_id':ObjectId(income_id)
+    })
+    total_monthly_net_income = income_boost_monthly_log_data['total_monthly_boost_income'] if  income_boost_monthly_log_data!=None and 'total_monthly_boost_income' in income_boost_monthly_log_data else 0
+    
+
+    projection_list_boost = []
+    todo = income_boost.find_one({
+        'closed_at':None,
+        'deleted_at':None,
+        '_id':ObjectId(income_id)
+    },{
+        'income_boost':1,        
+        'pay_date_boost':1,
+        'next_pay_date_boost':1,
+        'repeat_boost':1
+        })
+    
+    if todo !=None:
+        income_transaction_data = generate_new_transaction_data_for_future_income_boost(
+
+            input_boost=todo['income_boost'], 
+            pay_date=todo['next_pay_date_boost'],
+            frequency=todo['repeat_boost']['value']
+        )
+        income_transaction = income_transaction_data['income_transaction']
+
+        projection_list_boost.append(income_transaction)
+
+    # Dictionary to store merged results
+    merged_data_boost = defaultdict(lambda: {
+        "base_input_boost": 0,
+       
+        #"total_gross_for_period": 0,
+        #"total_net_for_period": 0,
+        "month_word": ""
+    })
+
+    # Merging logic
+    if len(projection_list_boost) > 0:
+        # Merging logic
+        for sublist in projection_list_boost:
+            for entry in sublist:
+                
+                month = entry['month']                
+                if month == current_month:
+                    merged_data_boost[month]['base_input_boost'] = round(total_monthly_net_income,2)                    
+                
+                #merged_data[month]['id'] = ObjectId()
+                merged_data_boost[month]['base_input_boost'] += round(entry['base_input_boost'],2)
+                
+                merged_data_boost[month]['month_word'] = entry['month_word']
+
+                merged_data_boost[month]['base_input_boost'] = round(merged_data_boost[month]['base_input_boost'],2)
+            
+
+            #merged_data[month]['id'] = generate_unique_id(month)
+
+
+    # Convert the merged data back into a list if needed
+    result_boost = [{"month": month, **data} for month, data in merged_data_boost.items()]
+
+    return jsonify({
+        "payLoads":{            
+            
+               #'projection_list':result,
+               #'projection_list_boost':result_boost,
+               'projection_list':result_boost
                      
 
 
@@ -376,6 +458,117 @@ def income_transactions_previous(income_id=None):
         income_monthly_log_data = income_monthly_log.find_one({'income_id':ObjectId(income_id)})
         if income_monthly_log_data!=None:
             total_monthly_balance = income_monthly_log_data['total_monthly_net_income']
+
+    return jsonify({
+        "payLoads":{            
+            
+            "year_month_wise_counts":year_month_wise_counts,            
+            "total_monthly_balance":total_monthly_balance
+
+        }        
+    })
+
+
+@app.route('/api/income-boost-transactions-previous/<income_id>', methods=['GET'])
+def income_boost_transactions_previous(income_id):
+
+
+
+    twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    match_query = {
+        "pay_date": {"$gte": twelve_months_ago},
+        "deleted_at": None,
+        "closed_at":None,
+        "income_id":ObjectId(income_id)
+    }    
+
+    pipeline = [
+    # Step 1: Match documents with pay_date in the last 12 months and not deleted
+    {
+        "$match": match_query
+    },
+    
+    # Step 2: Project to extract year and month from pay_date
+    {
+        "$project": {
+            "base_input_boost": 1,            
+            "month_word":1,
+            "month":1            
+        }
+    },
+
+    # Step 3: Group by year_month and sum the balance
+    {
+        "$group": {
+            "_id": "$month",  # Group by the formatted month-year
+            "total_balance_net": {"$sum": "$base_input_boost"},            
+            "month_word": {"$first": "$month_word"},  # Include the year
+            "month": {"$first": "$month"}   # Include the month
+        }
+    },
+
+    # Step 4: Create the formatted year_month_word
+    {
+        "$project": {
+            "_id": 1,
+            "total_balance_net": 1,           
+            "month_word":1            
+        }
+    },
+
+    # Step 5: Optionally, sort by year_month
+    {
+        "$sort": {
+            "_id": 1  # Sort in ascending order of year_month
+        }
+    },
+
+    # Step 6: Limit to 12 rows
+    {
+        "$limit": 12  # Limit the output to the most recent 12 months
+    },
+
+    # Step 7: Calculate the total count and total balance
+    {
+        "$group": {
+            "_id": None,  # No specific grouping field, aggregate the entire collection
+            ##"total_count": {"$sum": 1},  # Count the number of months (or documents)
+            #"total_balance_net": {"$sum": "$total_balance_net"},  # Sum all the 'total_balance' values from the grouped results
+            #"total_balance_gross": {"$sum": "$total_balance_gross"},
+            "grouped_results": {"$push": {  # Preserve all grouped results in an array
+                #"year_month": "$_id",
+                "year_month_word": "$month_word",
+                "total_balance_net": "$total_balance_net"                
+            }}
+        }
+    },
+
+    # Step 8: Use $project to format the output
+    {
+        "$project": {
+            "_id": 0,                           # Remove the _id field
+            #"total_count": 1,                   # Include the total count
+            #"total_balance_net": 1,
+            #"total_balance_gross":1,                 # Include the total balance
+            "grouped_results": 1                # Include the grouped results
+        }
+    }
+        
+    ]
+    
+    year_month_wise_all = list(income_boost_transaction.aggregate(pipeline))
+
+    year_month_wise_counts = year_month_wise_all[0]['grouped_results'] if year_month_wise_all else []
+
+    if len(year_month_wise_counts) > 0:
+        data_json = MongoJSONEncoder().encode(year_month_wise_counts)
+        year_month_wise_counts = json.loads(data_json)
+
+    total_monthly_balance = 0        
+    income_boost_monthly_log_data = income_boost_monthly_log.find_one({'income_id':ObjectId(income_id)})
+    if income_boost_monthly_log_data!=None:
+        total_monthly_balance = income_boost_monthly_log_data['total_monthly_boost_income']
 
     return jsonify({
         "payLoads":{            
