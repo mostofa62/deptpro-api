@@ -349,18 +349,20 @@ def view_saving_boost(id:str):
 
     saving_ac = my_col('saving').find_one(
         {"_id":saving['saving']['value']},
-        {"_id":0,"saver":1}
+        {"_id":0,"saver":1,"repeat":1}
         )
     saving['saving']['value'] =  str(saving['saving']['value']) 
-    saving['saving']['label'] =  saving_ac['saver']  
+    saving['saving']['label'] =  saving_ac['saver']
+
+    saving['saving_repeat_frequncey'] = saving_ac['repeat']  
     
 
     return jsonify({
         "saving":saving
     })
 
-@app.route('/api/saving-boost/<string:user_id>', methods=['POST'])
-def list_saving_boost(user_id:str):
+@app.route('/api/saving-boost/<string:saving_id>', methods=['POST'])
+def list_saving_boost(saving_id:str):
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -370,7 +372,7 @@ def list_saving_boost(user_id:str):
     # Construct MongoDB filter query
     query = {
         #'role':{'$gte':10}
-        "user_id":ObjectId(user_id),
+        "saving.value":ObjectId(saving_id),
         "deleted_at":None,
         "closed_at":None
     }

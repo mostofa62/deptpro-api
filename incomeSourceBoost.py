@@ -30,6 +30,12 @@ SavingStrategyType = [
     {'label':'Savings Challenge','value':2},
 ]
 
+BoostOperationType = [
+
+    {'label':'Deposit','value':1},
+    {'label':'Withdraw','value':2},
+]
+
 @app.route("/api/incomesourceboost-dropdown/<string:user_id>", methods=['GET'])
 def incomesourceboost_dropdown(user_id:str):
     income_source_types = my_col('income_source_types').find(
@@ -139,6 +145,7 @@ def savingcategory_dropdown(user_id:str):
             'repeat_frequency':RepeatFrequency,
             'saving_interest_type':SavingInterestType,
             'saving_strategy_type':SavingStrategyType,
-            'saving_list':saving_list
+            'saving_list':saving_list,
+            'boost_operation_type':BoostOperationType
         }
     })

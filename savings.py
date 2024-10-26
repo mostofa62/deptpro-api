@@ -17,7 +17,8 @@ collection = my_col('saving')
 category_types = my_col('category_types')
 saving_source_types = my_col('saving_source_types')
 contributions = my_col('saving_contributions')
-
+saving_boost = my_col('saving_boost')
+saving_boost_contributions = my_col('saving_boost_contributions')
 # Helper function to calculate interest and progress
 def calculate_savings(savings):
     # Calculate total savings: starting amount + total contributions + any savings boosts
@@ -352,7 +353,10 @@ def get_typewise_saving_info():
 @app.route("/api/saving/<string:id>", methods=['GET'])
 def view_saving(id:str):
     saving = collection.find_one(
-        {"_id":ObjectId(id)},
+        {
+            "_id":ObjectId(id),
+            'goal_reached':None,
+        },
         {
             "_id":0,
             "commit":0,
@@ -368,19 +372,19 @@ def view_saving(id:str):
         }
         )
     
-    
-    saving['starting_date'] = convertDateTostring(saving['starting_date'],"%Y-%m-%d")
-       
-    saving['user_id'] = str(saving['user_id'])
+    if saving != None:
+        saving['starting_date'] = convertDateTostring(saving['starting_date'],"%Y-%m-%d")
+        
+        saving['user_id'] = str(saving['user_id'])
 
-    
-    category_type = my_col('category_types').find_one(
-        {"_id":saving['category']['value']},
-        {"_id":0,"name":1}
-        )
-    
-    saving['category']['value'] = str(saving['category']['value'])
-    saving['category']['label'] = category_type['name']
+        
+        category_type = my_col('category_types').find_one(
+            {"_id":saving['category']['value']},
+            {"_id":0,"name":1}
+            )
+        
+        saving['category']['value'] = str(saving['category']['value'])
+        saving['category']['label'] = category_type['name']
 
 
    
@@ -392,6 +396,8 @@ def view_saving(id:str):
 
 @app.route('/api/saving/<string:user_id>', methods=['POST'])
 def list_saving(user_id:str):
+
+    current_month = datetime.now().strftime('%Y-%m')
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -450,7 +456,11 @@ def list_saving(user_id:str):
     #data_list = list(cursor)
     data_list = []
 
+    total_monthly_saving = 0
+
     for todo in cursor:
+        monthly_saving_boost = 0
+        monthly_saving = 0
         if todo['category']!=None:
             category_id = todo['category']['value']
             category_type = my_col('category_types').find_one(
@@ -459,12 +469,76 @@ def list_saving(user_id:str):
             )
             todo['category'] =  category_type['name']
 
-        
+            #monthly savings calcualtion
+            pipeline = [
+                # Step 1: Match documents
+                { 
+                    "$match":{
+                        'month':current_month,
+                        'saving_id':todo['_id']
+                    }  
+                },
+
+                {
+                    "$group": {
+                        "_id": "$month",
+                        "max_total_balance": { "$max": "$total_balance" },  # Max balance for each saving_id in the month
+                        
+                        #"total_contribution": { "$sum": "$contribution" },  # Sum of contributions
+                        "month_word": { "$first": "$month_word" },          # Include month_word for formatting
+                        "month": { "$first": "$month" }                     # Include the month for further grouping
+                    }
+                },
+
+                # Step 4: Project the fields you want
+                {
+                    "$project": {
+                        "_id": 0,
+                        "max_total_balance": 1,
+                        
+                        #"total_contribution": 1,
+                        #"month_word": 1
+                    }
+                },
+
+            ]
+
+            year_month_wise_all = list(contributions.aggregate(pipeline))
+
+            monthly_saving = year_month_wise_all[0]['max_total_balance'] if year_month_wise_all else 0
+            total_monthly_saving +=monthly_saving 
+
+            saving_boosts = my_col('saving_boost').find(
+                {
+                    'saving.value':ObjectId(todo['_id']),
+                    'deleted_at':None,
+                    'closed_at':None
+                },
+                {'_id':1}
+            )
+            saving_boost_id_list = []
+            saving_boost_list = list(saving_boosts)
+            if len(saving_boost_list) > 0:
+                saving_boost_id_list = [d.pop('_id') for d in saving_boost_list]
+
+                if len(saving_boost_id_list) > 0:
+                    print('saving_boost_id_list',saving_boost_id_list)
+
+
+
+            
+
+            # if len(saving_boost_id_list) > 0:
+            #     pipeline=[
+
+            #     ]
         
 
         todo['starting_date'] = convertDateTostring(todo['starting_date'])
         todo['next_contribution_date'] = convertDateTostring(todo['next_contribution_date'])
-             
+        todo['goal_reached'] = convertDateTostring(todo['goal_reached']) if todo['goal_reached']!=None else None 
+        todo['monthly_saving_boost'] = monthly_saving_boost 
+        todo['monthly_saving'] = monthly_saving   
         
 
 
@@ -494,6 +568,10 @@ def list_saving(user_id:str):
     total_goal_amount = result[0]['total_goal_amount'] if result else 0
     total_starting_amount = result[0]['total_starting_amount'] if result else 0
     total_contribution = result[0]['total_contribution'] if result else 0
+
+    total_monthly_saving  = round(total_monthly_saving,2)
+
+    print('total_monthly_saving',total_monthly_saving)
         
     return jsonify({
         'rows': data_obj,
@@ -502,7 +580,8 @@ def list_saving(user_id:str):
         'extra_payload':{
             'total_goal_amount':total_goal_amount,
             'total_starting_amount':total_starting_amount,
-            'total_contribution':total_contribution                       
+            'total_contribution':total_contribution,
+            'total_monthly_saving':total_monthly_saving                       
         }
     })
 
@@ -546,6 +625,19 @@ async def update_saving(id:str):
 
         myquery = { "_id" :ObjectId(id)}
         previous_saving = collection.find_one(myquery)
+
+        if previous_saving['goal_reached'] !=None:
+            saving_id = None
+            print('Saving Save Exception: ',previous_saving['goal_reached'])
+            result = 0
+            message = 'Saving account goal reached'
+
+            return jsonify({
+                "saving_id":saving_id,
+                "message":message,
+                "result":result
+            })
+
 
         goal_amount = round(float(data.get("goal_amount", 0)),2)
         interest = round(float(data.get("interest", 0)),2)

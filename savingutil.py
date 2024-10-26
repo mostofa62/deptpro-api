@@ -2,6 +2,9 @@ from datetime import datetime
 import math
 from dateutil.relativedelta import relativedelta
 
+from itertools import groupby
+from operator import itemgetter
+
 #compount breakdown
 # Function to calculate breakdown based on frequency
 def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency):
@@ -87,6 +90,7 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     total_balance = balance
 
     if balance >= goal_amount:
+        progress = round(100,2)
         goal_reached = next_contribution_date
         next_contribution_date = None
     
@@ -149,10 +153,13 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     if next_contribution_date >= current_datetime_now:
     
         while balance < goal_amount:
-            #print('balance',balance)
+            
 
             # print('contribution',contribution)
             month_string = current_date.strftime('%Y-%m')
+
+
+            
            
             saving_boost_contribution = 0 
             if month_string == saving_boost_date:
@@ -180,7 +187,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             # Calculate progress towards the goal
             progress = (balance / goal_amount) * 100
 
-           
+            print('balance, month',balance, month_string)
             
             # Append the current breakdown data
             months_breakdown.append({
@@ -203,6 +210,27 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     if balance >= goal_amount:
         goal_reached = next_contribution_date
         next_contribution_date = None
+    if len(months_breakdown) > 0:
+        # First, we need to sort the months_breakdown array by the 'month' key to use groupby
+        months_breakdown_sorted = sorted(months_breakdown, key=itemgetter('month'))
+
+        # Group the entries by 'month' and find the max 'total_balance' in each group
+        max_balance_per_month = []
+
+        for month, group in groupby(months_breakdown_sorted, key=itemgetter('month')):
+            # Convert group to a list
+            group_list = list(group)
+            
+            # Find the entry with the max total_balance in this group
+            max_entry = max(group_list, key=lambda x: x['total_balance'])
+            
+            # Append the max entry for this month to the result array
+            max_balance_per_month.append(max_entry)
+
+        # Output the result
+        if len(max_balance_per_month)> 0:
+            months_breakdown  = max_balance_per_month
+            print(max_balance_per_month)
     
     return ({
         'breakdown':months_breakdown,
