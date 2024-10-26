@@ -13,6 +13,8 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
     total_balance = 0
     goal_reached = None
+
+    
     
     # Determine the time interval for the contributions
     if frequency == 1:
@@ -35,6 +37,7 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     month = 0
     current_date = start_date
     
+    
     interest_rate = annual_interest_rate / 100
 
     # Adjust interest calculation for non-monthly contributions
@@ -48,6 +51,10 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     
     #less then current date
     current_datetime_now = datetime.now()
+
+
+    # Calculate a date 3 years from the original current date
+    limit_years = current_date + relativedelta(years=3)
 
     if next_contribution_date <= current_datetime_now:
     
@@ -81,6 +88,9 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
             # Stop if the next contribution date exceeds the current date
             if next_contribution_date > current_datetime_now:
+                break
+
+            if current_date > limit_years:
                 break
             
             # Move to the next period based on the contribution frequency
