@@ -17,6 +17,43 @@ saving_source_types = my_col('saving_source_types')
 saving = my_col('saving')
 
 
+@app.route('/api/contribute-boost-next/<string:id>', methods=['GET'])
+def contribute_boost_next(id:str):
+    saving_b = collection.find_one(
+        {"_id":ObjectId(id)},
+        {"_id":0}
+        )
+    breakdown = {}
+    total_balance_ac = 0
+    next_contribution_date_ac = None
+    goal_reached = None
+    
+    if saving_b!=None:
+        
+        saving_a = saving.find_one(
+        {"_id":saving_b['saving']['value']},
+        # {"_id":0}
+        )
+
+        if saving_a !=None:
+
+            total_balance_ac = saving_a['total_balance']
+            next_contribution_date_ac = saving_a['next_contribution_date']
+            goal_reached = saving_a['goal_reached']
+        
+            starting_date = saving_b['next_contribution_date'] if saving_b['next_contribution_date'] != None else saving_b['pay_date_boost']       
+            starting_amount = round(saving_b["total_balance"],2)
+            saving_boost = round(saving_b["saving_boost"],2)
+            repeat_boost = saving_b['repeat_boost']['value'] if saving_b['repeat_boost']['value'] > 0 else None
+
+
+
+        
+
+    return({
+        'breakdown':breakdown        
+    })
+
 
 @app.route('/api/delete-saving-boost', methods=['POST'])
 def delete_saving_boost():
@@ -616,9 +653,14 @@ async def save_saving_boost():
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
-
+                'closed_at':None,
                 
                 'pay_date_boost':pay_date_boost,
+
+                'next_contribution_date':None,                
+
+                'total_balance':0
+
 
                                                
   

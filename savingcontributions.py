@@ -16,6 +16,7 @@ from decimal import Decimal
 collection = my_col('saving_contributions')
 saving = my_col('saving')
 saving_boost = my_col('saving_boost')
+saving_boost_contribution = my_col('saving_boost_contributions')
 
 @app.route('/api/saving-contributions-next', methods=['GET'])
 def saving_contributions_next():
@@ -427,6 +428,67 @@ def list_saving_contributions(saving_id:str):
     #  # Extract the total balance from the result
     # total_net_saving = result[0]['total_net_saving'] if result else 0
     # total_gross_saving = result[0]['total_gross_saving'] if result else 0
+    
+    
+
+    return jsonify({
+        'rows': data_obj,
+        'pageCount': total_pages,
+        'totalRows': total_count,
+        # 'extra_payload':{
+        #     'total_net_saving':total_net_saving,
+        #     'total_gross_saving':total_gross_saving,             
+        # }
+    })
+
+
+
+@app.route('/api/saving-boost-contributions/<string:saving_id>', methods=['POST'])
+def list_saving_boost_contributions(saving_id:str):
+    data = request.get_json()
+    page_index = data.get('pageIndex', 0)
+    page_size = data.get('pageSize', 10)
+    
+    # Construct MongoDB filter query
+    query = {
+        #'role':{'$gte':10}
+        "saving_id":ObjectId(saving_id),
+        "deleted_at":None,
+        "closed_at":None,        
+    }
+   
+
+    # Construct MongoDB sort parameters
+    sort_params = [
+        ('contribution_date',1)
+    ]
+    cursor = saving_boost_contribution.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
+   
+
+
+
+    total_count = collection.count_documents(query)
+    #data_list = list(cursor)
+    data_list = []
+
+    for todo in cursor:
+
+
+        todo['contribution_date_word'] = todo['contribution_date'].strftime('%d %b, %Y')
+        todo['contribution_date'] = convertDateTostring(todo['contribution_date'],"%Y-%m-%d")
+
+        todo['next_contribution_date_word'] = todo['next_contribution_date'].strftime('%d %b, %Y')
+        todo['next_contribution_date'] = convertDateTostring(todo['next_contribution_date'],"%Y-%m-%d")                
+
+        
+
+
+        data_list.append(todo)
+    data_json = MongoJSONEncoder().encode(data_list)
+    data_obj = json.loads(data_json)
+
+    # Calculate total pages
+    total_pages = (total_count + page_size - 1) // page_size   
     
     
 

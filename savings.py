@@ -1,7 +1,7 @@
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
-from savingutil import calculate_breakdown
+from savingutil import calculate_breakdown, get_single_breakdown
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -35,6 +35,44 @@ def calculate_savings(savings):
     progress = (total_savings + interest_earned) / savings['goal_amount'] * 100
     
     return total_savings, interest_earned, progress
+
+
+@app.route('/api/contribute-next/<string:id>', methods=['GET'])
+def contribute_next(id:str):
+    saving = collection.find_one(
+        {"_id":ObjectId(id)},
+        {"_id":0}
+        )
+    breakdown = {}
+    
+    if saving!=None:
+        starting_date = saving['next_contribution_date']
+        goal_amount = round(saving["goal_amount"],2)
+        interest = round(saving["interest"],2)
+        starting_amount = round(saving["total_balance"],2)
+        contribution = round(saving["contribution"],2)
+        repeat = saving['repeat']['value'] if saving['repeat']['value'] > 0 else None
+
+        contribution_breakdown = get_single_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat)        
+        breakdown = contribution_breakdown['breakdown']
+        total_balance = contribution_breakdown['total_balance']
+        progress  = contribution_breakdown['progress']
+        next_contribution_date = contribution_breakdown['next_contribution_date']
+        goal_reached = contribution_breakdown['goal_reached']
+
+    len_breakdown = len(breakdown)   
+    
+    if next_contribution_date == None:
+                goal_reached = goal_reached if len_breakdown > 0 else None
+
+    return({
+        'breakdown':breakdown,
+        'total_balance':total_balance,
+        'progress':progress,
+        'next_contribution_date':next_contribution_date,
+        'goal_reached':goal_reached
+    })
+
 
 
 @app.route('/api/delete-saving', methods=['POST'])
@@ -685,6 +723,7 @@ async def update_saving(id:str):
                                    
             contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat)
             breakdown = contribution_breakdown['breakdown']
+            len_breakdown = len(breakdown)
             total_balance = contribution_breakdown['total_balance']
             progress  = contribution_breakdown['progress']
             next_contribution_date = contribution_breakdown['next_contribution_date']
@@ -710,7 +749,7 @@ async def update_saving(id:str):
         
 
 
-        len_breakdown = len(breakdown)
+        
 
         
 
