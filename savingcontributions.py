@@ -205,60 +205,120 @@ def saving_contributions_previous(saving_id=None):
         "contribution_date": {"$gte": twelve_months_ago},
         "deleted_at": None,
         "closed_at":None,
+        
     }
     if saving_id!=None:
         match_query["saving_id"] = ObjectId(saving_id)
 
-    # Define the pipeline
     pipeline = [
-    # Step 1: Match documents
+    # Step 1: Match documents from the main collection
     { 
         "$match": match_query 
     },
     
-    # Step 2: Group by month and saving_id, calculate max total_balance for each saving_id within the month
+    # Step 2: Lookup to bring in `saving_boost_contributions`
+    {
+        "$lookup": {
+            "from": "saving_boost_contributions",
+            "let": {"saving_id": "$saving_id", "month": "$month"},
+            "pipeline": [
+                {
+                    "$match": {
+                        "$expr": {
+                            "$and": [
+                                {"$eq": ["$saving_id", "$$saving_id"]},
+                                {"$eq": ["$month", "$$month"]}
+                            ]
+                        }
+                    }
+                }
+            ],
+            "as": "boost_contributions"
+        }
+    },
+
+    # Step 3: Unwind boost contributions to join with the main data
+    { "$unwind": { "path": "$boost_contributions", "preserveNullAndEmptyArrays": True } },
+
+    # Step 4: Calculate total balance including boost contributions
+    # {
+    #     "$addFields": {
+    #         "combined_total_balance": {
+    #             "$add": ["$total_balance", { "$ifNull": ["$boost_contributions.total_balance", 0] }]
+    #         }
+    #     }
+    # },
+
+    # Step 4: Calculate combined balance based on op_type
+    # Step 4: Calculate adjusted total_balance, ignoring boost if no match
+    {
+        "$addFields": {
+            "adjusted_total_balance": {
+                "$cond": {
+                    "if": { "$ifNull": ["$boost_contributions", False] },  # Check if boost_contributions exists
+                    "then": {
+                        "$cond": {
+                            "if": { "$gt": ["$boost_contributions.op_type", 1] },
+                            "then": { "$subtract": ["$total_balance", "$boost_contributions.total_balance"] },
+                            "else": { "$add": ["$total_balance", "$boost_contributions.total_balance"] }
+                        }
+                    },
+                    "else": "$total_balance"  # Use only total_balance if no boost_contributions found
+                }
+            }
+        }
+    },
+
+    # Step 5: Group by month and saving_id to calculate max total_balance for each saving_id within the month
+    # {
+    #     "$group": {
+    #         "_id": { "month": "$month", "saving_id": "$saving_id" },
+    #         "max_total_balance": { "$max": "$combined_total_balance" },  # Max balance for each saving_id in the month
+    #         "month_word": { "$first": "$month_word" },                   # Include month_word for formatting
+    #         "month": { "$first": "$month" }                              # Include month for further grouping
+    #     }
+    # },
+
+    # Step 5: Group by month and saving_id to calculate max adjusted balance for each saving_id within the month
     {
         "$group": {
             "_id": { "month": "$month", "saving_id": "$saving_id" },
-            "max_total_balance": { "$max": "$total_balance" },  # Max balance for each saving_id in the month
-            #"total_contribution": { "$sum": "$contribution" },  # Sum of contributions
-            "month_word": { "$first": "$month_word" },          # Include month_word for formatting
-            "month": { "$first": "$month" }                     # Include the month for further grouping
+            "max_total_balance": { "$max": "$adjusted_total_balance" },  # Max balance for each saving_id in the month
+            "month_word": { "$first": "$month_word" },                   # Include month_word for formatting
+            "month": { "$first": "$month" }                              # Include month for further grouping
         }
     },
     
-    # Step 3: Group by month and sum the max total_balance and contributions
+    # Step 6: Group by month and sum the max total_balance
     {
         "$group": {
-            "_id": "$_id.month",  # Now group by just the month
+            "_id": "$_id.month",  # Group by month
             "total_balance": { "$sum": "$max_total_balance" },  # Sum the max balances per saving_id in the month
-            #"total_contribution": { "$sum": "$total_contribution" },  # Sum the contributions
-            "month_word": { "$first": "$month_word" },                # Keep the month_word
-            "month": { "$first": "$month" }                           # Keep the month for sorting later
+            "month_word": { "$first": "$month_word" },          # Keep month_word
+            "month": { "$first": "$month" }                     # Keep month for sorting later
         }
     },
     
-    # Step 4: Project the fields you want
+    # Step 7: Project the fields you want
     {
         "$project": {
             "_id": 1,
             "total_balance": 1,
-            #"total_contribution": 1,
             "month_word": 1
         }
     },
     
-    # Step 5: Sort by month
+    # Step 8: Sort by month
     { 
         "$sort": { "_id": 1 }  # Sort by month
     },
     
-    # Step 6: Limit to 12 rows
+    # Step 9: Limit to 12 rows
     { 
         "$limit": 12 
     },
     
-    # Step 7: Aggregate results into an array for the final output
+    # Step 10: Aggregate results into an array for final output
     {
         "$group": {
             "_id": None,
@@ -266,20 +326,19 @@ def saving_contributions_previous(saving_id=None):
                 "$push": {
                     "year_month_word": "$month_word",
                     "total_balance": "$total_balance",
-                    #"total_contribution": "$total_contribution"
                 }
             }
         }
     },
     
-    # Step 8: Project the final output
+    # Step 11: Project the final output
     {
         "$project": {
             "_id": 0,
             "grouped_results": 1
         }
     }
-    ]    
+]
 
     year_month_wise_all = list(collection.aggregate(pipeline))
 
@@ -389,7 +448,7 @@ def list_saving_contributions(saving_id:str):
 
     for todo in cursor:
 
-
+        
         todo['contribution_date_word'] = todo['contribution_date'].strftime('%d %b, %Y')
         todo['contribution_date'] = convertDateTostring(todo['contribution_date'],"%Y-%m-%d")
 
@@ -467,18 +526,25 @@ def list_saving_boost_contributions(saving_id:str):
 
 
 
-    total_count = collection.count_documents(query)
+    total_count = saving_boost_contribution.count_documents(query)
     #data_list = list(cursor)
     data_list = []
 
     for todo in cursor:
 
+        saving_boost_ac = saving_boost.find_one({'_id':todo['saving_boost_id']})
+
+        print(saving_boost_ac)
+
+        todo['saving_boost'] = saving_boost_ac['saver'] if saving_boost_ac!=None else None
+
 
         todo['contribution_date_word'] = todo['contribution_date'].strftime('%d %b, %Y')
         todo['contribution_date'] = convertDateTostring(todo['contribution_date'],"%Y-%m-%d")
+        
 
-        todo['next_contribution_date_word'] = todo['next_contribution_date'].strftime('%d %b, %Y')
-        todo['next_contribution_date'] = convertDateTostring(todo['next_contribution_date'],"%Y-%m-%d")                
+        todo['next_contribution_date_word'] = convertDateTostring(todo['next_contribution_date']) if todo['next_contribution_date']!=None else None
+        todo['next_contribution_date'] = convertDateTostring(todo['next_contribution_date'],"%Y-%m-%d") if todo['next_contribution_date']!=None else None                
 
         
 

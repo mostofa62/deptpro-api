@@ -5,12 +5,7 @@ from dateutil.relativedelta import relativedelta
 from itertools import groupby
 from operator import itemgetter
 
-
-def get_single_boost(initial_amount, contribution, start_date,frequency):
-
-    total_balance = 0
-
-    # Determine the time interval for the contributions   
+def get_delta(frequency):
     if frequency == 1:
         delta = relativedelta(days=1)
     elif frequency == 7:
@@ -26,40 +21,56 @@ def get_single_boost(initial_amount, contribution, start_date,frequency):
     else:
         return {'error': 'Invalid contribution frequency'}, 400
     
+    return delta
 
-    months_breakdown = {}
+
+
+def get_single_boost(initial_amount, contribution, start_date,frequency,period):
+  
     balance = initial_amount
-    month = 0
+    month = period
+    next_contribution_date =  None
     current_date = start_date
+    if frequency!=None:
+        delta = get_delta(frequency)
+        next_contribution_date = current_date + delta
 
-    next_contribution_date = current_date + delta
+    balance += contribution
+
+    month+=1
+
+    months_breakdown = {
+                "period": month,
+                "month": current_date.strftime('%Y-%m'),
+                "month_word": current_date.strftime('%b, %Y'),                
+                "contribution": contribution,
+                "total_balance": round(balance, 2),                
+                "contribution_date":current_date,
+                "next_contribution_date": next_contribution_date           
+    }
+    #total_balance = balance
+
+    # return ({
+    #     'breakdown':months_breakdown,
+    #     'next_contribution_date':next_contribution_date,        
+    #     'total_balance':round(total_balance, 2)        
+    # })
+
+    return months_breakdown
 
 
-def get_single_breakdown(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency):
+def get_single_breakdown(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency,period):
 
     total_balance = 0
     goal_reached = None
 
     
-    # Determine the time interval for the contributions
-    if frequency == 1:
-        delta = relativedelta(days=1)
-    elif frequency == 7:
-        delta = relativedelta(weeks=1)
-    elif frequency == 14:
-        delta = relativedelta(weeks=2)
-    elif frequency == 30:
-        delta = relativedelta(months=1)
-    elif frequency == 90:
-        delta = relativedelta(months=3)
-    elif frequency == 365:
-        delta = relativedelta(years=1)
-    else:
-        return {'error': 'Invalid contribution frequency'}, 400
+    delta = get_delta(frequency)
     
     months_breakdown = {}
     balance = initial_amount
-    month = 0
+    
+    month = period
     current_date = start_date
     
     
@@ -125,21 +136,7 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
     
     
-    # Determine the time interval for the contributions
-    if frequency == 1:
-        delta = relativedelta(days=1)
-    elif frequency == 7:
-        delta = relativedelta(weeks=1)
-    elif frequency == 14:
-        delta = relativedelta(weeks=2)
-    elif frequency == 30:
-        delta = relativedelta(months=1)
-    elif frequency == 90:
-        delta = relativedelta(months=3)
-    elif frequency == 365:
-        delta = relativedelta(years=1)
-    else:
-        return {'error': 'Invalid contribution frequency'}, 400
+    delta = get_delta(frequency)
     
     months_breakdown = []
     balance = initial_amount
@@ -237,21 +234,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     total_balance = 0
     goal_reached = None
     
-    # Determine the time interval for the contributions
-    if frequency == 1:
-        delta = relativedelta(days=1)
-    elif frequency == 7:
-        delta = relativedelta(weeks=1)
-    elif frequency == 14:
-        delta = relativedelta(weeks=2)
-    elif frequency == 30:
-        delta = relativedelta(months=1)
-    elif frequency == 90:
-        delta = relativedelta(months=3)
-    elif frequency == 365:
-        delta = relativedelta(years=1)
-    else:
-        return {'error': 'Invalid contribution frequency'}, 400
+    delta = get_delta(frequency)
     
     months_breakdown = []
     balance = initial_amount
