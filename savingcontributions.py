@@ -41,10 +41,12 @@ def saving_contributions_next():
         'starting_amount':1,
         'interest':1,
         'contribution':1,
+        'increase_contribution_by':1,
         'goal_amount':1,
         'goal_reached':1,
         'next_contribution_date':1,
-        'repeat':1
+        'repeat':1,
+        'period':1
         })
     
     projection_list = []
@@ -141,7 +143,9 @@ def saving_contributions_next():
             goal_amount = todo['goal_amount'],
             frequency=todo['repeat']['value'],
             saving_boost=total_saving_boost_onetime,
-            saving_boost_date=saving_boost_date
+            saving_boost_date=saving_boost_date,
+            i_contribution=todo['increase_contribution_by'],
+            period=todo['period']
         )
         saving_contribution = saving_contribution_data['breakdown']
 
@@ -399,7 +403,7 @@ def list_saving_contributions(saving_id:str):
         #'role':{'$gte':10}
         "saving_id":ObjectId(saving_id),
         "deleted_at":None,
-        "closed_at":None,        
+        #"closed_at":None,        
     }
     # if global_filter:
         
@@ -513,7 +517,7 @@ def list_saving_boost_contributions(saving_id:str):
         #'role':{'$gte':10}
         "saving_id":ObjectId(saving_id),
         "deleted_at":None,
-        "closed_at":None,        
+        #"closed_at":None,        
     }
    
 

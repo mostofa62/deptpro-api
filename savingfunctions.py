@@ -33,11 +33,12 @@ def contribute_next(id:str):
     progress = 0
     next_contribution_date = None
     goal_reached = None
+    period = 0
     saving_boost_contribution_data = []    
     result = 0    
 
     boost_status = [] # will update boost next payment date and closed issue
-
+    total_balance_xyz  = 0
     len_breakdown = 0
     # print('saving',saving)
     
@@ -48,37 +49,42 @@ def contribute_next(id:str):
         starting_amount = round(saving["total_balance"],2)
         contribution = round(saving["contribution"],2)
         repeat = saving['repeat']['value'] if saving['repeat']['value'] > 0 else None
+        i_contribution=saving['increase_contribution_by']
+        period = saving['period']
         
         # Perform the aggregation to find the maximum period value
-        pipeline = [
-            {
-                '$match': {
-                    'saving_id': saving['_id']  # Match documents with the specified saving_id
-                }
-            },
-            {
-                '$group': {
-                    '_id': None,  # Grouping by None to get a single result
-                    'max_period': {'$max': '$period'}  # Get the maximum value of the period field
-                }
-            }
-        ]
-        # Execute the aggregation
-        result = list(contributions.aggregate(pipeline))
-        # Extract the maximum period value
-        period = result[0]['max_period'] if result else 0
+        # pipeline = [
+        #     {
+        #         '$match': {
+        #             'saving_id': saving['_id']  # Match documents with the specified saving_id
+        #         }
+        #     },
+        #     {
+        #         '$group': {
+        #             '_id': None,  # Grouping by None to get a single result
+        #             'max_period': {'$max': '$period'}  # Get the maximum value of the period field
+        #         }
+        #     }
+        # ]
+        # # Execute the aggregation
+        # result = list(contributions.aggregate(pipeline))
+        # # Extract the maximum period value
+        # period = result[0]['max_period'] if result else 0
         
 
-        contribution_breakdown = get_single_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,period)        
+        contribution_breakdown = get_single_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,period,i_contribution)        
         breakdown = contribution_breakdown['breakdown']
         total_balance = contribution_breakdown['total_balance']
         progress  = contribution_breakdown['progress']
         next_contribution_date = contribution_breakdown['next_contribution_date']
         goal_reached = contribution_breakdown['goal_reached']
+        period = contribution_breakdown['period']
 
         #print('goal_reached',goal_reached)
 
         len_breakdown = len(breakdown)
+
+        total_balance_xyz = total_balance
 
         if len_breakdown > 0:
              breakdown = {
@@ -103,6 +109,8 @@ def contribute_next(id:str):
                 },
                 # {'_id':1}
             )
+
+            
             
             for saving_b in saving_boosts:
                 starting_date_b = saving_b['next_contribution_date'] if saving_b['next_contribution_date'] != None else saving_b['pay_date_boost'] 
@@ -112,6 +120,8 @@ def contribute_next(id:str):
                 period_boost = 0
                 op_type = saving_b['boost_operation_type']['value']
                 repeat_b = saving_b['repeat_boost']['value']
+
+                total_balance_xyz  = total_balance_xyz - saving_boost_amount if  op_type > 1 else total_balance_xyz + saving_boost_amount
                 # if repeat_b < 1:
                 #      boost_completed.append(saving_b['_id'])
 
@@ -178,13 +188,18 @@ def contribute_next(id:str):
         "goal_reached":goal_reached,            
         'next_contribution_date':next_contribution_date,
         'total_balance':total_balance, 
-        'progress':progress ,
+        'progress':progress,
+        'period':period,
         'updated_at':datetime.now()              
 
     }
     newvalues = { "$set": change_append_data }
              
     if len_breakdown > 0:
+        breakdown = {
+            'total_balance_xyz':total_balance_xyz,
+            **breakdown
+        }
                           
         with client.start_session() as session:
                 with session.start_transaction():

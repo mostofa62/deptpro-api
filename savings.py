@@ -53,29 +53,66 @@ def delete_saving():
         error = 0
         deleted_done = 0
 
-        try:
-            myquery = { "_id" :ObjectId(id)}
+        myquery = { "_id" :ObjectId(id)}
+        previous_saving = collection.find_one(myquery,{'commit':1})
+        previous_commit = previous_saving['commit']
 
-            newvalues = { "$set": {                                     
-                            field:datetime.now()                
-                        } }
-            saving_account_data =  collection.update_one(myquery, newvalues)
-            saving_account_id = id if saving_account_data.modified_count else None
-            error = 0 if saving_account_data.modified_count else 1
-            deleted_done = 1 if saving_account_data.modified_count else 0
-            if deleted_done:
-                message = f'Saving account {action} Successfully'
-                
-            else:
-                message = f'Saving account {action} Failed'
-                            
+        with client.start_session() as session:
+                with session.start_transaction():
 
-        except Exception as ex:
-            saving_account_id = None
-            print('Saving account Save Exception: ',ex)
-            message = f'Saving account {action} Failed'
-            error  = 1
-            deleted_done = 0
+                    try:
+                        myquery = { "_id" :ObjectId(id)}
+
+                        newvalues = { "$set": {                                     
+                                        field:datetime.now()                
+                                    } }
+                        saving_account_data =  collection.update_one(myquery, newvalues, session=session)
+                        saving_account_id = id if saving_account_data.modified_count else None
+
+                        #delete previous commits data
+                        saving_data_delete = contributions.update_many({
+                            'saving_id':ObjectId(saving_account_id),
+                            'commit':previous_commit
+                        },{
+                            "$set":{
+                                field:datetime.now()
+                            }
+                        },session=session)
+
+                        saving_boost_delete = saving_boost.update_many({
+                            'saving.value':ObjectId(saving_account_id),
+                        },{
+                            "$set":{
+                                field:datetime.now()
+                            }
+                        },session=session)
+
+
+                        saving_boost_c_delete = saving_boost_contributions.update_many({
+                            'saving_id':ObjectId(saving_account_id),
+                        },{
+                            "$set":{
+                                field:datetime.now()
+                            }
+                        },session=session)
+
+
+                        error = 0 if saving_account_data.modified_count and saving_data_delete.modified_count else 1
+                        deleted_done = 1 if saving_account_data.modified_count and saving_data_delete.modified_count else 0
+                        if deleted_done:
+                            message = f'Saving account {action} Successfully'
+                            session.commit_transaction()
+                        else:
+                            message = f'Saving account {action} Failed'
+                            session.abort_transaction()            
+
+                    except Exception as ex:
+                        saving_account_id = None
+                        print('Saving account Save Exception: ',ex)
+                        message = f'Saving account {action} Failed'
+                        error  = 1
+                        deleted_done = 0
+                        session.abort_transaction()
         
         return jsonify({
             "saving_account_id":saving_account_id,
@@ -412,18 +449,19 @@ def list_saving(user_id:str):
     query = {
         #'role':{'$gte':10}
         "user_id":ObjectId(user_id),
-        "$and": [
-            {"deleted_at": None},    # deleted_at is None
-            {"closed_at": None}      # or closed_at is None
-        ]
+        "deleted_at": None,
+        "closed_at": None,
+        "goal_reached":None
     }
 
     if action!=None:
         query = {
             "user_id": ObjectId(user_id),
+            "deleted_at": None,
             "$or": [
-                {"deleted_at": {"$ne": None}},  # deleted_at is not None
-                {"closed_at": {"$ne": None}}    # or closed_at is not None
+                {"goal_reached": {"$ne": None}},  # deleted_at is not None
+                {"closed_at": {"$ne": None}},    # or closed_at is not None
+                
             ]
         }
 
@@ -661,12 +699,14 @@ async def update_saving(id:str):
         interest = round(float(data.get("interest", 0)),2)
         starting_amount = round(float(data.get("starting_amount", 0)),2)
         contribution = round(float(data.get("contribution", 0)),2)
+        i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
         repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
 
         previous_goal_amount = float(previous_saving['goal_amount'])
         previous_interest = float(previous_saving['interest'])
         previous_starting_amount = float(previous_saving['starting_amount'])
         previous_contribution = float(previous_saving['contribution'])
+        previous_i_contribution = float(previous_saving['increase_contribution_by'])
         previous_repeat = previous_saving['repeat']['value'] if previous_saving['repeat']['value'] > 0 else None
         previous_commit = previous_saving['commit']
         starting_date = previous_saving['starting_date']
@@ -675,14 +715,17 @@ async def update_saving(id:str):
         change_interest = False if are_floats_equal(previous_interest, interest) else True
         change_starting_amount = False if are_floats_equal(previous_starting_amount, starting_amount) else True
         change_contribution = False if are_floats_equal(previous_contribution, contribution) else True
+        change_i_contribution = False if are_floats_equal(previous_i_contribution, i_contribution) else True
+
         change_repeat = False if previous_repeat == repeat else True
 
-        any_change = change_goal_amount or change_interest or change_starting_amount or change_contribution or change_repeat
+        any_change = change_goal_amount or change_interest or change_starting_amount or change_contribution or change_i_contribution or change_repeat
 
         print('change_goal_amount', change_goal_amount)
         print('change_interest', change_interest)
         print('change_starting_amount', change_starting_amount)
         print('change_contribution', change_contribution)
+        print('change_contribution_by', change_i_contribution)
         print('change_repeat', change_repeat)
 
         print('any_change', any_change)
@@ -691,23 +734,27 @@ async def update_saving(id:str):
 
         append_data = {
             'category':newEntryOptionData(data['category'],'category_types',user_id),                
-            'user_id':ObjectId(user_id),            
+            'user_id':ObjectId(user_id),
+            'goal_amount':goal_amount,            
             'interest':interest,
             'starting_amount':starting_amount,
-            'contribution':contribution,                    
+            'contribution':contribution,
+            'increase_contribution_by':i_contribution,                    
             "updated_at":datetime.now(),                                                           
 
         }
                 
         if any_change:
                                    
-            contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat)
+            contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,i_contribution)
             breakdown = contribution_breakdown['breakdown']
             len_breakdown = len(breakdown)
             total_balance = contribution_breakdown['total_balance']
             progress  = contribution_breakdown['progress']
             next_contribution_date = contribution_breakdown['next_contribution_date']
             goal_reached = contribution_breakdown['goal_reached']
+            period = contribution_breakdown['period']
+
 
             if next_contribution_date == None:
                 goal_reached = goal_reached if len_breakdown > 0 else None
@@ -715,6 +762,7 @@ async def update_saving(id:str):
             commit = datetime.now() 
 
             change_append_data = {
+                'period':period,
                 "goal_reached":goal_reached,            
                 'next_contribution_date':next_contribution_date,
                 'total_balance':total_balance, 
@@ -832,6 +880,7 @@ async def save_saving():
         interest = round(float(data.get("interest", 0)),2)
         starting_amount = round(float(data.get("starting_amount", 0)),2)
         contribution = round(float(data.get("contribution", 0)),2)
+        i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
         repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
         
 
@@ -840,12 +889,13 @@ async def save_saving():
                 
         
 
-        contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat)
+        contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,i_contribution)
         breakdown = contribution_breakdown['breakdown']
         total_balance = contribution_breakdown['total_balance']
         progress  = contribution_breakdown['progress']
         next_contribution_date = contribution_breakdown['next_contribution_date']
         goal_reached = contribution_breakdown['goal_reached']
+        period = contribution_breakdown['period']
 
         len_breakdown = len(breakdown)
 
@@ -858,7 +908,8 @@ async def save_saving():
             'goal_amount':goal_amount,
             'interest':interest,
             'starting_amount':starting_amount,
-            'contribution':contribution,        
+            'contribution':contribution,
+            'increase_contribution_by':i_contribution,        
             "created_at":datetime.now(),
             "updated_at":datetime.now(),
             "deleted_at":None,
@@ -868,6 +919,7 @@ async def save_saving():
             'next_contribution_date':next_contribution_date,
             'total_balance':total_balance, 
             'progress':progress,
+            'period':period,
             'commit':commit                                             
 
         }

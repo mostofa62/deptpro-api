@@ -97,7 +97,8 @@ def savingcategory_dropdown(user_id:str):
 
             "deleted_at":None,
             "user_id": ObjectId(user_id),
-            'goal_reached':None
+            'goal_reached':None,
+            "closed_at":None,
         },
         {
             '_id': 1, 
