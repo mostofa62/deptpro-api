@@ -398,6 +398,9 @@ def view_saving(id:str):
 @app.route('/api/saving/<string:user_id>', methods=['POST'])
 def list_saving(user_id:str):
 
+    action  = request.args.get('action', None)
+    print(action)
+
     current_month = datetime.now().strftime('%Y-%m')
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
@@ -409,9 +412,21 @@ def list_saving(user_id:str):
     query = {
         #'role':{'$gte':10}
         "user_id":ObjectId(user_id),
-        "deleted_at":None,
-        "closed_at":None
+        "$and": [
+            {"deleted_at": None},    # deleted_at is None
+            {"closed_at": None}      # or closed_at is None
+        ]
     }
+
+    if action!=None:
+        query = {
+            "user_id": ObjectId(user_id),
+            "$or": [
+                {"deleted_at": {"$ne": None}},  # deleted_at is not None
+                {"closed_at": {"$ne": None}}    # or closed_at is not None
+            ]
+        }
+
     if global_filter:
 
         #saving type filter
@@ -440,7 +455,9 @@ def list_saving(user_id:str):
         ]
 
     # Construct MongoDB sort parameters
-    sort_params = []
+    sort_params = [
+        ('created_at',-1)
+    ]
     for sort in sort_by:
         sort_field = sort['id']
         sort_direction = -1 if sort['desc'] else 1

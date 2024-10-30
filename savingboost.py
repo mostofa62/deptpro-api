@@ -411,7 +411,7 @@ def list_saving_boost(saving_id:str):
         #'role':{'$gte':10}
         "saving.value":ObjectId(saving_id),
         "deleted_at":None,
-        "closed_at":None
+        #"closed_at":None
     }
     if global_filter:
 
@@ -442,7 +442,9 @@ def list_saving_boost(saving_id:str):
         ]
 
     # Construct MongoDB sort parameters
-    sort_params = []
+    sort_params = [
+        ('created_at',-1)
+    ]
     for sort in sort_by:
         sort_field = sort['id']
         sort_direction = -1 if sort['desc'] else 1
@@ -477,6 +479,7 @@ def list_saving_boost(saving_id:str):
         )
         todo['saving'] =  saving['saver']
         
+        todo['op_type_value'] = todo['boost_operation_type']['value']
 
         
         todo['pay_date_boost'] = convertDateTostring(todo['pay_date_boost'])       

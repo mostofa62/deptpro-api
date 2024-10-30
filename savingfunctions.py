@@ -20,7 +20,10 @@ saving_boost_contributions = my_col('saving_boost_contributions')
 @app.route('/api/contribute-next/<string:id>', methods=['GET'])
 def contribute_next(id:str):
 
-    myquery = { "_id" :ObjectId(id)}
+    myquery = { 
+        "_id" :ObjectId(id),
+        "goal_reached":None
+    }
     saving = collection.find_one(
         myquery,
         # {"_id":0}
@@ -31,17 +34,21 @@ def contribute_next(id:str):
     next_contribution_date = None
     goal_reached = None
     saving_boost_contribution_data = []    
-    result = 0
+    result = 0    
 
-    #print(saving)
+    boost_status = [] # will update boost next payment date and closed issue
+
+    len_breakdown = 0
+    # print('saving',saving)
     
-    if saving!=None and saving['goal_reached']==None:
+    if saving != None:
         starting_date = saving['next_contribution_date']
         goal_amount = round(saving["goal_amount"],2)
         interest = round(saving["interest"],2)
         starting_amount = round(saving["total_balance"],2)
         contribution = round(saving["contribution"],2)
         repeat = saving['repeat']['value'] if saving['repeat']['value'] > 0 else None
+        
         # Perform the aggregation to find the maximum period value
         pipeline = [
             {
@@ -60,6 +67,7 @@ def contribute_next(id:str):
         result = list(contributions.aggregate(pipeline))
         # Extract the maximum period value
         period = result[0]['max_period'] if result else 0
+        
 
         contribution_breakdown = get_single_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,period)        
         breakdown = contribution_breakdown['breakdown']
@@ -67,6 +75,8 @@ def contribute_next(id:str):
         progress  = contribution_breakdown['progress']
         next_contribution_date = contribution_breakdown['next_contribution_date']
         goal_reached = contribution_breakdown['goal_reached']
+
+        #print('goal_reached',goal_reached)
 
         len_breakdown = len(breakdown)
 
@@ -80,8 +90,8 @@ def contribute_next(id:str):
                 **breakdown
              }   
     
-        if next_contribution_date == None:
-                goal_reached = goal_reached if len_breakdown > 0 else None
+        # if next_contribution_date == None:
+        #         goal_reached = goal_reached if len_breakdown > 0 else None
 
         
         if goal_reached == None:
@@ -93,6 +103,7 @@ def contribute_next(id:str):
                 },
                 # {'_id':1}
             )
+            
             for saving_b in saving_boosts:
                 starting_date_b = saving_b['next_contribution_date'] if saving_b['next_contribution_date'] != None else saving_b['pay_date_boost'] 
                 starting_amount_b = round(saving_b["total_balance"],2)
@@ -101,6 +112,8 @@ def contribute_next(id:str):
                 period_boost = 0
                 op_type = saving_b['boost_operation_type']['value']
                 repeat_b = saving_b['repeat_boost']['value']
+                # if repeat_b < 1:
+                #      boost_completed.append(saving_b['_id'])
 
                 # Perform the aggregation to find the maximum period value
                 pipeline_boost = [
@@ -123,31 +136,43 @@ def contribute_next(id:str):
                 period_boost = result[0]['max_period'] if result else 0
 
                 contribution_breakdown_b = get_single_boost(starting_amount_b,saving_boost_amount,starting_date_b,repeat_boost,period_boost)
-                #breakdown_b = contribution_breakdown_b['breakdown']
-                #total_balance_b = contribution_breakdown_b['total_balance']
-                #next_contribution_date_b = contribution_breakdown_b['next_contribution_date']
+                breakdown_b = contribution_breakdown_b['breakdown']
+                total_balance_b = contribution_breakdown_b['total_balance']
+                next_contribution_date_b = contribution_breakdown_b['next_contribution_date']
 
                 # s_b_c = {
                 #     'breakdown':breakdown_b,
                 #     'total_balance':total_balance_b,                    
                 #     'next_contribution_date':next_contribution_date_b                   
                 # }
-                len_c_b = len(contribution_breakdown_b)
+                len_c_b = len(breakdown_b)
                 if len_c_b > 0:
-                    contribution_breakdown_b = {
+                    breakdown_b = {
                          'saving_id':saving['_id'],
                          'saving_boost_id':saving_b['_id'],
                          'op_type':op_type,
                          'repeat':repeat_b,
-                         **contribution_breakdown_b
+                         **breakdown_b
                     }
-                    saving_boost_contribution_data.append(contribution_breakdown_b)
+                    saving_boost_contribution_data.append(breakdown_b)
+
+                boost_status_data = {
+                    '_id':saving_b['_id'],
+                    'next_contribution_date':next_contribution_date_b,
+                    'total_balance':total_balance_b,
+                    'closed_at':datetime.now() if repeat_b < 1 else None
+                }
+                boost_status.append(boost_status_data)
 
                  
                  
             # saving_boost_list = list(saving_boosts)
             # saving_boost_id_list = [d.pop('_id') for d in saving_boost_list]
+    
+
     len_boost_breakdown = len(saving_boost_contribution_data)
+
+    len_boost_status =  len(boost_status)
 
     change_append_data = {
         "goal_reached":goal_reached,            
@@ -163,19 +188,46 @@ def contribute_next(id:str):
                           
         with client.start_session() as session:
                 with session.start_transaction():
+
+                    del myquery['goal_reached']
                     
                     try:
-                        c_data = contributions.insert_one(breakdown,session=session)
-                        s_b_c_data = None
+                        c_data = contributions.insert_one(breakdown,session=session)                        
+                        s_b_ack = 0
                         if len_boost_breakdown > 0:
                             if len_boost_breakdown > 1:
                                 s_b_c_data =  saving_boost_contributions.insert_many(saving_boost_contribution_data, session=session)
+                                s_b_ack = 1 if s_b_c_data.inserted_ids else 0
                             else:
                                 s_b_c_data =  saving_boost_contributions.insert_one(saving_boost_contribution_data[0],session=session)
+                                s_b_ack = 1 if s_b_c_data.inserted_id else 0
+
+                        s_b_k = 0
+                        if len_boost_status > 0:
+
+                            for b_s in  boost_status:
+                                sb_data = saving_boost.update_many({
+                                     '_id':b_s['_id']
+                                     }, 
+                                     { "$set":{
+                                         'next_contribution_date':b_s['next_contribution_date'],
+                                         'total_balance':b_s['total_balance'],
+                                         'closed_at':b_s['closed_at']
+                                        
+                                        } 
+                                    },
+                                    session=session
+                                )
+                                s_b_k = 1 if sb_data.modified_count else 0 
+
 
                         s_data = collection.update_one(myquery, newvalues, session=session)
-
-                        result = 1 if c_data.inserted_id and s_data.modified_count else 0
+                        if len_boost_breakdown > 0:
+                            result = 1 if c_data.inserted_id and s_data.modified_count  and s_b_ack else 0
+                        else:
+                            result = 1 if c_data.inserted_id and s_data.modified_count  else 0
+                        
+                        
                         if result:
                              session.commit_transaction()
                         else:

@@ -86,7 +86,7 @@ def saving_contributions_next():
         total_repeat_boost = result_boost[0]['total_repeat_boost'] if result_boost else 0
         total_saving_boost = result_boost[0]['total_saving_boost'] if result_boost else 0
 
-        #print(total_repeat_boost, total_saving_boost)
+        print('total_repeat_boost, total_saving_boost',total_repeat_boost, total_saving_boost)
 
 
         total_balance = todo['total_balance'] + total_saving_boost if  total_repeat_boost > 0 else todo['total_balance']
@@ -122,14 +122,14 @@ def saving_contributions_next():
         # Execute the aggregation
         result_boost_onetime = list(saving_boost.aggregate(pipeline_boost_onetime))
 
-        total_saving_boost_onetime = result_boost_onetime[0]['total_saving_boost'] if result_boost_onetime else 0
+        total_saving_boost_onetime = result_boost_onetime[0]['total_saving_boost'] if result_boost_onetime else None
 
         print('total_saving_boost_onetime',total_saving_boost_onetime)
         #print(total_balance, contribution)
 
         #total_balance = todo['total_balance']
         #contribution = todo['contribution']
-        saving_boost_date = todo['next_contribution_date'].strftime('%Y-%m') if total_saving_boost_onetime > 0 else None
+        saving_boost_date = todo['next_contribution_date'].strftime('%Y-%m') if total_saving_boost_onetime !=None else None
         
 
         saving_contribution_data = calculate_breakdown_future(
@@ -365,7 +365,7 @@ def saving_contributions_previous(saving_id=None):
             {
                 "$group": {
                     "_id": "$month",  # Group by month
-                    "total_balance": { "$sum": "$total_balance" }  # Sum total_balance for the matched month
+                    "total_balance": { "$max": "$total_balance" }  # Sum total_balance for the matched month
                 }
             }
         ]
@@ -425,7 +425,7 @@ def list_saving_contributions(saving_id:str):
 
     # Construct MongoDB sort parameters
     sort_params = [
-        ('contribution_date',1)
+        ('contribution_date',-1)
     ]
     cursor = collection.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
     # for sort in sort_by:
@@ -519,7 +519,8 @@ def list_saving_boost_contributions(saving_id:str):
 
     # Construct MongoDB sort parameters
     sort_params = [
-        ('contribution_date',1)
+        #('contribution_date',-1)
+        ('created_at',-1)
     ]
     cursor = saving_boost_contribution.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
    
@@ -534,7 +535,7 @@ def list_saving_boost_contributions(saving_id:str):
 
         saving_boost_ac = saving_boost.find_one({'_id':todo['saving_boost_id']})
 
-        print(saving_boost_ac)
+        #print(saving_boost_ac)
 
         todo['saving_boost'] = saving_boost_ac['saver'] if saving_boost_ac!=None else None
 

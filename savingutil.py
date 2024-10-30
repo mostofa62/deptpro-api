@@ -48,15 +48,15 @@ def get_single_boost(initial_amount, contribution, start_date,frequency,period):
                 "contribution_date":current_date,
                 "next_contribution_date": next_contribution_date           
     }
-    #total_balance = balance
+    total_balance = balance
 
-    # return ({
-    #     'breakdown':months_breakdown,
-    #     'next_contribution_date':next_contribution_date,        
-    #     'total_balance':round(total_balance, 2)        
-    # })
+    return ({
+        'breakdown':months_breakdown,
+        'next_contribution_date':next_contribution_date,        
+        'total_balance':round(total_balance, 2)        
+    })
 
-    return months_breakdown
+    # return months_breakdown
 
 
 def get_single_breakdown(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency,period):
@@ -111,7 +111,7 @@ def get_single_breakdown(initial_amount, contribution, annual_interest_rate, goa
 
     total_balance = balance
 
-    if balance >= goal_amount:
+    if total_balance >= goal_amount:
         progress = round(100,2)
         goal_reached = next_contribution_date
         next_contribution_date = None
@@ -265,15 +265,18 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             # print('contribution',contribution)
             month_string = current_date.strftime('%Y-%m')
 
-
+            print('month string',month_string,saving_boost_date)
             
            
-            saving_boost_contribution = 0 
+            saving_boost_contribution = None 
             if month_string == saving_boost_date:
-                 #print(month_string,saving_boost_date)
+                 print('month==saving_boost',month_string,saving_boost_date)
                  #print(contribution, balance)
-                 saving_boost_contribution = contribution +  saving_boost
+                 saving_boost_contribution = saving_boost + contribution
             #     #balance += saving_boost
+                 print('saving_boost_contribution',saving_boost_contribution)
+            else:
+                saving_boost_contribution = None
            
 
            
@@ -285,8 +288,9 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             days_in_period = (next_contribution_date - current_date).days
             #print('days_in_period',days_in_period)
             interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
-            if saving_boost_contribution > 0:
+            if saving_boost_contribution !=None:
                 balance += interest + saving_boost_contribution
+                # print('balance', balance)
             else:
                 balance += interest + contribution
             month += 1
@@ -294,7 +298,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             # Calculate progress towards the goal
             progress = (balance / goal_amount) * 100
 
-            print('balance, month',balance, month_string)
+            #print('balance, month',balance, month_string)
 
             if balance < 0:
                 break
@@ -305,7 +309,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
                 "month": month_string,
                 "month_word": current_date.strftime('%b, %Y'),
                 "interest": round(interest, 2),
-                "contribution": saving_boost_contribution if saving_boost_contribution > 0 else contribution,
+                "contribution": saving_boost_contribution if saving_boost_contribution !=None else contribution,
                 "total_balance": round(balance, 2),
                 "progress": round(progress, 2),
                 "contribution_date":current_date,
@@ -340,7 +344,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
         # Output the result
         if len(max_balance_per_month)> 0:
             months_breakdown  = max_balance_per_month
-            print(max_balance_per_month)
+            #print(max_balance_per_month)
     
     return ({
         'breakdown':months_breakdown,
