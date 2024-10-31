@@ -240,7 +240,7 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
 # Function to calculate breakdown based on frequency
 def calculate_breakdown_future(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency,saving_boost=0,
-                               saving_boost_date=None, i_contribution=0, period=0
+                               saving_boost_date=None, i_contribution=0, period=0,repeat_saving_boost=None
 ):
     # n = 12  # Compounded monthly (for interest)
     # monthly_rate = annual_interest_rate / n  # Monthly interest rate (same across frequencies)
@@ -270,7 +270,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     #less then current date
     current_datetime_now = datetime.now()
 
-    #print('balance check',balance)
+    print('balance check',balance)
 
     if next_contribution_date >= current_datetime_now and balance:
     
@@ -294,7 +294,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
                 saving_boost_contribution = None
            
 
-           
+            print('repeat_saving_boost',repeat_saving_boost)
             
             # Calculate next contribution date
             next_contribution_date = current_date + delta
@@ -309,11 +309,14 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             else:
                 balance += interest + contribution
             period += 1
+
+            if repeat_saving_boost!=None:
+                balance += repeat_saving_boost
             
             #increase contribution by periodically
-            print('before i_contribution',i_contribution)
+            #print('before i_contribution',i_contribution)
             inc_contri = period * i_contribution
-            print('i_contribution',inc_contri)
+            #print('i_contribution',inc_contri)
             balance += inc_contri
             #increase contribution end
             

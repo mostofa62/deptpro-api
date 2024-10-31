@@ -51,56 +51,20 @@ def contribute_next(id:str):
         repeat = saving['repeat']['value'] if saving['repeat']['value'] > 0 else None
         i_contribution=saving['increase_contribution_by']
         period = saving['period']
-        
-        # Perform the aggregation to find the maximum period value
-        # pipeline = [
-        #     {
-        #         '$match': {
-        #             'saving_id': saving['_id']  # Match documents with the specified saving_id
-        #         }
-        #     },
-        #     {
-        #         '$group': {
-        #             '_id': None,  # Grouping by None to get a single result
-        #             'max_period': {'$max': '$period'}  # Get the maximum value of the period field
-        #         }
-        #     }
-        # ]
-        # # Execute the aggregation
-        # result = list(contributions.aggregate(pipeline))
-        # # Extract the maximum period value
-        # period = result[0]['max_period'] if result else 0
-        
 
-        contribution_breakdown = get_single_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,period,i_contribution)        
-        breakdown = contribution_breakdown['breakdown']
-        total_balance = contribution_breakdown['total_balance']
-        progress  = contribution_breakdown['progress']
-        next_contribution_date = contribution_breakdown['next_contribution_date']
-        goal_reached = contribution_breakdown['goal_reached']
-        period = contribution_breakdown['period']
+        total_balance_xyz = starting_amount
 
-        #print('goal_reached',goal_reached)
 
-        len_breakdown = len(breakdown)
+        ### we will check any boost here
+        counted_saving_boost = saving_boost.count_documents(
+            {
+                     'saving.value':saving['_id'],
+                     'deleted_at':None,
+                     'closed_at':None
+            }
+        )
 
-        total_balance_xyz = total_balance
-
-        if len_breakdown > 0:
-             breakdown = {
-                'saving_id':saving['_id'],
-                'deleted_at':None,
-                'closed_at':None,
-                'goal_reached':None,
-                'commit':saving['commit'],
-                **breakdown
-             }   
-    
-        # if next_contribution_date == None:
-        #         goal_reached = goal_reached if len_breakdown > 0 else None
-
-        
-        if goal_reached == None:
+        if counted_saving_boost > 0:
             saving_boosts = saving_boost.find(
                 {
                      'saving.value':saving['_id'],
@@ -110,8 +74,6 @@ def contribute_next(id:str):
                 # {'_id':1}
             )
 
-            
-            
             for saving_b in saving_boosts:
                 starting_date_b = saving_b['next_contribution_date'] if saving_b['next_contribution_date'] != None else saving_b['pay_date_boost'] 
                 starting_amount_b = round(saving_b["total_balance"],2)
@@ -122,8 +84,7 @@ def contribute_next(id:str):
                 repeat_b = saving_b['repeat_boost']['value']
 
                 total_balance_xyz  = total_balance_xyz - saving_boost_amount if  op_type > 1 else total_balance_xyz + saving_boost_amount
-                # if repeat_b < 1:
-                #      boost_completed.append(saving_b['_id'])
+
 
                 # Perform the aggregation to find the maximum period value
                 pipeline_boost = [
@@ -150,11 +111,7 @@ def contribute_next(id:str):
                 total_balance_b = contribution_breakdown_b['total_balance']
                 next_contribution_date_b = contribution_breakdown_b['next_contribution_date']
 
-                # s_b_c = {
-                #     'breakdown':breakdown_b,
-                #     'total_balance':total_balance_b,                    
-                #     'next_contribution_date':next_contribution_date_b                   
-                # }
+
                 len_c_b = len(breakdown_b)
                 if len_c_b > 0:
                     breakdown_b = {
@@ -174,12 +131,38 @@ def contribute_next(id:str):
                 }
                 boost_status.append(boost_status_data)
 
-                 
-                 
-            # saving_boost_list = list(saving_boosts)
-            # saving_boost_id_list = [d.pop('_id') for d in saving_boost_list]
-    
 
+       
+        
+
+        contribution_breakdown = get_single_breakdown(total_balance_xyz,contribution,interest, goal_amount, starting_date,repeat,period,i_contribution)        
+        breakdown = contribution_breakdown['breakdown']
+        total_balance = contribution_breakdown['total_balance']
+        progress  = contribution_breakdown['progress']
+        next_contribution_date = contribution_breakdown['next_contribution_date']
+        goal_reached = contribution_breakdown['goal_reached']
+        period = contribution_breakdown['period']
+
+        #print('goal_reached',goal_reached)
+
+        len_breakdown = len(breakdown)
+
+        
+
+        if len_breakdown > 0:
+             breakdown = {
+                'saving_id':saving['_id'],
+                'deleted_at':None,
+                'closed_at':None,
+                'goal_reached':None,
+                'commit':saving['commit'],
+                **breakdown
+             }   
+    
+        # if next_contribution_date == None:
+        #         goal_reached = goal_reached if len_breakdown > 0 else None
+        
+       
     len_boost_breakdown = len(saving_boost_contribution_data)
 
     len_boost_status =  len(boost_status)
@@ -196,10 +179,10 @@ def contribute_next(id:str):
     newvalues = { "$set": change_append_data }
              
     if len_breakdown > 0:
-        breakdown = {
-            'total_balance_xyz':total_balance_xyz,
-            **breakdown
-        }
+        # breakdown = {
+        #     'total_balance_xyz':total_balance_xyz,
+        #     **breakdown
+        # }
                           
         with client.start_session() as session:
                 with session.start_transaction():

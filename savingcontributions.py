@@ -61,6 +61,7 @@ def saving_contributions_next():
             '$match': {
                 'saving.value': todo['_id'],
                 'deleted_at':None,
+                'closed_at':None,
                 'repeat_boost.value': {'$gt': 0}
             }
             },
@@ -91,9 +92,11 @@ def saving_contributions_next():
         print('total_repeat_boost, total_saving_boost',total_repeat_boost, total_saving_boost)
 
 
-        total_balance = todo['total_balance'] + total_saving_boost if  total_repeat_boost > 0 else todo['total_balance']
+        #total_balance = todo['total_balance'] + total_saving_boost if  total_repeat_boost > 0 else todo['total_balance']
         #print(total_balance,todo['total_balance'])
-        contribution = todo['contribution'] + total_saving_boost if  total_repeat_boost > 0 else todo['contribution']
+        total_balance = todo['total_balance']
+        #contribution = todo['contribution'] + total_saving_boost if  total_repeat_boost > 0 else todo['contribution']
+        contribution = todo['contribution']
 
         #for one time boosting
         pipeline_boost_onetime = [
@@ -101,6 +104,7 @@ def saving_contributions_next():
                 '$match': {
                     'saving.value': todo['_id'],
                     'deleted_at': None,
+                    'closed_at':None,
                     'repeat_boost.value': {'$lt': 1}
                 }
             },
@@ -145,7 +149,8 @@ def saving_contributions_next():
             saving_boost=total_saving_boost_onetime,
             saving_boost_date=saving_boost_date,
             i_contribution=todo['increase_contribution_by'],
-            period=todo['period']
+            period=todo['period'],
+            repeat_saving_boost = total_saving_boost
         )
         saving_contribution = saving_contribution_data['breakdown']
 
@@ -255,23 +260,23 @@ def saving_contributions_previous(saving_id=None):
 
     # Step 4: Calculate combined balance based on op_type
     # Step 4: Calculate adjusted total_balance, ignoring boost if no match
-    {
-        "$addFields": {
-            "adjusted_total_balance": {
-                "$cond": {
-                    "if": { "$ifNull": ["$boost_contributions", False] },  # Check if boost_contributions exists
-                    "then": {
-                        "$cond": {
-                            "if": { "$gt": ["$boost_contributions.op_type", 1] },
-                            "then": { "$subtract": ["$total_balance", "$boost_contributions.total_balance"] },
-                            "else": { "$add": ["$total_balance", "$boost_contributions.total_balance"] }
-                        }
-                    },
-                    "else": "$total_balance"  # Use only total_balance if no boost_contributions found
-                }
-            }
-        }
-    },
+    # {
+    #     "$addFields": {
+    #         "adjusted_total_balance": {
+    #             "$cond": {
+    #                 "if": { "$ifNull": ["$boost_contributions", False] },  # Check if boost_contributions exists
+    #                 "then": {
+    #                     "$cond": {
+    #                         "if": { "$gt": ["$boost_contributions.op_type", 1] },
+    #                         "then": { "$subtract": ["$total_balance", "$boost_contributions.total_balance"] },
+    #                         "else": { "$add": ["$total_balance", "$boost_contributions.total_balance"] }
+    #                     }
+    #                 },
+    #                 "else": "$total_balance"  # Use only total_balance if no boost_contributions found
+    #             }
+    #         }
+    #     }
+    # },
 
     # Step 5: Group by month and saving_id to calculate max total_balance for each saving_id within the month
     # {
@@ -284,10 +289,19 @@ def saving_contributions_previous(saving_id=None):
     # },
 
     # Step 5: Group by month and saving_id to calculate max adjusted balance for each saving_id within the month
+    # {
+    #     "$group": {
+    #         "_id": { "month": "$month", "saving_id": "$saving_id" },
+    #         "max_total_balance": { "$max": "$adjusted_total_balance" },  # Max balance for each saving_id in the month
+    #         "month_word": { "$first": "$month_word" },                   # Include month_word for formatting
+    #         "month": { "$first": "$month" }                              # Include month for further grouping
+    #     }
+    # },
+
     {
         "$group": {
             "_id": { "month": "$month", "saving_id": "$saving_id" },
-            "max_total_balance": { "$max": "$adjusted_total_balance" },  # Max balance for each saving_id in the month
+            "max_total_balance": { "$max": "$total_balance" },  # Max balance for each saving_id in the month
             "month_word": { "$first": "$month_word" },                   # Include month_word for formatting
             "month": { "$first": "$month" }                              # Include month for further grouping
         }
