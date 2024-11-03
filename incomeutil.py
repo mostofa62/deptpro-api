@@ -192,6 +192,58 @@ def generate_new_transaction_data_for_income(
     })
 
 
+def generate_new_transaction_data_for_future_income_v1(
+        initial_gross_input,
+        initial_net_input,
+        gross_input,
+        net_input,
+        pay_date,
+        frequency
+    ):
+
+    income_transaction = []
+    current_date = pay_date
+    end_date = pay_date.replace(year=pay_date.year + 1)
+
+    # Initialize counters for monthly totals
+    current_month = current_date.month
+    monthly_gross_total = initial_gross_input
+    monthly_net_total = initial_net_input
+
+    
+
+    while current_date < end_date:
+        # Get the last day of the current month
+        last_day_of_month = calendar.monthrange(current_date.year, current_month)[1]
+        end_of_month = current_date.replace(day=last_day_of_month)
+        
+       
+        days_left_in_month = (end_of_month - current_date).days + 1
+        num_periods = days_left_in_month // frequency
+
+        print('days_left_in_month',end_of_month.strftime("%Y-%m"),days_left_in_month)
+
+        # Add recurring income for each period within the current month
+        monthly_gross_total += gross_input * num_periods
+        monthly_net_total += net_input * num_periods
+        
+        # Record the monthly totals
+        income_transaction.append({
+            'month_word': end_of_month.strftime("%b, %Y"),
+            'month': end_of_month.strftime("%Y-%m"),
+            'base_gross_income': monthly_gross_total,
+            'base_net_income': monthly_net_total,
+        })
+        
+        # Move to the first pay date of the next month
+        current_date = end_of_month + timedelta(days=1)
+        current_month = current_date.month
+
+
+    return ({
+        'income_transaction':income_transaction
+    })
+
 
 
 def generate_new_transaction_data_for_future_income(        

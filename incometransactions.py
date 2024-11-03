@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
-from incomeutil import generate_new_transaction_data_for_future_income, generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_income, generate_unique_id
+from incomeutil import generate_new_transaction_data_for_future_income, generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_future_income_v1, generate_new_transaction_data_for_income, generate_unique_id
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -38,6 +38,8 @@ def income_transactions_next_one(income_id):
         'deleted_at':None,
         '_id':ObjectId(income_id)
     },{
+        'total_net_income':1,
+        'total_gross_income':1,
         'gross_income':1,
         'net_income':1,
         'pay_date':1,
@@ -46,8 +48,9 @@ def income_transactions_next_one(income_id):
         })
     
     if todo !=None:
-        income_transaction_data = generate_new_transaction_data_for_future_income(
-
+        income_transaction_data = generate_new_transaction_data_for_future_income_v1(
+            initial_gross_input=todo['total_gross_income'],
+            initial_net_input=todo['total_net_income'],
             gross_input=todo['gross_income'],
             net_input=todo['net_income'],
             pay_date=todo['next_pay_date'],
@@ -56,6 +59,9 @@ def income_transactions_next_one(income_id):
         income_transaction = income_transaction_data['income_transaction']
 
         projection_list.append(income_transaction)
+
+
+    #print('projection data', projection_list)
 
     # Dictionary to store merged results
     merged_data = defaultdict(lambda: {
@@ -199,11 +205,11 @@ def income_transactions_next(user_id:str):
     # }
 
     #income and incomeboost
-    current_month = datetime.now().strftime('%Y-%m')
-    app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
+    #current_month = datetime.now().strftime('%Y-%m')
+    #app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
 
-    total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
-    total_monthly_gross_income = app_datas['total_current_gross_income'] if  app_datas!=None and 'total_current_gross_income' in app_datas else 0
+    #total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
+    #total_monthly_gross_income = app_datas['total_current_gross_income'] if  app_datas!=None and 'total_current_gross_income' in app_datas else 0
 
     cursor = income.find({
         'closed_at':None,
@@ -377,33 +383,60 @@ def income_transactions_previous(income_id=None):
     },
     
     # Step 2: Project to extract year and month from pay_date
-    {
-        "$project": {
-            "base_net_income": 1,
-            "base_gross_income": 1,
-            "month_word":1,
-            "month":1            
-        }
-    },
+    # {
+    #     "$project": {
+    #         "total_net_for_period": 1,
+    #         "total_gross_for_period": 1,
+    #         "month_word":1,
+    #         "month":1            
+    #     }
+    # },
 
     # Step 3: Group by year_month and sum the balance
+    # {
+    #     "$group": {
+    #         "_id": "$month",  # Group by the formatted month-year
+    #         "total_balance_net": {"$max": "$total_net_for_period"},
+    #         "total_balance_gross": {"$max": "$total_gross_for_period"},
+    #         "month_word": {"$first": "$month_word"},  # Include the year
+    #         "month": {"$first": "$month"}   # Include the month
+    #     }
+    # },
+
     {
         "$group": {
-            "_id": "$month",  # Group by the formatted month-year
-            "total_balance_net": {"$sum": "$base_net_income"},
-            "total_balance_gross": {"$sum": "$base_gross_income"},
-            "month_word": {"$first": "$month_word"},  # Include the year
-            "month": {"$first": "$month"}   # Include the month
+            "_id": { "month": "$month", "income_id": "$income_id" },
+            "total_balance_net": { "$max": "$total_net_for_period" },
+            #"total_balance_gross": { "$max": "$total_gross_for_period" },  # Max balance for each saving_id in the month
+            "month_word": { "$first": "$month_word" },                   # Include month_word for formatting
+            "month": { "$first": "$month" }                              # Include month for further grouping
         }
     },
 
     # Step 4: Create the formatted year_month_word
+    # {
+    #     "$project": {
+    #         "_id": 1,
+    #         "total_balance_net": 1,
+    #         "total_balance_gross":1,
+    #         "month_word":1            
+    #     }
+    # },
+
     {
+        "$group": {
+            "_id": "$_id.month",  # Group by month
+            "total_balance_net": { "$sum": "$total_balance_net" },  # Sum the max balances per saving_id in the month
+            "month_word": { "$first": "$month_word" },          # Keep month_word
+            "month": { "$first": "$month" }                     # Keep month for sorting later
+        }
+    },
+
+     {
         "$project": {
             "_id": 1,
             "total_balance_net": 1,
-            "total_balance_gross":1,
-            "month_word":1            
+            "month_word": 1
         }
     },
 
