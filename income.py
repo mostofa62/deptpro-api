@@ -409,10 +409,12 @@ async def update_income(id:str):
                         total_gross_income = income_transaction_generate['total_gross_for_period']
                         total_net_income = income_transaction_generate['total_net_for_period']
                         next_pay_date = income_transaction_generate['next_pay_date']
+                        total_monthly_gross_income = income_transaction_generate['total_monthly_gross_income']
+                        total_monthly_net_income = income_transaction_generate['total_monthly_net_income']
                         income_transaction_data = None
                         if len(income_transaction_list)> 0:                    
                             income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
-                            total_monthly_net_income, total_monthly_gross_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
+                            
                                                 
                         
 
@@ -466,7 +468,7 @@ async def update_income(id:str):
                         
                         result = 1 if income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count and monthly_log_result  else 0                                 
 
-                        print(total_monthly_net_income, total_monthly_gross_income,income_monthly_log_data.modified_count, result)
+                        #print(total_monthly_net_income, total_monthly_gross_income,income_monthly_log_data.modified_count, result)
                         
                                                 
                         if result:                            
@@ -590,10 +592,12 @@ async def save_income():
                     total_gross_income = income_transaction_generate['total_gross_for_period']
                     total_net_income = income_transaction_generate['total_net_for_period']
                     next_pay_date = income_transaction_generate['next_pay_date']
+                    total_monthly_gross_income = income_transaction_generate['total_monthly_gross_income']
+                    total_monthly_net_income = income_transaction_generate['total_monthly_net_income']
                     income_transaction_data = None
+                    
                     if len(income_transaction_list)> 0:                    
-                        income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
-                        total_monthly_net_income, total_monthly_gross_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m') )
+                        income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)                        
                         
 
 

@@ -211,6 +211,8 @@ def income_transactions_next(user_id:str):
     },{
         'gross_income':1,
         'net_income':1,
+        'total_gross_income':1,
+        'total_net_income':1,
         'pay_date':1,
         'next_pay_date':1,
         'repeat':1
@@ -221,7 +223,8 @@ def income_transactions_next(user_id:str):
     for todo in cursor:
         
         income_transaction_data = generate_new_transaction_data_for_future_income(
-
+            initial_gross_input=todo['total_gross_income'],
+            initial_net_input=todo['total_net_income'],
             gross_input=todo['gross_income'],
             net_input=todo['net_income'],
             pay_date=todo['next_pay_date'],
@@ -246,19 +249,19 @@ def income_transactions_next(user_id:str):
         for entry in sublist:
             
             month = entry['month']
-            if month == current_month:
-                merged_data[month]['base_gross_income'] = round(total_monthly_gross_income+entry['base_gross_income'],2)
-                merged_data[month]['base_net_income'] = round(total_monthly_net_income+entry['base_net_income'],2)
+            # if month == current_month:
+            #     merged_data[month]['base_gross_income'] = round(entry['base_gross_income'],2)
+            #     merged_data[month]['base_net_income'] = round(entry['base_net_income'],2)
                 
             #merged_data[month]['id'] = ObjectId()
-            merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
-            merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
+            merged_data[month]['base_gross_income'] = round(entry['total_gross_for_period'],2)
+            merged_data[month]['base_net_income'] = round(entry['total_net_for_period'],2)
             #merged_data[month]['total_gross_for_period'] += entry['total_gross_for_period']
             #merged_data[month]['total_net_for_period'] += entry['total_net_for_period']
             merged_data[month]['month_word'] = entry['month_word']
 
-            merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
-            merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
+            #merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
+            #merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
 
             #merged_data[month]['id'] = generate_unique_id(month)
 

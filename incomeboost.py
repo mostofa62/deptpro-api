@@ -18,6 +18,7 @@ collection = my_col('income_boost')
 income_boost_types = my_col('income_boost_types')
 income_boost_transaction = my_col('income_boost_transactions')
 income_boost_monthly_log = my_col('income_boost_monthly_log')
+income = my_col('income')
 
 
 @app.route('/api/delete-income-boost', methods=['POST'])
@@ -160,8 +161,8 @@ def view_income_boost(id:str):
         "income":income
     })
 
-@app.route('/api/income-boost/<string:user_id>', methods=['POST'])
-def list_income_boost(user_id:str):
+@app.route('/api/income-boost/<string:income_id>', methods=['POST'])
+def list_income_boost(income_id:str):
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -171,9 +172,9 @@ def list_income_boost(user_id:str):
     # Construct MongoDB filter query
     query = {
         #'role':{'$gte':10}
-        "user_id":ObjectId(user_id),
+        "income.value":ObjectId(income_id),
         "deleted_at":None,
-        "closed_at":None
+        #"closed_at":None
     }
     if global_filter:
 
@@ -207,7 +208,9 @@ def list_income_boost(user_id:str):
         ]
 
     # Construct MongoDB sort parameters
-    sort_params = []
+    sort_params = [
+        ('created_at',-1)
+    ]
     for sort in sort_by:
         sort_field = sort['id']
         sort_direction = -1 if sort['desc'] else 1
@@ -485,128 +488,58 @@ async def save_income_boost():
         message = ''
         result = 0
 
-        with client.start_session() as session:
-            with session.start_transaction():
+        income_ac = income.find_one({'_id':ObjectId(data['income']['value'])})
+
         
-                try:
+        try:
 
-                    total_monthly_boost_income = 0
-
-                    
-                    income_boost = float(data.get("income_boost", 0))                    
-                    repeat_boost = data['repeat_boost']['value'] if data['repeat_boost']['value'] > 0 else None
+        
+            #pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            pay_date_boost = income_ac['next_pay_date']
 
 
-                    
+            append_data = {    
+                'income':{
+                    'value':ObjectId(data['income']['value'])
+                },                    
+                'income_boost_source':newEntryOptionData(data['income_boost_source'],'income_boost_types',user_id),                
 
-                    
-                    pay_date_boost = convertStringTodate(data['pay_date_boost'])
+                'user_id':ObjectId(user_id),
 
-                    commit = datetime.now()
+                
+                'income_boost':float(data.get("income_boost", 0)),
 
-                    total_income_boost = 0                        
-                    
+                
+                "created_at":datetime.now(),
+                "updated_at":datetime.now(),
+                "deleted_at":None,
+                "closed_at":None,
 
-                    append_data = {                        
-                        'income_boost_source':newEntryOptionData(data['income_boost_source'],'income_boost_types',user_id),                
+                
+                'pay_date_boost':pay_date_boost,                
+                'next_pay_date_boost':None, 
 
-                        'user_id':ObjectId(user_id),
+                'total_balance':0,                                      
 
-                        
-                        'income_boost':income_boost,
+                
+            }
+            #print('data',data)
+            #print('appendata',append_data)            
 
-                        'total_income_boost':total_income_boost,
+            merge_data = data | append_data
 
-                        
-                        
-                        "created_at":datetime.now(),
-                        "updated_at":datetime.now(),
-                        "deleted_at":None,
-                        "closed_at":None,
+            #print('mergedata',merge_data)
 
-                        
-                        'pay_date_boost':pay_date_boost,                
-                        'next_pay_date_boost':None,                
-                        'commit':commit
-
-                        
-                    }
-                    #print('data',data)
-                    #print('appendata',append_data)            
-
-                    merge_data = data | append_data
-
-                    #print('mergedata',merge_data)
-
-                    income_data = collection.insert_one(merge_data, session=session)
-                    income_id = str(income_data.inserted_id)
-
-
-                    income_transaction_generate = generate_new_transaction_data_for_income_boost(
-                        income_boost,
-                        pay_date_boost,
-                        repeat_boost,
-                        commit,
-                        ObjectId(income_id)
-                        )
-                    
-                    income_transaction_list = income_transaction_generate['income_transaction']
-                    total_income_boost = income_transaction_generate['total_input_boost_for_period']
-                    next_pay_date_boost = income_transaction_generate['next_pay_date_boost']
-                    if len(income_transaction_list)> 0:                    
-                        income_transaction_data = income_boost_transaction.insert_many(income_transaction_list,session=session)
-                        total_monthly_boost_income = calculate_total_income_for_sepecific_month(income_transaction_list,commit.strftime('%Y-%m'),'base_input_boost' )
-
-
-                    income_query = {
-                        "_id" :ObjectId(income_id)
-                    }
-
-                    newvalues = { "$set": {
-                        "total_income_boost":total_income_boost,                         
-                        "next_pay_date_boost":next_pay_date_boost,                                                                                                
-                        "updated_at":datetime.now()
-                    } }
-                    
-                    income_data = collection.update_one(income_query,newvalues,session=session)
-
-                    filter_query = {
-                            "income_id" :ObjectId(income_id)
-                        }
-
-                    update_document = {'$set': {
-                            #'income_id': ObjectId(income_id),
-                            'total_monthly_boost_income': total_monthly_boost_income,
-                            'month':commit.strftime('%Y-%m'),
-                            "deleted_at": None,
-                            "closed_at":None                 
-                        }
-                    }
-
-                    income_monthly_log_data = income_boost_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
-
-                    #print(income_monthly_log_data)
-                    monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
-
-                    result = income_id!=None and income_transaction_data.acknowledged and income_data.modified_count and monthly_log_result
-
-                    
-
-                    if result:
-                        message = 'Income boost added Succefull'
-                        session.commit_transaction()
-                        update_current_boost(user_id)
-                    else:
-                        message = 'Income boost addition Failed'
-                        session.abort_transaction()
-                    
-                except Exception as ex:
-                    income_id = None
-                    print('Income Save Exception: ',ex)
-                    result = 0
-                    message = 'Income boost addition Failed'
-
-                    session.abort_transaction()
+            income_data = collection.insert_one(merge_data)
+            income_id = str(income_data.inserted_id)
+            result = 1 if income_id!=None else 0
+            message = 'Income boost added Succefull'                                            
+            
+        except Exception as ex:
+            income_id = None
+            print('Income Save Exception: ',ex)
+            result = 0
+            message = 'Income boost addition Failed'                    
                    
 
         return jsonify({

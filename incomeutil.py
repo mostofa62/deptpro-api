@@ -4,6 +4,27 @@ from datetime import datetime,timedelta
 from bson import ObjectId
 
 import hashlib
+from dateutil.relativedelta import relativedelta
+
+def get_delta(frequency):
+    if frequency == 1:
+        delta = relativedelta(days=1)
+    elif frequency == 7:
+        delta = relativedelta(weeks=1)
+    elif frequency == 14:
+        delta = relativedelta(weeks=2)
+    elif frequency == 30:
+        delta = relativedelta(months=1)
+    elif frequency == 90:
+        delta = relativedelta(months=3)
+    elif frequency == 365:
+        delta = relativedelta(years=1)
+    else:
+        return {'error': 'Invalid contribution frequency'}, 400
+    
+    return delta
+
+
 #this below 2 function will generate the amonunt based on frequency
 def calcuate_frequncey_wise_income(input, frequency):
     normalized_income = input * (30 / frequency)
@@ -94,68 +115,70 @@ def generate_new_transaction_data_for_income(
         income_id        
 ):
     
-    income_transaction = []
-
-    current_date = pay_date
-    first_pay_date = current_date
-    today = datetime.today()
+    delta = get_delta(frequency)
     
-    #print(current_date, today)
+    income_transaction = []
+    
+    current_date = pay_date    
+    
+   
 
     total_gross_for_period = 0
     total_net_for_period = 0
 
-    next_pay_date = None
+    total_monthly_gross_income = 0
+    total_monthly_net_income = 0
 
-    while current_date <= today:
+    next_pay_date = current_date + delta
 
-        base_gross_income = gross_input
-        base_net_income = net_input
-        if frequency < 90:
-            
-            if frequency < 30 and current_date == first_pay_date:
-                base_gross_income = calculate_prorated_income(first_pay_date, gross_input, frequency)
-                base_net_income = calculate_prorated_income(first_pay_date, net_input, frequency)
-            else:
-                base_gross_income = calcuate_frequncey_wise_income(gross_input, frequency)
-                base_net_income = calcuate_frequncey_wise_income(net_input, frequency)
+    current_datetime_now = datetime.now()
 
+    current_month = current_datetime_now.strftime('%Y-%m')
 
-        base_gross_income = round(base_gross_income,2)
-        base_net_income = round(base_net_income,2)
+    
 
-        total_gross_for_period += base_gross_income
-        total_net_for_period += base_net_income
-        
-        next_pay_date = move_next_time(current_date, frequency)
+    if next_pay_date <= current_datetime_now:
+        while next_pay_date <= current_datetime_now:
 
-        total_gross_for_period = round(total_gross_for_period,2)
-        total_net_for_period = round(total_net_for_period,2)
-        
-        
-        income_transaction.append({
-            'month_word':current_date.strftime("%b, %Y"),
-            'month':current_date.strftime("%Y-%m"),
-            'pay_date':current_date,
-            "next_pay_date":next_pay_date,
-            'gross_income':gross_input,
-            'net_income':net_input,
-            'base_gross_income':base_gross_income,
-            'base_net_income':base_net_income,
-            "total_gross_for_period": total_gross_for_period,
-            'total_net_for_period':total_net_for_period,            
-            "income_id":income_id,
-            'commit':commit,
-            "deleted_at":None,
-            "closed_at":None            
-            
-        })
+            total_gross_for_period +=  gross_input
+            total_net_for_period += net_input                        
 
-        # Move to the next period based on base income frequency
-        current_date = next_pay_date
+            total_gross_for_period = round(total_gross_for_period,2)
+            total_net_for_period = round(total_net_for_period,2)
+
+            next_pay_date = current_date + delta
+
+            month = current_date.strftime("%Y-%m")
+            month_word = current_date.strftime("%b, %Y")
+
+            if current_month == month:
+                total_monthly_gross_income += gross_input
+                total_monthly_net_income += net_input
+
+                total_monthly_gross_income = round(total_monthly_gross_income,2)
+                total_monthly_net_income = round(total_monthly_net_income,2)
 
 
-        
+            income_transaction.append({
+                'month_word':month_word,
+                'month':month,
+                'pay_date':current_date,
+                "next_pay_date":next_pay_date,
+                'gross_income':gross_input,
+                'net_income':net_input,               
+                "total_gross_for_period": total_gross_for_period,
+                'total_net_for_period':total_net_for_period,            
+                "income_id":income_id,
+                'commit':commit,
+                "deleted_at":None,
+                "closed_at":None            
+                
+            })
+
+             # Move to the next period based on base income frequency
+            current_date = next_pay_date
+
+
    
         
 
@@ -163,13 +186,15 @@ def generate_new_transaction_data_for_income(
         'income_transaction':income_transaction,
         'total_gross_for_period':total_gross_for_period,
         'total_net_for_period':total_net_for_period,
+        'total_monthly_gross_income':total_monthly_gross_income,
+        'total_monthly_net_income':total_monthly_net_income,
         'next_pay_date':next_pay_date
     })
 
 
 
 
-def generate_new_transaction_data_for_future_income(
+def generate_new_transaction_data_for_future_income(        
         gross_input,
         net_input,
         pay_date,

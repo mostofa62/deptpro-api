@@ -63,6 +63,35 @@ def incomesourceboost_dropdown(user_id:str):
     income_boost_types_list = []
     for todo in income_boost_types:               
         income_boost_types_list.append({'value':str(todo['_id']),'label':todo['name']})
+
+
+    incomes = my_col('income').find(
+        {
+
+            "deleted_at":None,
+            "user_id": ObjectId(user_id),            
+            "closed_at":None,
+        },
+        {
+            '_id': 1, 
+            'earner': 1, 
+            'user_id': 1, 
+            'repeat':1, 
+            'next_pay_date':1
+        }
+        )
+
+
+    income_list = []
+    for todo in incomes:
+        #print(todo)
+        name  =  todo['earner']              
+        income_list.append({
+            'value':str(todo['_id']),
+            'label':name,
+            'repeat_boost':todo['repeat'],            
+            'pay_date_boost':convertDateTostring(todo['next_pay_date'],"%Y-%m-%d")
+            })
     
     
 
@@ -72,6 +101,7 @@ def incomesourceboost_dropdown(user_id:str):
             'income_source':income_source_types_list,
             "income_boost_source":income_boost_types_list,
             'repeat_frequency':RepeatFrequency,
+            'income_list':income_list
            
         }
     })
