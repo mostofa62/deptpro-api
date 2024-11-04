@@ -1,5 +1,7 @@
 import calendar
 from datetime import datetime,timedelta
+from itertools import groupby
+from operator import itemgetter
 
 from bson import ObjectId
 
@@ -103,6 +105,106 @@ def calculate_prorated_income(pay_date, input, frequency):
     prorated_income = daily_rate * days_remaining_in_month    
     return prorated_income
 
+def get_single_boost(initial_amount, contribution, start_date,frequency):
+  
+    balance = initial_amount
+    
+    next_pay_date_boost =  None
+    current_date = start_date
+    if frequency!=None:
+        delta = get_delta(frequency)
+        next_pay_date_boost = current_date + delta
+
+    balance += contribution
+
+    
+
+    months_breakdown = {                
+                "month": current_date.strftime('%Y-%m'),
+                "month_word": current_date.strftime('%b, %Y'),                
+                "contribution": contribution,
+                "total_balance": round(balance, 2),                
+                "contribution_date":current_date,
+                "next_pay_date_boost": next_pay_date_boost           
+    }
+    total_balance = balance
+
+    return ({
+        'breakdown':months_breakdown,
+        'next_pay_date_boost':next_pay_date_boost,        
+        'total_balance':round(total_balance, 2)        
+    })
+
+def get_single_income(
+        initial_gross_input,
+        initial_net_input,
+        gross_input,
+        net_input,
+        pay_date,
+        frequency,
+        commit,
+        income_id  
+):
+    
+    delta = get_delta(frequency)    
+    current_date = pay_date
+    
+    total_monthly_gross_income = 0
+    total_monthly_net_income = 0
+
+    next_pay_date = current_date + delta
+    
+    
+    total_gross_for_period = initial_gross_input
+    total_net_for_period = initial_net_input
+
+    total_gross_for_period +=  gross_input
+    total_net_for_period += net_input
+
+    total_gross_for_period = round(total_gross_for_period,2)
+    total_net_for_period = round(total_net_for_period,2)
+
+    current_datetime_now = datetime.now()
+    current_month = current_datetime_now.strftime('%Y-%m')
+
+    month = current_date.strftime("%Y-%m")
+    month_word = current_date.strftime("%b, %Y")
+
+    if current_month == month:
+        total_monthly_gross_income += gross_input
+        total_monthly_net_income += net_input
+
+        total_monthly_gross_income = round(total_monthly_gross_income,2)
+        total_monthly_net_income = round(total_monthly_net_income,2)
+
+    income_transaction = {
+        'month_word':month_word,
+        'month':month,
+        'pay_date':current_date,
+        "next_pay_date":next_pay_date,
+        'gross_income':gross_input,
+        'net_income':net_input,               
+        "total_gross_for_period": total_gross_for_period,
+        'total_net_for_period':total_net_for_period,            
+        "income_id":income_id,
+        'commit':commit,
+        "deleted_at":None,
+        "closed_at":None            
+        
+    }
+
+
+    
+    return ({
+        'income_transaction':income_transaction,
+        'total_gross_for_period':total_gross_for_period,
+        'total_net_for_period':total_net_for_period,
+        'total_monthly_gross_income':total_monthly_gross_income,
+        'total_monthly_net_income':total_monthly_net_income,
+        'next_pay_date':next_pay_date
+    })
+
+    
 
 #now we will need a function which will 
 ## generate new transaction data for first_pay_date month to current month
@@ -246,79 +348,108 @@ def generate_new_transaction_data_for_future_income_v1(
 
 
 
-def generate_new_transaction_data_for_future_income(        
+def calculate_breakdown_future( 
+        initial_gross_input,
+        initial_net_input,       
         gross_input,
         net_input,
         pay_date,
-        frequency               
+        frequency,
+        income_boost=0,
+        income_boost_date=None,         
+        repeat_income_boost=None               
 ):
     
-    income_transaction = []
+    
+
+    delta = get_delta(frequency)
+    
+    months_breakdown = []
+    gross_income = initial_gross_input
+    net_income = initial_net_input
 
     current_date = pay_date
-    first_pay_date = current_date
-    today = datetime.now() + timedelta(days=365)
-    
-    #print(current_date, today)
 
-    total_gross_for_period = 0
-    total_net_for_period = 0
+    next_contribution_date = current_date + delta
 
-    next_pay_date = None
+    current_datetime_now = datetime.now() + timedelta(days=365)
 
-    while current_date <= today:
+    while next_contribution_date <= current_datetime_now:
+        month_string = current_date.strftime('%Y-%m')
 
-        base_gross_income = gross_input
-        base_net_income = net_input
-        if frequency < 90:
-            
-            if frequency < 30 and current_date == first_pay_date:
-                base_gross_income = calculate_prorated_income(first_pay_date, gross_input, frequency)
-                base_net_income = calculate_prorated_income(first_pay_date, net_input, frequency)
-            else:
-                base_gross_income = calcuate_frequncey_wise_income(gross_input, frequency)
-                base_net_income = calcuate_frequncey_wise_income(net_input, frequency)
+        income_boost_gross = None 
+        income_boost_net = None
+        if month_string == income_boost_date:
+                print('month==saving_boost',month_string,income_boost_date)
+                #print(contribution, balance)
+                income_boost_gross = income_boost + gross_input
+                income_boost_net = income_boost + net_input
+        #     #balance += saving_boost
+                print('income_boost_gross, income_boost_net',income_boost_gross,income_boost_net)
+        else:
+            income_boost_gross = None 
+            income_boost_net = None
 
+        # Calculate next contribution date
+            next_contribution_date = current_date + delta
 
-        base_gross_income = round(base_gross_income,2)
-        base_net_income = round(base_net_income,2)
+        if income_boost_gross!=None and income_boost_net!=None:
+            gross_income +=income_boost_gross
+            net_income +=income_boost_net
+        else:
+            gross_income += gross_input
+            net_income += net_input
 
-        total_gross_for_period += base_gross_income
-        total_net_for_period += base_net_income
+        if repeat_income_boost!=None:
+            gross_income += repeat_income_boost
+            net_income += repeat_income_boost
+
         
-        next_pay_date = move_next_time(current_date, frequency)
-
-        total_gross_for_period = round(total_gross_for_period,2)
-        total_net_for_period = round(total_net_for_period,2)
+        if gross_income < 0 or net_income < 0:
+                break
         
-        
-        income_transaction.append({
+        months_breakdown.append({
             'month_word':current_date.strftime("%b, %Y"),
             'month':current_date.strftime("%Y-%m"),
             #'pay_date':current_date,
             #"next_pay_date":next_pay_date,
             #'gross_income':gross_input,
             #'net_income':net_input,
-            'base_gross_income':base_gross_income,
-            'base_net_income':base_net_income,
-            "total_gross_for_period": total_gross_for_period,
-            'total_net_for_period':total_net_for_period                      
+            'base_gross_income':gross_income,
+            'base_net_income':net_income,
+            # "total_gross_for_period": gross_income,
+            # 'total_net_for_period':net_input                      
             
         })
 
-        # Move to the next period based on base income frequency
-        current_date = next_pay_date
+        # Move to the next period based on the contribution frequency
+        current_date = next_contribution_date
 
+    
 
-        
-   
-        
+    if len(months_breakdown) > 0:
+        # First, we need to sort the months_breakdown array by the 'month' key to use groupby
+        months_breakdown_sorted = sorted(months_breakdown, key=itemgetter('month'))
+
+        # Group the entries by 'month' and find the max 'total_balance' in each group
+        max_balance_per_month = []
+
+        for month, group in groupby(months_breakdown_sorted, key=itemgetter('month')):
+            # Convert group to a list
+            group_list = list(group)
+            
+            # Find the entry with the max total_balance in this group
+            max_entry = max(group_list, key=lambda x: x['base_gross_income'])
+            
+            # Append the max entry for this month to the result array
+            max_balance_per_month.append(max_entry)
+
+        # Output the result
+        if len(max_balance_per_month)> 0:
+            months_breakdown  = max_balance_per_month
 
     return ({
-        'income_transaction':income_transaction,
-        'total_gross_for_period':total_gross_for_period,
-        'total_net_for_period':total_net_for_period,
-        'next_pay_date':next_pay_date
+        'breakdown':months_breakdown
     })
 
 def generate_unique_id(month):

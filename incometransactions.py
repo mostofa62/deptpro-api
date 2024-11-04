@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
-from incomeutil import generate_new_transaction_data_for_future_income, generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_future_income_v1, generate_new_transaction_data_for_income, generate_unique_id
+from incomeutil import calculate_breakdown_future,generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_future_income_v1, generate_new_transaction_data_for_income, generate_unique_id
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -21,226 +21,157 @@ income_boost_transaction = my_col('income_boost_transactions')
 income_monthly_log = my_col('income_monthly_log')
 income_boost_monthly_log = my_col('income_boost_monthly_log')
 app_data = my_col('app_data')
-@app.route('/api/income-transactions-next/<income_id>', methods=['GET'])
-def income_transactions_next_one(income_id):
 
 
-    current_month = datetime.now().strftime('%Y-%m')
-    income_monthly_log_data = income_monthly_log.find_one({
-        'income_id':ObjectId(income_id)
-    })
-    total_monthly_net_income = income_monthly_log_data['total_monthly_net_income'] if  income_monthly_log_data!=None and 'total_monthly_net_income' in income_monthly_log_data else 0
-    total_monthly_gross_income = income_monthly_log_data['total_monthly_gross_income'] if  income_monthly_log_data!=None and 'total_monthly_gross_income' in income_monthly_log_data else 0    
+def income_transactions_next_function(todo):
 
-    projection_list = []
-    todo = income.find_one({
-        'closed_at':None,
-        'deleted_at':None,
-        '_id':ObjectId(income_id)
-    },{
-        'total_net_income':1,
-        'total_gross_income':1,
-        'gross_income':1,
-        'net_income':1,
-        'pay_date':1,
-        'next_pay_date':1,
-        'repeat':1
-        })
-    
-    if todo !=None:
-        income_transaction_data = generate_new_transaction_data_for_future_income_v1(
-            initial_gross_input=todo['total_gross_income'],
-            initial_net_input=todo['total_net_income'],
-            gross_input=todo['gross_income'],
-            net_input=todo['net_income'],
-            pay_date=todo['next_pay_date'],
-            frequency=todo['repeat']['value']
-        )
-        income_transaction = income_transaction_data['income_transaction']
-
-        projection_list.append(income_transaction)
-
-
-    #print('projection data', projection_list)
-
-    # Dictionary to store merged results
-    merged_data = defaultdict(lambda: {
-        "base_gross_income": 0,
-        "base_net_income": 0,
-        #"total_gross_for_period": 0,
-        #"total_net_for_period": 0,
-        "month_word": ""
-    })
-
-    # Merging logic
-    if len(projection_list) > 0:
-        for sublist in projection_list:
-            for entry in sublist:
-                
-                month = entry['month']                
-                if month == current_month:
-                    merged_data[month]['base_gross_income'] = round(total_monthly_gross_income,2)
-                    merged_data[month]['base_net_income'] = round(total_monthly_net_income,2)
-                #merged_data[month]['id'] = ObjectId()
-                merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
-                merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
-                #merged_data[month]['total_gross_for_period'] += entry['total_gross_for_period']
-                #merged_data[month]['total_net_for_period'] += entry['total_net_for_period']
-                merged_data[month]['month_word'] = entry['month_word']
-
-                merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
-                merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
-
-            #merged_data[month]['id'] = generate_unique_id(month)
-
-
-    # Convert the merged data back into a list if needed
-    result = [{"month": month, **data} for month, data in merged_data.items()]
-
-    return jsonify({
-        "payLoads":{            
-            
-               #'projection_list':result,
-               #'projection_list_boost':result_boost,
-               'projection_list':result
-                     
-
-
-        }        
-    })
-
-
-
-@app.route('/api/income-boost-transactions-next/<income_id>', methods=['GET'])
-def income_boost_transactions_next_one(income_id):
-
-
-    current_month = datetime.now().strftime('%Y-%m')
-    income_boost_monthly_log_data = income_boost_monthly_log.find_one({
-        'income_id':ObjectId(income_id)
-    })
-    total_monthly_net_income = income_boost_monthly_log_data['total_monthly_boost_income'] if  income_boost_monthly_log_data!=None and 'total_monthly_boost_income' in income_boost_monthly_log_data else 0
-    
-
-    projection_list_boost = []
-    todo = income_boost.find_one({
-        'closed_at':None,
-        'deleted_at':None,
-        '_id':ObjectId(income_id)
-    },{
-        'income_boost':1,        
-        'pay_date_boost':1,
-        'next_pay_date_boost':1,
-        'repeat_boost':1
-        })
-    
-    if todo !=None:
-        income_transaction_data = generate_new_transaction_data_for_future_income_boost(
-
-            input_boost=todo['income_boost'], 
-            pay_date=todo['next_pay_date_boost'],
-            frequency=todo['repeat_boost']['value']
-        )
-        income_transaction = income_transaction_data['income_transaction']
-
-        projection_list_boost.append(income_transaction)
-
-    # Dictionary to store merged results
-    merged_data_boost = defaultdict(lambda: {
-        "base_input_boost": 0,
-       
-        #"total_gross_for_period": 0,
-        #"total_net_for_period": 0,
-        "month_word": ""
-    })
-
-    # Merging logic
-    if len(projection_list_boost) > 0:
-        # Merging logic
-        for sublist in projection_list_boost:
-            for entry in sublist:
-                
-                month = entry['month']                
-                if month == current_month:
-                    merged_data_boost[month]['base_input_boost'] = round(total_monthly_net_income,2)                    
-                
-                #merged_data[month]['id'] = ObjectId()
-                merged_data_boost[month]['base_input_boost'] += round(entry['base_input_boost'],2)
-                
-                merged_data_boost[month]['month_word'] = entry['month_word']
-
-                merged_data_boost[month]['base_input_boost'] = round(merged_data_boost[month]['base_input_boost'],2)
-            
-
-            #merged_data[month]['id'] = generate_unique_id(month)
-
-
-    # Convert the merged data back into a list if needed
-    result_boost = [{"month": month, **data} for month, data in merged_data_boost.items()]
-
-    return jsonify({
-        "payLoads":{            
-            
-               #'projection_list':result,
-               #'projection_list_boost':result_boost,
-               'projection_list':result_boost
-                     
-
-
-        }        
-    })
-
-
-@app.route('/api/income-transactions-next-all/<user_id>', methods=['GET'])
-def income_transactions_next(user_id:str):
-
-
-
-    #twelve_months_next = datetime.now() + timedelta(days=365)
-
-    
-
-    # query = {
-    #     "pay_date": {"$eq": pay_date},
-    # }
-
-    #income and incomeboost
-    #current_month = datetime.now().strftime('%Y-%m')
-    #app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
-
-    #total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
-    #total_monthly_gross_income = app_datas['total_current_gross_income'] if  app_datas!=None and 'total_current_gross_income' in app_datas else 0
-
-    cursor = income.find({
-        'closed_at':None,
-        'deleted_at':None
-    },{
-        'gross_income':1,
-        'net_income':1,
-        'total_gross_income':1,
-        'total_net_income':1,
-        'pay_date':1,
-        'next_pay_date':1,
-        'repeat':1
-        })
-    
-    projection_list = []
-
-    for todo in cursor:
         
-        income_transaction_data = generate_new_transaction_data_for_future_income(
-            initial_gross_input=todo['total_gross_income'],
-            initial_net_input=todo['total_net_income'],
-            gross_input=todo['gross_income'],
-            net_input=todo['net_income'],
-            pay_date=todo['next_pay_date'],
-            frequency=todo['repeat']['value']
-        )
-        income_transaction = income_transaction_data['income_transaction']
+        pipeline_boost = [
+        {
+            '$match': {
+                'income.value': todo['_id'],
+                'deleted_at':None,
+                'closed_at':None,
+                'repeat_boost.value': {'$gt': 0}
+            }
+            },
+            {
+                '$group': {
+                    '_id': None,
+                    'total_repeat_boost': {'$sum': '$repeat_boost.value'},
+                    'total_income_boost': {
+                        '$sum': '$income_boost'
+                    }
+                }
+            }
+        ]
 
-        projection_list.append(income_transaction)
+        # Execute the aggregation
+        result_boost = list(income_boost.aggregate(pipeline_boost))
+
+        # Get the sums if any results found
+        total_repeat_boost = result_boost[0]['total_repeat_boost'] if result_boost else 0
+        total_income_boost = result_boost[0]['total_income_boost'] if result_boost else 0
+
+        print('total_repeat_boost, total_income_boost',total_repeat_boost, total_income_boost)
+
+        total_gross_income = todo['total_gross_income']
+        total_net_income = todo['total_net_income']
+
+        gross_income = todo['gross_income']
+        net_income = todo['net_income']
+
+
+        pipeline_boost_onetime = [
+            {
+                '$match': {
+                    'income.value': todo['_id'],
+                    'deleted_at': None,
+                    'closed_at':None,
+                    'repeat_boost.value': {'$lt': 1}
+                }
+            },
+            {
+                '$group': {
+                    '_id': None,
+                    'total_income_boost': {
+                        '$sum': '$income_boost'
+                    }
+                }
+            }
+        ]
+
+
+        # Execute the aggregation
+        result_boost_onetime = list(income_boost.aggregate(pipeline_boost_onetime))
+
+        total_income_boost_onetime = result_boost_onetime[0]['total_income_boost'] if result_boost_onetime else None
+
+        print('total_income_boost_onetime',total_income_boost_onetime)
+        #print(total_balance, contribution)
+
+        #total_balance = todo['total_balance']
+        #contribution = todo['contribution']
+        income_boost_date = todo['next_pay_date'].strftime('%Y-%m') if total_income_boost_onetime !=None else None
+
+        income_contribution_data = calculate_breakdown_future(
+
+            initial_gross_input=total_gross_income,
+            initial_net_input=total_net_income,
+            gross_input=gross_income,
+            net_input=net_income,            
+            pay_date = todo['next_pay_date'],            
+            frequency=todo['repeat']['value'],
+            income_boost=total_income_boost_onetime,
+            income_boost_date=income_boost_date,                        
+            repeat_income_boost = total_income_boost
+        )
+
+        income_contribution = income_contribution_data['breakdown']
+
+        
+               
 
     
+        
+
+
+        return income_contribution
+
+
+@app.route('/api/income-transactions-next/<income_id>', methods=['GET'])
+@app.route('/api/income-transactions-next', methods=['GET'])
+def income_transactions_next(income_id=None):
+    
+    cursor = None
+    
+    if income_id!=None:
+
+        cursor = income.find_one({
+            'closed_at':None,
+            'deleted_at':None,
+            '_id':ObjectId(income_id)
+        },{
+            'gross_income':1,
+            'net_income':1,
+            'total_gross_income':1,
+            'total_net_income':1,
+            'pay_date':1,
+            'next_pay_date':1,
+            'repeat':1
+            })
+
+
+    else:
+
+        cursor = income.find({
+            'closed_at':None,
+            'deleted_at':None
+        },{
+            'gross_income':1,
+            'net_income':1,
+            'total_gross_income':1,
+            'total_net_income':1,
+            'pay_date':1,
+            'next_pay_date':1,
+            'repeat':1
+            })
+    
+    projection_list = []
+
+    if income_id!=None:
+        
+        todo = cursor
+        income_contribution = income_transactions_next_function(todo)
+        projection_list.append(income_contribution)
+    else:
+        
+        for todo in cursor:
+            income_contribution = income_transactions_next_function(todo)
+            projection_list.append(income_contribution)
+
+    
+
     # Dictionary to store merged results
     merged_data = defaultdict(lambda: {
         "base_gross_income": 0,
@@ -260,14 +191,14 @@ def income_transactions_next(user_id:str):
             #     merged_data[month]['base_net_income'] = round(entry['base_net_income'],2)
                 
             #merged_data[month]['id'] = ObjectId()
-            merged_data[month]['base_gross_income'] = round(entry['total_gross_for_period'],2)
-            merged_data[month]['base_net_income'] = round(entry['total_net_for_period'],2)
+            merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
+            merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
             #merged_data[month]['total_gross_for_period'] += entry['total_gross_for_period']
             #merged_data[month]['total_net_for_period'] += entry['total_net_for_period']
             merged_data[month]['month_word'] = entry['month_word']
 
-            #merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
-            #merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
+            merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
+            merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
 
             #merged_data[month]['id'] = generate_unique_id(month)
 
@@ -276,77 +207,10 @@ def income_transactions_next(user_id:str):
     result = [{"month": month, **data} for month, data in merged_data.items()]
 
 
-    cursor = income_boost.find({
-        'closed_at':None,
-        'deleted_at':None
-    },{
-        'income_boost':1,
-        'pay_date_boost':1,
-        'next_pay_date_boost':1,
-        'repeat_boost':1
-        })
+        
+
+
     
-    projection_list_boost = []
-
-    for todo in cursor:
-
-        income_transaction_data = generate_new_transaction_data_for_future_income_boost(
-
-            input_boost=todo['income_boost'],        
-            pay_date=todo['next_pay_date_boost'],
-            frequency=todo['repeat_boost']['value']
-        )
-        income_transaction = income_transaction_data['income_transaction']
-
-        projection_list_boost.append(income_transaction)
-
-
-    # Dictionary to store merged results
-    merged_data_boost = defaultdict(lambda: {
-        "base_input_boost": 0,
-       
-        #"total_gross_for_period": 0,
-        #"total_net_for_period": 0,
-        "month_word": ""
-    })
-
-    # Merging logic
-    for sublist in projection_list_boost:
-        for entry in sublist:
-            
-            month = entry['month']
-            #merged_data[month]['id'] = ObjectId()
-            merged_data_boost[month]['base_input_boost'] += round(entry['base_input_boost'],2)
-            
-            merged_data_boost[month]['month_word'] = entry['month_word']
-
-            merged_data_boost[month]['base_input_boost'] = round(merged_data_boost[month]['base_input_boost'],2)
-            
-
-            #merged_data[month]['id'] = generate_unique_id(month)
-
-
-    # Convert the merged data back into a list if needed
-    result_boost = [{"month": month, **data} for month, data in merged_data_boost.items()]
-
-    # Default fields with values 0
-    default_fields = {
-        "base_gross_income": 0.0,
-        "base_net_income": 0.0,
-        "base_input_boost": 0.0,
-    }
-
-    combined_dict = {item["month"]: {**default_fields, **item} for item in result}
-
-    for boost_item in result_boost:
-        month = boost_item["month"]
-        if month in combined_dict:
-            combined_dict[month].update(boost_item)  # Merge data if 'month' exists
-        else:
-            combined_dict[month] = {**default_fields, **boost_item}
-
-    # Convert back to list format
-    merged_list = list(combined_dict.values())
     
     
     return jsonify({
@@ -354,7 +218,7 @@ def income_transactions_next(user_id:str):
             
                #'projection_list':result,
                #'projection_list_boost':result_boost,
-               'projection_list':merged_list
+               'projection_list':result
                      
 
 
@@ -407,7 +271,7 @@ def income_transactions_previous(income_id=None):
         "$group": {
             "_id": { "month": "$month", "income_id": "$income_id" },
             "total_balance_net": { "$max": "$total_net_for_period" },
-            #"total_balance_gross": { "$max": "$total_gross_for_period" },  # Max balance for each saving_id in the month
+            #"total_balance_gross": { "$max": "$total_gross_for_period" },  # Max balance for each income_id in the month
             "month_word": { "$first": "$month_word" },                   # Include month_word for formatting
             "month": { "$first": "$month" }                              # Include month for further grouping
         }
@@ -426,7 +290,7 @@ def income_transactions_previous(income_id=None):
     {
         "$group": {
             "_id": "$_id.month",  # Group by month
-            "total_balance_net": { "$sum": "$total_balance_net" },  # Sum the max balances per saving_id in the month
+            "total_balance_net": { "$sum": "$total_balance_net" },  # Sum the max balances per income_id in the month
             "month_word": { "$first": "$month_word" },          # Keep month_word
             "month": { "$first": "$month" }                     # Keep month for sorting later
         }
@@ -797,11 +661,15 @@ def list_income_boost_transactions(income_id:str):
 
     for todo in cursor:
 
+        income_boost_ac = income_boost.find_one({'_id':todo['income_boost_id']})
 
-        todo['pay_date_word'] = todo['pay_date'].strftime('%d %b, %Y')
-        todo['pay_date'] = convertDateTostring(todo['pay_date'],"%Y-%m-%d")
+        todo['income_boost'] = income_boost_ac['earner'] if income_boost_ac!=None else None
 
-        todo['next_pay_date_word'] = todo['next_pay_date_boost'].strftime('%d %b, %Y')
+
+        todo['contribution_date_word'] = convertDateTostring(todo['contribution_date'])
+        todo['contribution_date'] = convertDateTostring(todo['contribution_date'],"%Y-%m-%d")
+
+        todo['next_pay_date_word'] = convertDateTostring(todo['next_pay_date_boost'])
         todo['next_pay_date_boost'] = convertDateTostring(todo['next_pay_date_boost'],"%Y-%m-%d")                
 
         
