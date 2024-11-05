@@ -8,6 +8,7 @@ from bson.json_util import dumps
 import re
 from util import *
 from datetime import datetime,timedelta
+from billextra import extra_type
 
 
 client = myclient
@@ -75,9 +76,12 @@ def get_bill_trans(accntid:str):
     global_filter = data.get('filter', '')
     sort_by = data.get('sortBy', [])
 
+    op_type = extra_type[0]['value']
+
     query = {
         #'role':{'$gte':10}
         "bill_acc_id":ObjectId(accntid),
+        'type':op_type,
         "deleted_at":None
     }
 
@@ -315,7 +319,7 @@ def list_bills(user_id:str):
             "default_amount":todo["default_amount"],
             "current_amount":todo["current_amount"],
             "next_due_date":convertDateTostring(todo["next_due_date"]),
-            "autopay":todo["autopay"],
+            
             #"repeat":todo["repeat"],
             "repeat_frequency":todo['repeat_frequency']
             
@@ -350,7 +354,7 @@ def update_bill_transaction(accntid:str):
                     try:
 
                         amount  = int(data['amount'])
-                        autopay = int(data['autopay'])
+                       
                         next_due_date = datetime.strptime(data['due_date'],"%Y-%m-%d")
                     
                         
@@ -362,7 +366,7 @@ def update_bill_transaction(accntid:str):
                         newvalues = { "$set": {   
                             'amount':amount,                        
                             'due_date':next_due_date,               
-                            'autopay':autopay,                                                         
+                                                                                 
                             "updated_at":datetime.now()
                         } }
 
@@ -432,14 +436,14 @@ def save_bill(accntid:str):
             with session.start_transaction():
                 try:
                             amount  = int(data['amount'])
-                            autopay = int(data['autopay'])
+                            
                             next_due_date = datetime.strptime(data['due_date'],"%Y-%m-%d")
 
                             #save bill transactions
                             bill_trans_data = bill_transactions.insert_one({                           
                                 'amount':amount,                        
                                 'due_date':next_due_date,               
-                                'autopay':autopay,                                         
+                                                                         
                                 "created_at":datetime.now(),
                                 "updated_at":datetime.now(),                        
                                 "user_id":ObjectId(data["user_id"]),
@@ -511,13 +515,15 @@ def save_bill_account():
                 try:
 
                     amount  = int(data['default_amount'])
-                    autopay = int(data['autopay']) if 'autopay' in data else 0
+                    
                     #repeat=int(data['repeat']) if 'repeat' in data else 0
                     # repeat_count = 0
                     repeat_frequency = int(data['repeat_frequency']['value'])
                     reminder_days = int(data['reminder_days']['value'])
 
                     next_due_date = convertStringTodate(data['next_due_date'])
+
+                    op_type = extra_type[0]['value']
                     #create bill account
                     bill_acc_data = bill_accounts.insert_one({           
                         'name':data['name'],
@@ -531,8 +537,7 @@ def save_bill_account():
                         #'repeat':repeat, 
                         # 'repeat_count':repeat_count,
                         'repeat_frequency':repeat_frequency, 
-                        'reminder_days':reminder_days, 
-                        'autopay':autopay,
+                        'reminder_days':reminder_days,                         
                         'notes':data['notes'] if 'notes' in data else None,                          
                         "created_at":datetime.now(),
                         "updated_at":datetime.now(),                        
@@ -547,9 +552,9 @@ def save_bill_account():
                     #print(bill_account_id)
                     #save bill transaction defaults
                     bill_trans_data = bill_transactions.insert_one({                           
-                        'amount':amount,                        
-                        'due_date':next_due_date,               
-                        'autopay':autopay,                                         
+                        'amount':amount,
+                        'type':op_type,                        
+                        'due_date':next_due_date,                                                                              
                         "created_at":datetime.now(),
                         "updated_at":datetime.now(),                        
                         "user_id":ObjectId(data["user_id"]),
@@ -607,12 +612,13 @@ def update_bill(accntid:str):
                         "_id" :ObjectId(bill_account_id)
                     }
             amount  = int(data['default_amount'])
-            autopay = int(data['autopay']) if 'autopay' in data else 0
+            
             #repeat=int(data['repeat']) if 'repeat' in data else 0
             # repeat_count = int(data['repeat_count']['value'])
             repeat_frequency = int(data['repeat_frequency']['value'])
             reminder_days = int(data['reminder_days']['value'])
             newvalues = { "$set": {
+                'name':data['name'],
                 'bill_type':{
                     'value':ObjectId(data['bill_type']['value'])
                 },
@@ -622,7 +628,7 @@ def update_bill(accntid:str):
                 # 'repeat_count':repeat_count,
                 'repeat_frequency':repeat_frequency, 
                 'reminder_days':reminder_days, 
-                'autopay':autopay,
+                
                 'notes':data['notes'] if 'notes' in data and data['notes']!=""  else None,                                     
                 "updated_at":datetime.now()
             } }
@@ -1022,7 +1028,7 @@ def get_bill_all(accntid:str):
 
     billaccounts['reminder_days'] = matching_dicts['label']
 
-    billaccounts['autopay'] = 'Yes'  if billaccounts['autopay'] > 0 else 'No'
+    
     # billaccounts['repeat'] = 'Yes'  if billaccounts['repeat'] > 0 else 'No'
 
 
