@@ -49,7 +49,10 @@ def save_bill_transactions():
 
                     bill_trans_data = bill_transactions.insert_one({                           
                         'amount':amount, 
-                        'type':op_type,                       
+                        'type':op_type,
+                        'payor':data['payor'],
+                        'note':data['note'],
+                        'current_amount':amount,                        
                         'due_date':due_date,                                                                              
                         "created_at":datetime.now(),
                         "updated_at":datetime.now(),                        
