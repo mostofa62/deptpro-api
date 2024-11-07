@@ -39,10 +39,13 @@ def distribute_amount(bill_account_id,withdraw_amount, session):
         # Determine how much can be taken from the current document
         amount_to_allocate = min(doc['current_amount'], remaining_amount)
 
-        payment_status = 1 if amount_to_allocate - doc['current_amount'] <= 0 else 0
+        
         
         # Update current_amount in the document
         new_current_amount = doc['current_amount'] - amount_to_allocate
+
+        payment_status = 1 if new_current_amount <= 0 else 0
+
         bill_transactions.update_one(
             {'_id': doc['_id']},
             {'$set': {'current_amount': new_current_amount, 'payment_status':payment_status}},

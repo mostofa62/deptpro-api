@@ -24,6 +24,45 @@ extra_type = [
 
 ]
 
+
+@app.route('/api/bill-amount-validation',methods=['POST'])
+def save_amount_validation():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+        bill_account_id = ObjectId(data['bill_acc_id'])
+        amount = float(data.get("amount", 0)) 
+
+        op_type  = int(data['op_type'])
+
+        if op_type < extra_type[1]['value']:
+            
+
+            return({
+            "isValid":True,
+            #"message":bill_acc_data['current_amount']
+            }),200
+
+        bill_acc_query = {
+            "_id" :bill_account_id
+        }
+        bill_acc_data = bill_accounts.find_one(bill_acc_query)
+
+        isValid = False  if amount > bill_acc_data['current_amount'] else True
+
+        if isValid:
+
+            return({
+            "isValid":isValid,
+            #"message":bill_acc_data['current_amount']
+        }),200
+        else:
+            return({
+            "isValid":isValid,
+            "current_amount":bill_acc_data['current_amount']
+        }),400
+
+        
+
 @app.route('/api/bill-extra-dropdown', methods=['GET'])
 def bill_extra_dropdown():
 
