@@ -278,11 +278,13 @@ def list_extras(bill_id:str):
         #todo['billing_month_year'] = f"{todo['month']['label']}, {todo['year']['value']}"
         todo['due_date_word'] = todo['due_date'].strftime('%d %b, %Y') 
         todo['due_date'] = convertDateTostring(todo['due_date'],'%Y-%m-%d')
+        todo['type_number'] = todo['type']
 
         key_to_search = 'value'
         value_to_search = int(todo['type'])
         matching_dicts = next((dictionary for dictionary in extra_type if dictionary.get(key_to_search) == value_to_search),None)
         todo['type'] =  matching_dicts['label']
+        todo['type_number']
         data_list.append(todo)
     data_json = MongoJSONEncoder().encode(data_list)
     data_obj = json.loads(data_json)

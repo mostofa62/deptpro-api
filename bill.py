@@ -494,7 +494,7 @@ def save_bill_account():
                         # 'repeat_count':repeat_count,
                         'repeat_frequency':repeat_frequency, 
                         'reminder_days':reminder_days,                         
-                        'notes':data['notes'] if 'notes' in data else None,                          
+                        'note':data['note'] if 'note' in data else None,                          
                         "created_at":datetime.now(),
                         "updated_at":datetime.now(),                        
                         "user_id":ObjectId(data["user_id"]),
@@ -588,7 +588,7 @@ def update_bill(accntid:str):
                 'repeat_frequency':repeat_frequency, 
                 'reminder_days':reminder_days, 
                 
-                'notes':data['notes'] if 'notes' in data and data['notes']!=""  else None,                                     
+                'note':data['note'] if 'note' in data and data['note']!=""  else None,                                     
                 "updated_at":datetime.now()
             } }
             bill_account_data = bill_accounts.update_one(bill_acc_query,newvalues)

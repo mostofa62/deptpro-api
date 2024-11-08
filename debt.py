@@ -840,7 +840,7 @@ def save_debt_account():
                 "start_date": datetime.strptime(data['start_date'],"%Y-%m-%d"),                
                 "due_date": datetime.strptime(data['due_date'],"%Y-%m-%d"),
                 "monthly_interest":calculate_monthly_interest(balance,interest_rate),
-                'notes':None,
+                'note':None,
                 'promo_rate':0,
                 'deffered_interest':0,
                 'promo_interest_rate':0,
@@ -949,7 +949,7 @@ def update_debt(accntid:str):
                 'payoff_order':payoff_order,                
                 'reminder_days':reminder_days, 
                 'autopay':autopay,
-                'notes':data['notes'] if 'notes' in data and data['notes']!=""  else None,                                     
+                'note':data['note'] if 'note' in data and data['note']!=""  else None,                                     
                 "updated_at":datetime.now()
             } }
             debt_account_data = debt_accounts.update_one(debt_acc_query,newvalues)
