@@ -29,7 +29,7 @@ def calculate_future_bill(initial_amount, start_date, frequency):
 
     delta = get_delta(frequency)
 
-    if delta < 1:
+    if frequency < 1:
         delta = get_delta(30)
 
     next_contribution_date = current_date + delta

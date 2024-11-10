@@ -334,7 +334,7 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
                 "month": month_string,
                 "month_word": current_date.strftime('%b, %Y'),
                 "interest": round(interest, 2),
-                "contribution": saving_boost_contribution if saving_boost_contribution !=None else contribution,
+                "contribution": saving_boost_contribution+inc_contri if saving_boost_contribution !=None else contribution+inc_contri,
                 "increase_contribution":i_contribution,
                 "total_balance": round(balance, 2),
                 "progress": round(progress, 2),
