@@ -8,6 +8,7 @@ from billtype import *
 from billextra import *
 from billtransactions import *
 from billpayments import *
+from billprojection import *
 from debt import *
 from debttype import *
 from debtpayoff import *

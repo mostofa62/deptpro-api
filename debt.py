@@ -657,7 +657,7 @@ def get_dept_all(accntid:str):
 
     debtaccounts['balance'] = round(debtaccounts['balance'],2)
     debtaccounts['highest_balance'] = round(debtaccounts['highest_balance'],2)
-    debtaccounts['minimum_payment'] = round(debtaccounts['minimum_payment'],2)
+    #debtaccounts['minimum_payment'] = round(debtaccounts['minimum_payment'],2)
     debtaccounts['monthly_payment'] = round(debtaccounts['monthly_payment'],2)
     debtaccounts['interest_rate'] = round(debtaccounts['interest_rate'],2)
     debtaccounts['credit_limit'] = round(debtaccounts['credit_limit'],2)
@@ -786,7 +786,7 @@ def get_debt(accntid:str):
 
     debtaccounts['balance'] = round(debtaccounts['balance'],2)
     debtaccounts['highest_balance'] = round(debtaccounts['highest_balance'],2)
-    debtaccounts['minimum_payment'] = round(debtaccounts['minimum_payment'],2)
+    #debtaccounts['minimum_payment'] = round(debtaccounts['minimum_payment'],2)
     debtaccounts['monthly_payment'] = round(debtaccounts['monthly_payment'],2)
     debtaccounts['interest_rate'] = round(debtaccounts['interest_rate'],2)
     debtaccounts['credit_limit'] = round(debtaccounts['credit_limit'],2)

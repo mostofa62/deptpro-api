@@ -143,8 +143,12 @@ def get_payoff_strategy_account(user_id:str):
         "deleted_at":None
     }
 
-    debt_accounts_data = debt_accounts.find(deb_query, 
-    {
+    sort_params = []
+
+    if debt_payoff_method == 3:
+        sort_params.append(('custom_payoff_order',1)) 
+
+    filter_column = {
         '_id': 1,
         'debt_type':1, 
         'name': 1, 
@@ -157,7 +161,14 @@ def get_payoff_strategy_account(user_id:str):
         'months_to_payoff':1,
         'total_interest_sum':1,
         'total_payment_sum':1
-    })
+    }
+
+    debt_accounts_data = None
+
+    if sort_params:
+        debt_accounts_data = debt_accounts.find(deb_query,filter_column).sort(sort_params)
+    else:    
+        debt_accounts_data = debt_accounts.find(deb_query,filter_column)
 
     #debt_accounts_list = list(debt_accounts_data)
     debt_accounts_list = []
@@ -167,7 +178,7 @@ def get_payoff_strategy_account(user_id:str):
     #print(debt_type_names)
 
     for todo in debt_accounts_data:
-        if 'months_to_payoff' not in todo:
+        if 'months_to_payoff' not in todo or 'months_to_payoff' in todo and todo['months_to_payoff'] < 1:
             continue
         total_paid += todo['total_payment_sum']
         total_interest += todo['total_interest_sum'] if 'total_interest_sum' in todo else 0
@@ -187,11 +198,12 @@ def get_payoff_strategy_account(user_id:str):
 
 
 
-    paid_off = max(debt_accounts_list, key=lambda x:x["month_debt_free"])
+    paid_off = max(debt_accounts_list, key=lambda x:x["month_debt_free"]) if len(debt_accounts_list) > 0 else None
 
     paid_off = convertDateTostring(paid_off['month_debt_free'],"%b %Y") if paid_off!=None else None
 
-    debt_accounts_list = sort_debts_payoff(debt_accounts_list, debt_payoff_method)
+    if debt_payoff_method < 3:
+        debt_accounts_list = sort_debts_payoff(debt_accounts_list, debt_payoff_method)
 
 
     data_json = MongoJSONEncoder().encode(debt_accounts_list)
