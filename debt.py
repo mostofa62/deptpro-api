@@ -818,6 +818,10 @@ def save_debt_account():
         message = ''
         result = 0
         user_id = data["user_id"]
+        total_count = debt_accounts.count_documents({
+            "user_id":ObjectId(user_id),
+            "deleted_at":None,
+        })
         try:
             balance = float(data.get("balance", 0))
             interest_rate = float(data.get("interest_rate", 0))
@@ -851,6 +855,7 @@ def save_debt_account():
                 'autopay':0,
                 'inlclude_payoff':0,
                 'payoff_order':0,
+                'custom_payoff_order':total_count+1,
                 'reminder_days':0,
 
                 'monthly_payment_option':0,
