@@ -166,6 +166,10 @@ def view_incomes(id:str):
 
 @app.route('/api/income/<string:user_id>', methods=['POST'])
 def list_income(user_id:str):
+
+    action  = request.args.get('action', None)
+    
+
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -179,6 +183,16 @@ def list_income(user_id:str):
         "deleted_at":None,
         "closed_at":None
     }
+
+    if action!=None:
+        query = {
+            "user_id": ObjectId(user_id),
+            "deleted_at": None,
+            "$or": [                
+                {"closed_at": {"$ne": None}},    # or closed_at is not None
+                
+            ]
+        }
     if global_filter:
 
         #income type filter

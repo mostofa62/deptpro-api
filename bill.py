@@ -180,6 +180,9 @@ def get_bill(accntid:str):
 
 @app.route('/api/bills/<string:user_id>', methods=['POST'])
 def list_bills(user_id:str):
+
+    action  = request.args.get('action', None)
+
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -193,6 +196,16 @@ def list_bills(user_id:str):
         "deleted_at":None,
         "closed_at":None
     }
+
+    if action!=None:
+        query = {
+            "user_id": ObjectId(user_id),
+            "deleted_at": None,
+            "$or": [                
+                {"closed_at": {"$ne": None}},    # or closed_at is not None
+                
+            ]
+        }
     
     
 
@@ -264,23 +277,28 @@ def list_bills(user_id:str):
         matching_dicts = next((dictionary for dictionary in repeat_frequency if dictionary.get(key_to_search) == value_to_search),None)    
         
         todo['repeat_frequency'] = matching_dicts['label'] 
-        
 
-        entry = {
-            "_id":todo["_id"],
-            "name":todo["name"],
-            "payor":todo["payor"],
-            "bill_type":bill_type["name"] if bill_type!=None else None,
-            "bill_type_parent":bill_type_parent["name"] if bill_type_parent!=None else None,
-            "default_amount":todo["default_amount"],
-            "current_amount":todo["current_amount"],
-            "next_due_date":convertDateTostring(todo["next_due_date"]),
+
+        todo['bill_type'] = bill_type["name"] if bill_type!=None else None
+        todo["bill_type_parent"] = bill_type_parent["name"] if bill_type_parent!=None else None
+
+        todo['next_due_date'] = convertDateTostring(todo["next_due_date"])
+
+        # entry = {
+        #     "_id":todo["_id"],
+        #     "name":todo["name"],
+        #     "payor":todo["payor"],
+        #     "bill_type":bill_type["name"] if bill_type!=None else None,
+        #     "bill_type_parent":bill_type_parent["name"] if bill_type_parent!=None else None,
+        #     "default_amount":todo["default_amount"],
+        #     "current_amount":todo["current_amount"],
+        #     "next_due_date":convertDateTostring(todo["next_due_date"]),
             
-            #"repeat":todo["repeat"],
-            "repeat_frequency":todo['repeat_frequency']
+        #     #"repeat":todo["repeat"],
+        #     "repeat_frequency":todo['repeat_frequency']
             
-        }
-        data_list.append(entry)
+        # }
+        data_list.append(todo)
     data_json = MongoJSONEncoder().encode(data_list)
     data_obj = json.loads(data_json)
 
