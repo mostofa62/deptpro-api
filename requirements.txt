@@ -7,3 +7,4 @@ requests==2.31.0
 flask[async]==2.3.2
 pytz==2023.3.post1
 python-dateutil==2.9.0.post0
+Flask-APScheduler==1.12.4
