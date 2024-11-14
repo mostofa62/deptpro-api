@@ -69,7 +69,7 @@ def deb_to_calender():
     debt_id_list = []
 
     for todo in debt_list:
-        if todo['month_debt_free'] == None:
+        if 'month_debt_free' in todo and todo['month_debt_free'] == None:
             continue
         debt_id_list.append(todo['_id'])
         entry = {
@@ -111,7 +111,7 @@ def income_to_calender():
     income_id_list = []
 
     for todo in income_list:
-        if todo['next_pay_date'] == None:
+        if 'next_pay_date' in todo and todo['next_pay_date'] == None:
             continue
         income_id_list.append(todo['_id'])
         entry = {
@@ -154,7 +154,7 @@ def saving_to_calender():
     saving_id_list = []
 
     for todo in saving_list:
-        if todo['next_contribution_date'] == None:
+        if 'next_contribution_date' in todo and todo['next_contribution_date'] == None:
             continue
         saving_id_list.append(todo['_id'])
         entry = {
