@@ -1,13 +1,18 @@
 from flask import json, jsonify, request
-from util import MongoJSONEncoder
+from util import MongoJSONEncoder, convertDateTostring
 from app import app
 from db import my_col
+from datetime import datetime
 
 calender_data = my_col('calender_data')
 
 
 @app.route('/api/calender-data/<string:month>', methods=['GET'])
-def calender_data_list(month:str):
+@app.route('/api/calender-data', methods=['GET'])
+def calender_data_list(month:str=None):
+
+    if month == None:
+        month = convertDateTostring(datetime.now(),'%Y-%m')
     c_data =  calender_data.find({
         'month':month
     })
