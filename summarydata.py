@@ -18,6 +18,7 @@ income_transactions = my_col('income_transactions')
 income_boost_transaction = my_col('income_boost_transactions')
 saving = my_col('saving')
 bill_transactions = my_col('bill_transactions')
+income_ac = my_col('income')
 
 app_data = my_col('app_data')
 
@@ -45,7 +46,7 @@ def header_summary_data(user_id:str):
                 # "total_monthly_minimum": {"$sum": "$total_monthly_minimum"},
                 "total_monthly_minimum": {"$sum": "$monthly_payment"},
 
-                "total_balance": {"$sum": "$balance"},
+                #"total_balance": {"$sum": "$balance"},
                 "total_highest_balance":{"$sum": "$highest_balance"},
                 "latest_month_debt_free": {"$max": "$month_debt_free"}
 
@@ -205,8 +206,60 @@ def get_dashboard_data(user_id:str):
         
     data_json = MongoJSONEncoder().encode(debt_list)
     data_obj = json.loads(data_json)
+
+
+    #summary data debt 
+
+    # Aggregate query to sum the balance field
+    pipeline = [
+        {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
+        # {
+        #     '$addFields': {
+        #         'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
+        #     }
+        # },
+
+        {
+            "$group": {
+                "_id": None, 
+                "debt_total_balance": {"$sum": "$balance"},
+
+            }
+        
+        }  # Sum the balance
+    ]
+
+    # Execute the aggregation pipeline
+    debt_result = list(debt_accounts.aggregate(pipeline))
+    debt_total_balance = debt_result[0]['debt_total_balance'] if debt_result else 0
+
+
+    # Aggregate query to sum the balance field
+    pipeline = [
+        {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
+        # {
+        #     '$addFields': {
+        #         'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
+        #     }
+        # },
+
+        {
+            "$group": {
+                "_id": None, 
+                "total_net_income": {"$sum": "$total_net_income"},
+
+            }
+        
+        }  # Sum the balance
+    ]
+
+    # Execute the aggregation pipeline
+    income_result = list(income_ac.aggregate(pipeline))
+    total_net_income = income_result[0]['total_net_income'] if income_result else 0
     
 
     return jsonify({
-        "debt_list":data_obj,             
+        "debt_list":data_obj,
+        'debt_total_balance':debt_total_balance,
+        'total_net_income':total_net_income             
     })
