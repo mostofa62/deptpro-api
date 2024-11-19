@@ -155,8 +155,13 @@ def pay_bill_transaction(accntid:str):
                     # reduce current amount from paid amount
                     current_amount = abs(current_amount - amount)
 
+                    paid_total = bill_account_row['paid_total']
+
+                    paid_total = paid_total + amount
+
                     newvalues = { "$set": {   
-                        "current_amount":current_amount,                                                            
+                        "current_amount":current_amount,
+                        "paid_total":paid_total,                                                            
                         "updated_at":datetime.now()
                     } }
                     bill_account_data = bill_accounts.update_one(bill_acc_query,newvalues,session=session)

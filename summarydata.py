@@ -18,6 +18,7 @@ income_transactions = my_col('income_transactions')
 income_boost_transaction = my_col('income_boost_transactions')
 saving = my_col('saving')
 bill_transactions = my_col('bill_transactions')
+bill_account = my_col('bill_accounts')
 income_ac = my_col('income')
 
 app_data = my_col('app_data')
@@ -203,9 +204,29 @@ def get_dashboard_data(user_id:str):
             'amount':todo['balance']
         }
         debt_list.append(entry)
+
+    if len(debt_list) > 0:    
+        data_json = MongoJSONEncoder().encode(debt_list)
+        debt_list = json.loads(data_json)
+
+    saving_list = []
+
+    cursor = saving.find(query,{"user_id":0}).sort(sort_params).limit(page_size)
+
+    for todo in cursor:
+
+        entry = {
+            '_id':str(todo['_id']),
+            'title':todo['saver'],
+            'progress':todo['progress'],
+            'amount':todo['total_balance']
+        }
+        saving_list.append(entry)
+
+    if len(saving_list) > 0:    
+        data_json = MongoJSONEncoder().encode(saving_list)
+        saving_list = json.loads(data_json)
         
-    data_json = MongoJSONEncoder().encode(debt_list)
-    data_obj = json.loads(data_json)
 
 
     #summary data debt 
@@ -213,12 +234,7 @@ def get_dashboard_data(user_id:str):
     # Aggregate query to sum the balance field
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
-        # {
-        #     '$addFields': {
-        #         'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
-        #     }
-        # },
-
+      
         {
             "$group": {
                 "_id": None, 
@@ -226,7 +242,7 @@ def get_dashboard_data(user_id:str):
 
             }
         
-        }  # Sum the balance
+        } 
     ]
 
     # Execute the aggregation pipeline
@@ -234,14 +250,28 @@ def get_dashboard_data(user_id:str):
     debt_total_balance = debt_result[0]['debt_total_balance'] if debt_result else 0
 
 
+    pipeline = [
+        {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
+       
+        {
+            "$group": {
+                "_id": None, 
+                "bill_paid_total": {"$sum": "$paid_total"},
+
+            }
+        
+        }  
+    ]
+
+    # Execute the aggregation pipeline
+    bill_result = list(bill_account.aggregate(pipeline))
+    bill_paid_total = bill_result[0]['bill_paid_total'] if bill_result else 0
+
+
     # Aggregate query to sum the balance field
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
-        # {
-        #     '$addFields': {
-        #         'total_monthly_minimum': {'$add': ['$monthly_payment', '$minimum_payment']}
-        #     }
-        # },
+       
 
         {
             "$group": {
@@ -250,16 +280,50 @@ def get_dashboard_data(user_id:str):
 
             }
         
-        }  # Sum the balance
+        } 
     ]
 
     # Execute the aggregation pipeline
     income_result = list(income_ac.aggregate(pipeline))
     total_net_income = income_result[0]['total_net_income'] if income_result else 0
+
+
+
+    pipeline = [
+        {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
+       
+
+        {
+            "$group": {
+                "_id": None, 
+                "total_saving": {"$sum": "$total_balance"},
+
+            }
+        
+        } 
+    ]
+
+    # Execute the aggregation pipeline
+    saving_result = list(saving.aggregate(pipeline))
+    total_saving = saving_result[0]['total_saving'] if saving_result else 0
+
+    total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total),2)
+
+    debt_to_wealth  = round((debt_total_balance * 100) / total_wealth,0)
+
+
     
 
+
+
     return jsonify({
-        "debt_list":data_obj,
+
+        "debt_list":debt_list,
         'debt_total_balance':debt_total_balance,
-        'total_net_income':total_net_income             
+        'total_net_income':total_net_income ,
+        'bill_paid_total':bill_paid_total ,           
+        "debt_list":debt_list,
+        "saving_list":saving_list,
+        'total_wealth':total_wealth,
+        'debt_to_wealth':debt_to_wealth             
     })

@@ -421,7 +421,7 @@ def save_bill(accntid:str):
                                 "created_at":datetime.now(),
                                 "updated_at":datetime.now(),                        
                                 "user_id":ObjectId(data["user_id"]),
-                                "bill_acc_id":ObjectId(bill_account_id),
+                                "bill_acc_id":ObjectId(bill_account_id),                                
                                 "payment_status":0,
                                 "deleted_at":None
                             },session=session)
@@ -507,6 +507,7 @@ def save_bill_account():
                         'payor':data['payor'] if 'payor' in  data else None,
                         'default_amount':amount,
                         'current_amount':amount, 
+                        'paid_total':0,
                         'next_due_date':next_due_date,
                         #'repeat':repeat, 
                         # 'repeat_count':repeat_count,

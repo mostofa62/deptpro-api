@@ -20,7 +20,7 @@ CALENDER_ENTRY_DURATION = os.environ["CALENDER_ENTRY_DURATION"]
 def bill_to_calender():
     bill_list = bill_accounts.find({
         'calender_at':None
-    },{'_id':1, 'name':1,'next_due_date':1}).limit(5)
+    },{'_id':1, 'name':1,'next_due_date':1,'user_id':1}).limit(5)
 
     calender_data_list = []
     bill_id_list = []
@@ -37,7 +37,8 @@ def bill_to_calender():
                  'name':todo['name'],                 
                  'description':'Next Due Date',
                  'data_id':todo['_id']
-            }
+            },
+            'user_id':todo['user_id']
            
             
             
@@ -63,7 +64,7 @@ def bill_to_calender():
 def deb_to_calender():
     debt_list = debt_accounts.find({
         'calender_at':None
-    },{'_id':1, 'name':1,'month_debt_free':1}).limit(5)
+    },{'_id':1, 'name':1,'month_debt_free':1,'user_id':1}).limit(5)
 
     calender_data_list = []
     debt_id_list = []
@@ -82,8 +83,8 @@ def deb_to_calender():
                  'name':todo['name'],                 
                  'description':'Month Debt Free',
                  'data_id':todo['_id']
-            }
-           
+            },
+            'user_id':todo['user_id']
             
             
             
@@ -105,7 +106,7 @@ def deb_to_calender():
 def income_to_calender():
     income_list = income_accounts.find({
         'calender_at':None
-    },{'_id':1, 'earner':1,'next_pay_date':1}).limit(5)
+    },{'_id':1, 'earner':1,'next_pay_date':1,'user_id':1}).limit(5)
 
     calender_data_list = []
     income_id_list = []
@@ -124,7 +125,8 @@ def income_to_calender():
                  'name':todo['earner'],                 
                  'description':'Next Pay Date',
                  'data_id':todo['_id']
-            }
+            },
+            'user_id':todo['user_id']
            
             
             
@@ -148,7 +150,7 @@ def income_to_calender():
 def saving_to_calender():
     saving_list = saving_accounts.find({
         'calender_at':None
-    },{'_id':1, 'saver':1,'next_contribution_date':1}).limit(5)
+    },{'_id':1, 'saver':1,'next_contribution_date':1,'user_id':1}).limit(5)
 
     calender_data_list = []
     saving_id_list = []
@@ -167,7 +169,8 @@ def saving_to_calender():
                  'name':todo['saver'],                 
                  'description':'Next Pay Date',
                  'data_id':todo['_id']
-            }
+            },
+            'user_id':todo['user_id']
            
             
             
