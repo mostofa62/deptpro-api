@@ -20,6 +20,7 @@ saving = my_col('saving')
 bill_transactions = my_col('bill_transactions')
 bill_account = my_col('bill_accounts')
 income_ac = my_col('income')
+debt_types = my_col('debt_type')
 
 app_data = my_col('app_data')
 
@@ -288,19 +289,18 @@ def get_dashboard_data(user_id:str):
     total_net_income = income_result[0]['total_net_income'] if income_result else 0
 
 
-
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
        
 
         {
             "$group": {
-                "_id": None, 
+                "_id": None,
                 "total_saving": {"$sum": "$total_balance"},
 
             }
         
-        } 
+        }
     ]
 
     # Execute the aggregation pipeline
@@ -312,8 +312,42 @@ def get_dashboard_data(user_id:str):
     debt_to_wealth  = round((debt_total_balance * 100) / total_wealth,0)
 
 
-    
+    debttype_id_list = []
+    #credit utilization
+    debt_type_cursor = debt_types.find(
+        {"deleted_at": None,"in_calculation":1},
+        {'_id': 1, 'name': 1, 'parent': 1}
+    )
 
+    # Create a list of _id values
+    debttype_id_list = [item['_id'] for item in debt_type_cursor]
+
+    # Aggregate query to sum the balance field
+    pipeline = [
+        {
+            "$match": {
+                "user_id": ObjectId(user_id),
+                'deleted_at':None,
+                'debt_type.value':{'$in':debttype_id_list}
+            }
+        },  
+
+        {
+            "$group": {
+                "_id": None, 
+                "credit_total_balance": {"$sum": "$balance"},
+                "credit_total_limit": {"$sum": "$credit_limit"},
+
+            }
+        
+        }  # Sum the balance
+    ]
+
+    # Execute the aggregation pipeline
+    debt_result_credit = list(debt_accounts.aggregate(pipeline))
+    credit_total_balance = debt_result_credit[0]['credit_total_balance'] if debt_result_credit else 0
+    credit_total_limit = debt_result_credit[0]['credit_total_limit'] if debt_result_credit else 0
+    credit_ratio = round((credit_total_balance * 100) / credit_total_limit,2)
 
 
     return jsonify({
@@ -325,5 +359,6 @@ def get_dashboard_data(user_id:str):
         "debt_list":debt_list,
         "saving_list":saving_list,
         'total_wealth':total_wealth,
-        'debt_to_wealth':debt_to_wealth             
+        'debt_to_wealth':debt_to_wealth,
+        'credit_ratio':credit_ratio             
     })
