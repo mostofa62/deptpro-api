@@ -30,8 +30,9 @@ def parse_month(month_str):
     except ValueError:
         return datetime.min  # Default to a minimal date if parsing fails
 
+@app.route("/api/bill-projection/<string:userid>", methods=['GET'])
 @app.route("/api/bill-projection", methods=['GET'])
-def bill_projection():
+def bill_projection(userid:None):
 
     # Fetch the bill type cursor
     bill_type_cursor = bill_type_list.find(
@@ -50,6 +51,9 @@ def bill_projection():
         "deleted_at":None
     }
     bill_type_balances = {}
+
+    if userid!=None:
+        bill_query['user_id'] = ObjectId(userid)
 
     start_date = convertDateTostring(datetime.now(),'%b %Y')
 

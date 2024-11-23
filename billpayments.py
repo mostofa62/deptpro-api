@@ -155,7 +155,7 @@ def pay_bill_transaction(accntid:str):
                     # reduce current amount from paid amount
                     current_amount = abs(current_amount - amount)
 
-                    paid_total = bill_account_row['paid_total']
+                    paid_total = bill_account_row['paid_total'] if 'paid_total' in bill_account_row else 0
 
                     paid_total = paid_total + amount
 

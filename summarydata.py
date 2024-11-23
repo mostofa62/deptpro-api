@@ -349,6 +349,16 @@ def get_dashboard_data(user_id:str):
     credit_total_limit = debt_result_credit[0]['credit_total_limit'] if debt_result_credit else 0
     credit_ratio = round((credit_total_balance * 100) / credit_total_limit,2)
 
+    total_allocation = total_net_income + total_saving + debt_total_balance + bill_paid_total
+
+    total_allocation_data = [
+        ["Modules", "Data"],
+        ['Bills',round(bill_paid_total * 100 / total_allocation,0) ],
+        ['Debts',round(debt_total_balance * 100 / total_allocation,0) ],
+        ['Total Net Income',round(total_net_income * 100 / total_allocation,0) ],
+        ['Total Savings',round(total_saving * 100 / total_allocation,0) ]
+    ]
+
 
     return jsonify({
 
@@ -360,5 +370,7 @@ def get_dashboard_data(user_id:str):
         "saving_list":saving_list,
         'total_wealth':total_wealth,
         'debt_to_wealth':debt_to_wealth,
-        'credit_ratio':credit_ratio             
+        'credit_ratio':credit_ratio,
+
+        'total_allocation_data':total_allocation_data             
     })
