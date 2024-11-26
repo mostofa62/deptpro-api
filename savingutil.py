@@ -25,7 +25,7 @@ def get_delta(frequency):
 
 
 
-def get_single_boost(initial_amount, contribution, start_date,frequency,period):
+def get_single_boost(initial_amount, contribution, start_date,frequency,period,op_type):
   
     balance = initial_amount
     month = period
@@ -35,7 +35,11 @@ def get_single_boost(initial_amount, contribution, start_date,frequency,period):
         delta = get_delta(frequency)
         next_contribution_date = current_date + delta
 
-    balance += contribution
+    contribution = -contribution if op_type > 1 else contribution
+
+    balance +=  contribution
+
+
 
     month+=1
 

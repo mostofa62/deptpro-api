@@ -18,8 +18,8 @@ saving = my_col('saving')
 saving_boost = my_col('saving_boost')
 saving_boost_contribution = my_col('saving_boost_contributions')
 
-@app.route('/api/saving-contributions-next', methods=['GET'])
-def saving_contributions_next():
+@app.route('/api/saving-contributions-next/<string:userid>', methods=['GET'])
+def saving_contributions_next(userid:str):
 
 
 
@@ -35,7 +35,8 @@ def saving_contributions_next():
         'closed_at':None,
         'deleted_at':None,
         'goal_reached':None,
-        'next_contribution_date':{'$ne':None}
+        'next_contribution_date':{'$ne':None},
+        'user_id':ObjectId(userid)
     },{
         'total_balance':1,
         'starting_amount':1,

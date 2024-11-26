@@ -106,7 +106,7 @@ def contribute_next(id:str):
                 # Extract the maximum period value
                 period_boost = result[0]['max_period'] if result else 0
 
-                contribution_breakdown_b = get_single_boost(starting_amount_b,saving_boost_amount,starting_date_b,repeat_boost,period_boost)
+                contribution_breakdown_b = get_single_boost(starting_amount_b,saving_boost_amount,starting_date_b,repeat_boost,period_boost,op_type)
                 breakdown_b = contribution_breakdown_b['breakdown']
                 total_balance_b = contribution_breakdown_b['total_balance']
                 next_contribution_date_b = contribution_breakdown_b['next_contribution_date']
