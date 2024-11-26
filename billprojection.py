@@ -31,7 +31,6 @@ def parse_month(month_str):
         return datetime.min  # Default to a minimal date if parsing fails
 
 @app.route("/api/bill-projection/<string:userid>", methods=['GET'])
-@app.route("/api/bill-projection", methods=['GET'])
 def bill_projection(userid:None):
 
     # Fetch the bill type cursor

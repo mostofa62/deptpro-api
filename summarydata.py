@@ -21,6 +21,7 @@ bill_transactions = my_col('bill_transactions')
 bill_account = my_col('bill_accounts')
 income_ac = my_col('income')
 debt_types = my_col('debt_type')
+saving_category = my_col('category_types')
 
 app_data = my_col('app_data')
 
@@ -347,17 +348,58 @@ def get_dashboard_data(user_id:str):
     debt_result_credit = list(debt_accounts.aggregate(pipeline))
     credit_total_balance = debt_result_credit[0]['credit_total_balance'] if debt_result_credit else 0
     credit_total_limit = debt_result_credit[0]['credit_total_limit'] if debt_result_credit else 0
-    credit_ratio = round((credit_total_balance * 100) / credit_total_limit,2)
+    credit_ratio = 0
+    if credit_total_balance > 0 and credit_total_limit > 0:
+        credit_ratio = round((credit_total_balance * 100) / credit_total_limit,2)
 
-    total_allocation = total_net_income + total_saving + debt_total_balance + bill_paid_total
+
+    #total allocation calculation
+    total_emergency_saving = 0 
+    emergency_saving = saving_category.find_one({
+        'in_dashboard_cal':1
+    },{'_id':1})
+
+    if emergency_saving!=None:
+
+        pipeline = [
+        {
+            "$match": {
+                "user_id": ObjectId(user_id),
+                'deleted_at':None,
+                "category.value":emergency_saving['_id']
+        }},  # Filter by user_id
+       
+
+        {
+            "$group": {
+                "_id": None,
+                "total_saving": {"$sum": "$total_balance"},
+
+            }
+        
+        }
+    ]
+
+    # Execute the aggregation pipeline
+    saving_result = list(saving.aggregate(pipeline))
+    total_emergency_saving = saving_result[0]['total_saving'] if saving_result else 0
+        
 
     total_allocation_data = [
-        ["Modules", "Data"],
-        ['Bills',round(bill_paid_total * 100 / total_allocation,0) ],
-        ['Debts',round(debt_total_balance * 100 / total_allocation,0) ],
-        ['Total Net Income',round(total_net_income * 100 / total_allocation,0) ],
-        ['Total Savings',round(total_saving * 100 / total_allocation,0) ]
-    ]
+            ["Modules", "Data"],
+
+    ]     
+
+    total_allocation = total_net_income + total_saving + debt_total_balance + bill_paid_total + total_emergency_saving
+    if total_allocation > 0:
+        total_allocation_data = [
+            ["Modules", "Data"],
+            ['Bills',round(bill_paid_total * 100 / total_allocation,0) ],
+            ['Debts',round(debt_total_balance * 100 / total_allocation,0) ],
+            ['Total Net Income',round(total_net_income * 100 / total_allocation,0) ],
+            ['Total Savings',round(total_saving * 100 / total_allocation,0) ],
+            ['Emergency Saving', round(total_emergency_saving * 100 / total_allocation,0)]
+        ]
 
 
     return jsonify({

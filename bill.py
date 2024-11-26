@@ -772,8 +772,8 @@ def delete_bill_transaction(accntid:str):
 
 
 bill_types_collection = my_col('bill_type')
-@app.route('/api/bill-typewise-info', methods=['GET'])
-def get_typewise_bill_info():
+@app.route('/api/bill-typewise-info/<string:userid>', methods=['GET'])
+def get_typewise_bill_info(userid:None):
     # Fetch the bill type cursor
     bill_type_cursor = bill_types_collection.find(
         {"deleted_at": None},
@@ -789,7 +789,8 @@ def get_typewise_bill_info():
             "$match": {
                 "bill_type.value": {"$in": billtype_id_list},
                 "deleted_at": None,
-                "closed_at":None
+                "closed_at":None,
+                "user_id":ObjectId(userid)
             }
         },
 
