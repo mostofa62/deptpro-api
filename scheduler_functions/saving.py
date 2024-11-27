@@ -13,8 +13,8 @@ saving_boost_contribution = my_col('saving_boost_contributions')
 app_data = my_col('app_data')
 
 def calculate_yearly_and_monthly_data():
-    now = datetime.now() +  relativedelta(months=1)
-    #now = datetime.now()
+    #now = datetime.now() +  relativedelta(months=1)
+    now = datetime.now()
     current_year = now.year
     current_month = now.month
     current_month_str = f"{current_year}-{current_month:02d}" 
@@ -28,62 +28,34 @@ def calculate_yearly_and_monthly_data():
         }
     },
     {
-        "$addFields": {
-            "adjusted_increase_contribution": {
-                "$multiply": ["$increase_contribution", "$period"]  # Use the existing $period field
-            }
-        }
-    },
-    {
-        "$addFields": {
-            "total_balance": {
-                "$add": ["$interest", "$contribution", "$adjusted_increase_contribution"]
-            }
-        }
-    },
-
-    {
         "$lookup": {
-            "from": "saving_boost_contributions",  # The collection to join with
+            "from": "saving",  # The collection to join with
             "localField": "saving_id",  # Field from saving_contributions
-            "foreignField": "saving_id",  # Field from saving_boost_contributions
-            "as": "boost_contributions",  # Alias for the joined data
+            "foreignField": "_id",  # Field from saving collection
+            "as": "saving_details",  # The alias for the joined data
             "pipeline": [
                 {
                     "$match": {
-                        "month": current_month_str  # Match documents for the current month
-                    }
-                },
-                {
-                    "$group": {
-                        "_id": "$saving_id",
-                        "boost_total": {"$sum": "$contribution"}  # Sum contributions for each saving_id
+                        "deleted_at": None,  # Ensure the deleted_at field is None (active records)
+
+                        "$or": [
+                            {"current_month": None},               # Field is null
+                            {"current_month": {"$exists": False}}, # Field does not exist
+                            #{"current_month": current_month_str}       # Field has a non-null value
+                        ]
+
                     }
                 }
             ]
         }
     },
     {
-        "$unwind": {
-            "path": "$boost_contributions",
-            "preserveNullAndEmptyArrays": True  # Include entries with no boost contributions
-        }
-    },
-
-    {
-        "$addFields": {
-            "saving_total_balance": {
-                "$add": [
-                    "$total_balance",  # Total balance from saving_contributions
-                    {"$ifNull": ["$boost_contributions.boost_total", 0]}  # Add boost contributions (if any)
-                ]
-            }
-        }
-    },
+        "$unwind": "$saving_details"  # Unwind the joined array (in case there are multiple matches, only take the first)
+    },        
     {
         "$group": {
             "_id": "$saving_id",  # Group by saving_id
-            "saving_total_balance": {"$first": "$saving_total_balance"}  # Aggregate the total balance
+            "saving_total_balance": {"$sum": "$contribution_i_intrs_xyz"}  # Aggregate the total balance
         }
     },
     {
@@ -101,14 +73,17 @@ def calculate_yearly_and_monthly_data():
     # Output the result
     if result:
         for item in result:
+            
             saving_ac.update_one(
                 {'_id':ObjectId(item['saving_id'])},
                 {
                     '$set':{
-                        'total_monthly_balance':round(item['saving_total_balance'],2)
+                        'total_monthly_balance':round(item['saving_total_balance'],2),
+                        'current_month':convertDateTostring(datetime.now(),'%Y-%m'),
                     }
                 }
             )
+            
             print(f"Saving ID: {item['saving_id']}, Total Balance: {item['saving_total_balance']}")
 
 
@@ -119,60 +94,8 @@ def calculate_yearly_and_monthly_data():
         "$match": {
             "month": current_month_str  # Match documents for the current month
         }
-    },
-    {
-        "$addFields": {
-            "adjusted_increase_contribution": {
-                "$multiply": ["$increase_contribution", "$period"]  # Use the existing $period field
-            }
-        }
-    },
-    {
-        "$addFields": {
-            "total_balance": {
-                "$add": ["$interest", "$contribution", "$adjusted_increase_contribution"]
-            }
-        }
-    },
-
-    {
-        "$lookup": {
-            "from": "saving_boost_contributions",  # The collection to join with
-            "localField": "saving_id",  # Field from saving_contributions
-            "foreignField": "saving_id",  # Field from saving_boost_contributions
-            "as": "boost_contributions",  # Alias for the joined data
-            "pipeline": [
-                {
-                    "$match": {
-                        "month": current_month_str  # Match documents for the current month
-                    }
-                },
-                {
-                    "$group": {
-                        "_id": "$saving_id",
-                        "boost_total": {"$sum": "$contribution"}  # Sum contributions for each saving_id
-                    }
-                }
-            ]
-        }
-    },
-    {
-        "$unwind": {
-            "path": "$boost_contributions",
-            "preserveNullAndEmptyArrays": True  # Include entries with no boost contributions
-        }
-    },
-
-    {
-        "$addFields": {
-            "saving_total_balance": {
-                "$add": [
-                    "$total_balance",  # Total balance from saving_contributions
-                    {"$ifNull": ["$boost_contributions.boost_total", 0]}  # Add boost contributions (if any)
-                ]
-            }
-        }
-    },
+    },    
+    
     {
         "$lookup": {
             "from": "saving",  # The collection to join with
@@ -182,7 +105,14 @@ def calculate_yearly_and_monthly_data():
             "pipeline": [
                 {
                     "$match": {
-                        "deleted_at": None  # Ensure the deleted_at field is None (active records)
+                        "deleted_at": None,  # Ensure the deleted_at field is None (active records)
+                        "current_month": current_month_str,
+                        # "$or": [
+                        #     {"current_month": None},               # Field is null
+                        #     {"current_month": {"$exists": False}}, # Field does not exist
+                        #     {"current_month": current_month_str}       # Field has a non-null value
+                        # ]
+
                     }
                 }
             ]
@@ -194,7 +124,7 @@ def calculate_yearly_and_monthly_data():
     {
         "$group": {
             "_id": "$saving_details.user_id",  # Group by user_id from the saving collection
-            "total_balance_for_user": {"$sum": "$saving_total_balance"}  # Sum total_balance for each user
+            "total_balance_for_user": {"$sum": "$contribution_i_intrs_xyz"}  # Sum total_balance for each user
         }
     },
     {
@@ -214,6 +144,7 @@ def calculate_yearly_and_monthly_data():
     # Output the result
     if result:
         for item in result:
+            
             app_data.update_one({
                 'user_id':ObjectId(item['user_id'])
             },{
@@ -221,6 +152,7 @@ def calculate_yearly_and_monthly_data():
                     'total_monthly_saving':round(item['total_balance_for_user'],2)
                 }
             },upsert=True)
+            
             print(f"User ID: {item['user_id']}, Total Balance: {item['total_balance_for_user']}")
 
     # Aggregation pipeline
@@ -287,4 +219,4 @@ def calculate_yearly_and_monthly_data():
     '''
 
 
-calculate_yearly_and_monthly_data()
+#calculate_yearly_and_monthly_data()

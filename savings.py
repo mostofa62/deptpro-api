@@ -166,8 +166,8 @@ def get_saving_all(id:str):
         }
     })
 
-@app.route('/api/saving-typewise-info', methods=['GET'])
-def get_typewise_saving_info():
+@app.route('/api/saving-typewise-info/<string:userid>', methods=['GET'])
+def get_typewise_saving_info(userid:str):
 
     # Fetch the saving type cursor
     saving_type_cursor = my_col('category_types').find(
@@ -185,7 +185,8 @@ def get_typewise_saving_info():
             "$match": {
                 "category.value": {"$in": savingtype_id_list},
                 "deleted_at": None,
-                "closed_at":None
+                "closed_at":None,
+                'user_id':ObjectId(userid)
             }
         },
 
@@ -525,6 +526,8 @@ def list_saving(user_id:str):
             )
             todo['category'] =  category_type['name']
 
+            '''
+
             #monthly savings calcualtion
             pipeline = [
                 # Step 1: Match documents
@@ -563,6 +566,7 @@ def list_saving(user_id:str):
 
             monthly_saving = year_month_wise_all[0]['max_total_balance'] if year_month_wise_all else 0
             total_monthly_saving +=monthly_saving 
+            '''
 
             saving_boosts = my_col('saving_boost').find(
                 {
@@ -594,7 +598,7 @@ def list_saving(user_id:str):
         todo['next_contribution_date'] = convertDateTostring(todo['next_contribution_date'])
         todo['goal_reached'] = convertDateTostring(todo['goal_reached']) if todo['goal_reached']!=None else None 
         todo['monthly_saving_boost'] = monthly_saving_boost 
-        todo['monthly_saving'] = monthly_saving   
+        todo['monthly_saving'] = round(todo['total_monthly_balance'],2) if 'total_monthly_balance' in todo else 0
         
 
 
@@ -767,7 +771,8 @@ async def update_saving(id:str):
                 'next_contribution_date':next_contribution_date,
                 'total_balance':total_balance, 
                 'progress':progress,
-                'commit':commit        
+                'commit':commit,
+                'current_month':None        
 
             }
 
@@ -811,8 +816,9 @@ async def update_saving(id:str):
                                 'saving_id':ObjectId(id),
                                 'deleted_at':None,
                                 'closed_at':None,
-                                "goal_reached":goal_reached,
+                                #"goal_reached":goal_reached,
                                 'commit':commit,
+                                'user_id':ObjectId(user_id),
                                 **todo
                             })
 
@@ -892,6 +898,7 @@ async def save_saving():
         contribution_breakdown = calculate_breakdown(starting_amount,contribution,interest, goal_amount, starting_date,repeat,i_contribution)
         breakdown = contribution_breakdown['breakdown']
         total_balance = contribution_breakdown['total_balance']
+        total_balance_xyz = contribution_breakdown['total_balance_xyz']
         progress  = contribution_breakdown['progress']
         next_contribution_date = contribution_breakdown['next_contribution_date']
         goal_reached = contribution_breakdown['goal_reached']
@@ -917,7 +924,8 @@ async def save_saving():
             "goal_reached":goal_reached,
             'starting_date':starting_date,
             'next_contribution_date':next_contribution_date,
-            'total_balance':total_balance, 
+            'total_balance':total_balance,
+            'total_balance_xyz':total_balance_xyz, 
             'progress':progress,
             'period':period,
             'commit':commit                                             
@@ -953,8 +961,9 @@ async def save_saving():
                                 'saving_id':saving_data.inserted_id,
                                 'deleted_at':None,
                                 'closed_at':None,
-                                "goal_reached":goal_reached,
+                                #"goal_reached":goal_reached,
                                 'commit':commit,
+                                'user_id':ObjectId(user_id),
                                 **todo
                             })
                         
@@ -967,7 +976,8 @@ async def save_saving():
                         }
 
                         newvalues = { "$set": {                                                     
-                            "goal_reached":goal_reached,                                                                                               
+                            "goal_reached":goal_reached,
+                            'current_month':None,                                                                                               
                             "updated_at":datetime.now()
                         } }
                         saving_data = collection.update_one(saving_query,newvalues,session=session)

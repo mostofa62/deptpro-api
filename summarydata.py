@@ -28,6 +28,10 @@ app_data = my_col('app_data')
 @app.route('/api/header-summary-data/<string:user_id>', methods=['GET'])
 def header_summary_data(user_id:str):
 
+    app_datas = app_data.find_one({
+        'user_id':ObjectId(user_id)
+    })
+
 
     # Get the current date
     current_date = datetime.now()
@@ -85,7 +89,7 @@ def header_summary_data(user_id:str):
 
 
     #income and incomeboost
-    app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
+      
 
     total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
 
@@ -181,6 +185,10 @@ def header_summary_data(user_id:str):
 
 @app.route('/api/dashboard-data/<string:user_id>', methods=['GET'])
 def get_dashboard_data(user_id:str):
+
+    app_datas = app_data.find_one({
+        'user_id':ObjectId(user_id)
+    })
 
     page_size = 5
     query = {
@@ -289,24 +297,8 @@ def get_dashboard_data(user_id:str):
     income_result = list(income_ac.aggregate(pipeline))
     total_net_income = income_result[0]['total_net_income'] if income_result else 0
 
-
-    pipeline = [
-        {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
-       
-
-        {
-            "$group": {
-                "_id": None,
-                "total_saving": {"$sum": "$total_balance"},
-
-            }
-        
-        }
-    ]
-
-    # Execute the aggregation pipeline
-    saving_result = list(saving.aggregate(pipeline))
-    total_saving = saving_result[0]['total_saving'] if saving_result else 0
+    
+    total_saving = app_datas['total_monthly_saving'] if app_datas != None and 'total_monthly_saving' in app_datas else 0
 
     total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total),2)
 

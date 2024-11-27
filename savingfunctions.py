@@ -28,6 +28,7 @@ def contribute_next(id:str):
         myquery,
         # {"_id":0}
         )
+    user_id = saving['user_id']
     breakdown = {}
     total_balance = 0
     progress = 0
@@ -35,7 +36,8 @@ def contribute_next(id:str):
     goal_reached = None
     period = 0
     saving_boost_contribution_data = []    
-    result = 0    
+    result = 0
+
 
     boost_status = [] # will update boost next payment date and closed issue
     total_balance_xyz  = 0
@@ -53,6 +55,7 @@ def contribute_next(id:str):
         period = saving['period']
 
         total_balance_xyz = starting_amount
+        total_balance = starting_amount
 
 
         ### we will check any boost here
@@ -135,10 +138,11 @@ def contribute_next(id:str):
        
         
 
-        contribution_breakdown = get_single_breakdown(total_balance_xyz,contribution,interest, goal_amount, starting_date,repeat,period,i_contribution)        
+        contribution_breakdown = get_single_breakdown(total_balance,contribution,interest, goal_amount, starting_date,repeat,period,i_contribution, total_balance_xyz)        
         breakdown = contribution_breakdown['breakdown']
         total_balance = contribution_breakdown['total_balance']
-        progress  = contribution_breakdown['progress']
+        total_balance_xyz = contribution_breakdown['total_balance_xyz']
+        progress  =  contribution_breakdown['progress'] 
         next_contribution_date = contribution_breakdown['next_contribution_date']
         goal_reached = contribution_breakdown['goal_reached']
         period = contribution_breakdown['period']
@@ -154,8 +158,9 @@ def contribute_next(id:str):
                 'saving_id':saving['_id'],
                 'deleted_at':None,
                 'closed_at':None,
-                'goal_reached':None,
+                #'goal_reached':None,
                 'commit':saving['commit'],
+                'user_id':user_id,
                 **breakdown
              }   
     
@@ -171,8 +176,10 @@ def contribute_next(id:str):
         "goal_reached":goal_reached,            
         'next_contribution_date':next_contribution_date,
         'total_balance':total_balance, 
+        'total_balance_xyz':total_balance_xyz,
         'progress':progress,
         'period':period,
+        'current_month':None,
         'updated_at':datetime.now()              
 
     }

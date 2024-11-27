@@ -5,6 +5,7 @@ import os
 from flask_apscheduler import APScheduler
 from db import my_col,myclient
 from util import *
+from scheduler_functions.saving import *
 
 calender_data = my_col('calender_data')
 
@@ -15,7 +16,7 @@ income_accounts = my_col('income')
 saving_accounts = my_col('saving')
 
 CALENDER_ENTRY_DURATION = os.environ["CALENDER_ENTRY_DURATION"]
-
+MONTHLY_LOG_UPDATE = os.environ["MONTHLY_LOG_UPDATE"]
 
 def bill_to_calender():
     bill_list = bill_accounts.find({
@@ -201,8 +202,14 @@ def calender_entry():
     time.sleep(1)
     saving_to_calender()
 
+def monthly_log_update():
+    print('MONTHLY LOG UPDATE', datetime.now())
+    calculate_yearly_and_monthly_data()
+
 
 scheduler = APScheduler()
 #scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger="cron", minute='*/'+str(CALENDER_ENTRY_DURATION))
 scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger='interval',minutes=int(CALENDER_ENTRY_DURATION))
+scheduler.add_job(id = 'MONTHLY_LOG_UPDATE', func=monthly_log_update, trigger='interval',minutes=int(MONTHLY_LOG_UPDATE))
 scheduler.start()
+
