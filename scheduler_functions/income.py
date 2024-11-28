@@ -19,112 +19,142 @@ def income_calculate_yearly_data():
     current_year = now.year
     current_year_str = f"^{current_year}-"
 
-def income_calculate_monthly_data():
 
+
+def income_calculate_monthly_data():
     now = datetime.now()
     current_year = now.year
     current_month = now.month    
     current_month_str = f"{current_year}-{current_month:02d}"
-    
-    pipeline = [
-    # Step 1: Match income_monthly_log where updated_at is null
-    {
-        "$match": {
-            "updated_at": None
-        }
-    },
-    # Step 2: Lookup income_transactions by income_id
-    {
-        "$lookup": {
-            "from": "income_transactions",
-            "localField": "income_id",
-            "foreignField": "income_id",
-            "as": "transactions"
-        }
-    },
-    # Step 3: Unwind the transactions array
-    {
-        "$unwind": {
-            "path": "$transactions",
-            #"preserveNullAndEmptyArrays": True  # Ensure entries without transactions are preserved
-        }
-    },
-    # Step 3.1: Match for deleted_at: None in transactions
-    {
-        "$match": {
-            "transactions.deleted_at": None
-        }
-    },
-    # Step 4: Match by user_id and current month string
-    {
-        "$match": {
-            "$expr": {
-                "$and": [
-                    {"$eq": ["$user_id", "$transactions.user_id"]},
-                    {"$eq": ["$transactions.month", current_month_str]}
-                ]
+
+    pipeline  = [
+
+
+  {
+      "$match": {
+          "month": current_month_str,
+        	"deleted_at":None
+      }
+  },
+
+  {
+      "$lookup": {
+          "from": "income_monthly_log",
+          "localField": "income_id",
+          "foreignField": "income_id",
+          "as": "monthlylog"
+      }
+  },
+
+  {
+    "$unwind": {
+        "path": "$monthlylog",
+        "preserveNullAndEmptyArrays": True  
+    }
+  },
+
+  {
+        "$group": {
+        "_id": "$user_id",
+        "total_net_income_per_user": {"$sum": "$net_income_xyz"},
+        "total_gross_income_per_user": {"$sum": "$gross_income_xyz"}, 
+        "incomes": {
+            "$push": { 
+                "income_id": "$income_id", 
+                "net_income_xyz": "$net_income_xyz",
+                "gross_income_xyz": "$gross_income_xyz",
+              	"updated_at":"$monthlylog.updated_at"
+
             }
         }
+        }
     },
-    # Step 5: Use $facet to separate income_id and user_id groupings
+		
     {
-        "$facet": {
-            "by_income_id": [
-                {
-                    "$group": {
-                        "_id": "$income_id",
-                        "total_net_income_per_income": {"$sum": "$transactions.net_income_xyz"},
-                        "total_gross_income_per_income": {"$sum": "$transactions.gross_income_xyz"}
-                    }
-                },
-                {
-                    "$project": {
-                        "_id": 0,
-                        "income_id": "$_id",
-                        "total_net_income_per_income": 1,
-                        "total_gross_income_per_income": 1
-                    }
-                }
-            ],
-            "by_user_id": [
-                {
-                    "$group": {
-                        "_id": "$transactions.user_id",
-                        "total_net_income_per_user": {"$sum": "$transactions.net_income_xyz"},
-                        "total_gross_income_per_user": {"$sum": "$transactions.gross_income_xyz"}                        
-                    }
-                },
-                {
-                    "$project": {
-                        "_id": 0,
-                        "user_id": "$_id",
-                        "total_net_income_per_user": 1,
-                        "total_gross_income_per_user":1
-                    }
-                }
-            ]
+      "$unwind": {
+          "path": "$incomes",
+           
+      }
+    },
+
+  	{
+          "$match": {
+              "incomes.updated_at": None,
+              
+              
+          }
+    },
+
+  {
+    "$group": {
+      "_id": {
+        "user_id": "$_id",
+        "income_id": "$incomes.income_id"
+      },
+      "total_net_income_per_user": {
+        "$first": "$total_net_income_per_user"
+      },
+      "total_gross_income_per_user": {
+        "$first": "$total_gross_income_per_user"
+      },
+      "total_net_income_xyz": { "$sum": "$incomes.net_income_xyz" },
+      "total_gross_income_xyz": { "$sum": "$incomes.gross_income_xyz" }
+    }
+  },
+
+  {
+
+    "$group": {
+      "_id": "$_id.user_id",
+      "total_net_income_per_user": {
+        "$first": "$total_net_income_per_user"
+      },
+      "total_gross_income_per_user": {
+        "$first": "$total_gross_income_per_user"
+      },
+      "incomes": {
+            "$push": { 
+                "income_id": "$_id.income_id", 
+                "net_income_xyz": "$total_net_income_xyz",
+                "gross_income_xyz": "$total_gross_income_xyz",
+              	
+
+            }
         }
     }
+  }
+
+  
+
+  
 ]
-        
 
-    result = list(income_monthly_log.aggregate(pipeline))
+    # Execute the pipeline
+    result = list(income_transaction.aggregate(pipeline))
 
-    # Access the results from the facet
-    by_income_id = result[0]["by_income_id"] if result else None
-    by_user_id = result[0]["by_user_id"] if result else None
+    #print(result)
 
-    if by_income_id!=None:
-        # Print income_id grouped results
-        print("Results grouped by income_id:")
-        for entry in by_income_id:
+    # Print the results
+    for doc in result:
+        user_id = doc['_id']
+        app_data.update_one({
+                'user_id':ObjectId(user_id)
+            },{
 
+                '$set':{                    
+                    'total_monthly_gross_income':round(doc['total_gross_income_per_user'],2),
+                    'total_monthly_net_income':round(doc['total_net_income_per_user'],2),
+                }
+            },upsert=True)
+        incomes = doc['incomes']
+        print("user_id", user_id)
+        for entry in incomes:
             income_ac.update_one(
                 {'_id':ObjectId(entry['income_id'])},
                 {
                     '$set':{
-                        'total_monthly_gross_income':round(entry['total_gross_income_per_income'],2),
-                        'total_monthly_net_income':round(entry['total_net_income_per_income'],2),
+                        'total_monthly_gross_income':round(entry['gross_income_xyz'],2),
+                        'total_monthly_net_income':round(entry['net_income_xyz'],2),
                         
                     }
                 }
@@ -135,29 +165,14 @@ def income_calculate_monthly_data():
                 
             },{
                 '$set':{
-                    'total_monthly_gross_income':round(entry['total_gross_income_per_income'],2),
-                    'total_monthly_net_income':round(entry['total_net_income_per_income'],2),
+                    'total_monthly_gross_income':round(entry['gross_income_xyz'],2),
+                    'total_monthly_net_income':round(entry['net_income_xyz'],2),
                     'updated_at':datetime.now(),
                     #'month':current_month_str
                 }
                     })
-            print(f"Income ID: {entry['income_id']}, Total Transactions Per Income: {entry['total_net_income_per_income']}")
 
-    if by_user_id!=None:
-        # Print user_id grouped results
-        print("\nResults grouped by user_id:")
-        for entry in by_user_id:
-            app_data.update_one({
-                'user_id':ObjectId(entry['user_id'])
-            },{
-
-                '$set':{                    
-                    'total_monthly_gross_income':round(entry['total_gross_income_per_user'],2),
-                    'total_monthly_net_income':round(entry['total_net_income_per_user'],2),
-                }
-            },upsert=True)
-            print(f"User ID: {entry['user_id']}, Total Transactions Per User: {entry['total_net_income_per_user']}")
+            print('income, and data',entry['income_id'], entry['net_income_xyz'],entry['gross_income_xyz'])
 
 
-
-income_calculate_monthly_data()
+#income_calculate_monthly_data()

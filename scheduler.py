@@ -3,9 +3,11 @@ from datetime import datetime
 import time
 import os
 from flask_apscheduler import APScheduler
+
 from db import my_col,myclient
 from util import *
 from scheduler_functions.saving import *
+from scheduler_functions.income import *
 
 calender_data = my_col('calender_data')
 
@@ -205,6 +207,8 @@ def calender_entry():
 def monthly_log_update():
     print('MONTHLY LOG UPDATE', datetime.now())
     saving_calculate_yearly_and_monthly_data()
+    time.sleep(1)
+    income_calculate_monthly_data()
 
 
 scheduler = APScheduler()
