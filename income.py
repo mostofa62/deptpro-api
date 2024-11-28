@@ -19,6 +19,7 @@ income_source_types = my_col('income_source_types')
 income_transaction = my_col('income_transactions')
 usersettings = my_col('user_settings')
 income_monthly_log = my_col('income_monthly_log')
+income_yearly_log = my_col('income_yearly_log')
 app_data = my_col('app_data')
 
 @app.route('/api/delete-income', methods=['POST'])
@@ -298,8 +299,8 @@ def list_income(user_id:str):
 
     app_datas = app_data.find_one({'user_id':ObjectId(user_id)})    
 
-    total_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
-    total_gross_income = app_datas['total_current_gross_income'] if  app_datas!=None and 'total_current_gross_income' in app_datas else 0
+    total_net_income = app_datas['total_monthly_net_income'] if  app_datas!=None and 'total_monthly_net_income' in app_datas else 0
+    total_gross_income = app_datas['total_monthly_gross_income'] if  app_datas!=None and 'total_monthly_gross_income' in app_datas else 0
     
     
 
@@ -399,8 +400,7 @@ async def update_income(id:str):
             with client.start_session() as session:
                 with session.start_transaction():
                     try:
-                        total_monthly_net_income = 0
-                        total_monthly_gross_income = 0
+                       
 
                         del merge_data['total_gross_income']
                         del merge_data['total_net_income']
@@ -415,16 +415,15 @@ async def update_income(id:str):
                         pay_date,
                         repeat,
                         commit,
-                        ObjectId(income_id)
+                        ObjectId(income_id),
+                        ObjectId(user_id)
                         )                        
                         
                     
                         income_transaction_list = income_transaction_generate['income_transaction']
                         total_gross_income = income_transaction_generate['total_gross_for_period']
                         total_net_income = income_transaction_generate['total_net_for_period']
-                        next_pay_date = income_transaction_generate['next_pay_date']
-                        total_monthly_gross_income = income_transaction_generate['total_monthly_gross_income']
-                        total_monthly_net_income = income_transaction_generate['total_monthly_net_income']
+                        next_pay_date = income_transaction_generate['next_pay_date']                        
                         income_transaction_data = None
                         if len(income_transaction_list)> 0:                    
                             income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
@@ -458,29 +457,16 @@ async def update_income(id:str):
 
 
 
-                        filter_query = {
-                            "income_id" :ObjectId(income_id)
-                        }
-
-                        update_document = {'$set': {
-                                #'income_id': ObjectId(income_id),
-                                'total_monthly_gross_income':total_monthly_gross_income,
-                                'total_monthly_net_income': total_monthly_net_income,
-                                'month':commit.strftime('%Y-%m'),
-                                "deleted_at": None,
-                                "closed_at":None                 
-                            }
-                        }
-
-                        income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+                        
+                        #income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
 
                         #print(income_monthly_log_data)
-                        monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
+                        #monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
 
                         
                         
                         
-                        result = 1 if income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count and monthly_log_result  else 0                                 
+                        result = 1 if income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count  else 0                                 
 
                         #print(total_monthly_net_income, total_monthly_gross_income,income_monthly_log_data.modified_count, result)
                         
@@ -537,9 +523,7 @@ async def save_income():
             with session.start_transaction():
         
                 try:
-
-                    total_monthly_net_income = 0
-                    total_monthly_gross_income = 0
+                    
 
                     net_income = float(data.get("net_income", 0))
                     gross_income = float(data.get("gross_income", 0))
@@ -599,15 +583,19 @@ async def save_income():
                         pay_date,
                         repeat,
                         commit,
-                        ObjectId(income_id)
+                        ObjectId(income_id),
+                        ObjectId(user_id),
+                        gross_income,
+                        net_income
                         )
                     
                     income_transaction_list = income_transaction_generate['income_transaction']
                     total_gross_income = income_transaction_generate['total_gross_for_period']
                     total_net_income = income_transaction_generate['total_net_for_period']
+                    total_gross_income_xyz = income_transaction_generate['total_gross_for_period_xyz']
+                    total_net_income_xyz = income_transaction_generate['total_net_for_period_xyz']
                     next_pay_date = income_transaction_generate['next_pay_date']
-                    total_monthly_gross_income = income_transaction_generate['total_monthly_gross_income']
-                    total_monthly_net_income = income_transaction_generate['total_monthly_net_income']
+                   
                     income_transaction_data = None
                     
                     if len(income_transaction_list)> 0:                    
@@ -621,35 +609,50 @@ async def save_income():
 
                     newvalues = { "$set": {
                         "total_gross_income":total_gross_income, 
+                        "total_gross_income_xyz":total_gross_income_xyz, 
                         "total_net_income":total_net_income, 
+                        "total_net_income_xyz":total_net_income_xyz, 
                         "next_pay_date":next_pay_date,                                                                                                
                         "updated_at":datetime.now()
                     } }
                     
                     income_data = collection.update_one(income_query,newvalues,session=session)
 
-                    
-                    filter_query = {
-                            "income_id" :ObjectId(income_id)
-                        }
+                                        
 
-                    update_document = {'$set': {
-                            #'income_id': ObjectId(income_id),
-                            'total_monthly_gross_income':total_monthly_gross_income,
-                            'total_monthly_net_income': total_monthly_net_income,
-                            'month':commit.strftime('%Y-%m'),
-                            "deleted_at": None,
-                            "closed_at":None                 
-                        }
-                    }
-
-                    income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+                    #income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
 
                     #print(income_monthly_log_data)
-                    monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
+                    #monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
+                    income_monthly_log.update_one({                            
+                            "income_id":ObjectId(income_id),
+                            "user_id":ObjectId(user_id)                            
+                        },{
+                            '$set':{                               
+                                "income_id":ObjectId(income_id),
+                                "user_id":ObjectId(user_id),
+                                "total_monthly_gross_income" :0,
+                                "total_monthly_net_income":0,
+                                'updated_at':None                                
+                            }
+                        },upsert=True, session=session)
                     
 
-                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count and monthly_log_result else 0
+                    income_yearly_log.update_one({                            
+                            "income_id":ObjectId(income_id),
+                            "user_id":ObjectId(user_id)                            
+                        },{
+                            '$set':{                               
+                                "income_id":ObjectId(income_id),
+                                "user_id":ObjectId(user_id),
+                                "total_yearly_gross_income" :0,
+                                "total_yearly_net_income":0,
+                                'updated_at':None                                
+                            }
+                        },upsert=True, session=session)
+                    
+
+                    result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
                     
                     if result:
                         message = 'Income account added Succefull'

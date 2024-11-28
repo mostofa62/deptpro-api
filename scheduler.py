@@ -204,7 +204,7 @@ def calender_entry():
 
 def monthly_log_update():
     print('MONTHLY LOG UPDATE', datetime.now())
-    calculate_yearly_and_monthly_data()
+    saving_calculate_yearly_and_monthly_data()
 
 
 scheduler = APScheduler()

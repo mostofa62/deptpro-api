@@ -19,6 +19,7 @@ saving_source_types = my_col('saving_source_types')
 contributions = my_col('saving_contributions')
 saving_boost = my_col('saving_boost')
 saving_boost_contributions = my_col('saving_boost_contributions')
+saving_monthly_log = my_col('saving_monthly_log')
 # Helper function to calculate interest and progress
 def calculate_savings(savings):
     # Calculate total savings: starting amount + total contributions + any savings boosts
@@ -977,10 +978,23 @@ async def save_saving():
 
                         newvalues = { "$set": {                                                     
                             "goal_reached":goal_reached,
-                            'current_month':None,                                                                                               
+                            #'current_month':None,                                                                                               
                             "updated_at":datetime.now()
                         } }
+                        
                         saving_data = collection.update_one(saving_query,newvalues,session=session)
+
+                        saving_monthly_log.update_one({                            
+                            "saving_id":ObjectId(saving_id),
+                            "user_id":ObjectId(user_id)                            
+                        },{
+                            '$set':{                               
+                                "saving_id":ObjectId(saving_id),
+                                "user_id":ObjectId(user_id),
+                                "total_monthly_balance" :0,
+                                'updated_at':None                                
+                            }
+                        },upsert=True, session=session)
                         result = 1 if saving_id!=None and contribution_data.acknowledged and saving_data.modified_count else 0
                         
                         if result:

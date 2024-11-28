@@ -16,6 +16,7 @@ collection = my_col('saving')
 contributions = my_col('saving_contributions')
 saving_boost = my_col('saving_boost')
 saving_boost_contributions = my_col('saving_boost_contributions')
+saving_monthly_log = my_col('saving_monthly_log')
 
 @app.route('/api/contribute-next/<string:id>', methods=['GET'])
 def contribute_next(id:str):
@@ -179,7 +180,7 @@ def contribute_next(id:str):
         'total_balance_xyz':total_balance_xyz,
         'progress':progress,
         'period':period,
-        'current_month':None,
+        #'current_month':None,
         'updated_at':datetime.now()              
 
     }
@@ -227,10 +228,20 @@ def contribute_next(id:str):
 
 
                         s_data = collection.update_one(myquery, newvalues, session=session)
+
+                        s_log = saving_monthly_log.update_one({
+                            'saving_id':ObjectId(id)
+                        },{
+                            '$set':{
+                                'updated_at':None
+                            }
+                        },session=session)
+
+                        s_log_k = 1 if s_log.modified_count else 0
                         if len_boost_breakdown > 0:
-                            result = 1 if c_data.inserted_id and s_data.modified_count  and s_b_ack else 0
+                            result = 1 if c_data.inserted_id and s_data.modified_count  and s_b_ack and s_log_k else 0
                         else:
-                            result = 1 if c_data.inserted_id and s_data.modified_count  else 0
+                            result = 1 if c_data.inserted_id and s_data.modified_count and s_log_k  else 0
                         
                         
                         if result:

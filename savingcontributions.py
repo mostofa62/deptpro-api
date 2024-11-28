@@ -217,11 +217,16 @@ def saving_contributions_previous():
         "contribution_date": {"$gte": twelve_months_ago},
         #"deleted_at": None,
         #"closed_at":None,
-        "user_id":ObjectId(userid)
+        #"user_id":ObjectId(userid)
         
     }
+
+    if userid!=None:
+        match_query["user_id"] = ObjectId(userid)
     if saving_id!=None:
         match_query["saving_id"] = ObjectId(saving_id)
+
+    '''
 
     pipeline = [
     # Step 1: Match documents from the main collection
@@ -309,6 +314,104 @@ def saving_contributions_previous():
         }
     }
 ]
+'''
+#4.6 mongodb
+    pipeline = [
+    # Step 1: Match documents from the main collection
+    { 
+        "$match": match_query 
+    },
+
+    # Step 2: Perform the lookup without a pipeline
+    {
+        "$lookup": {
+            "from": "saving",  # The collection to join with
+            "localField": "saving_id",  # Field from saving_contributions
+            "foreignField": "_id",  # Field from saving collection
+            "as": "saving_details"  # The alias for the joined data
+        }
+    },
+    
+    # Step 3: Unwind the joined array
+    {
+        "$unwind": {
+            "path": "$saving_details",
+            "preserveNullAndEmptyArrays": True  # Include documents even if saving_details is null
+        }
+    },
+
+    # Step 4: Filter out records where saving_details.deleted_at is not None
+    {
+        "$match": {
+            "saving_details.deleted_at": None,
+            # "$or": [
+            #     { "saving_details.deleted_at": None },  # Deleted_at field is null
+            #     { "saving_details.deleted_at": { "$exists": False } }  # Deleted_at field does not exist
+            # ]
+        }
+    },
+    
+    # Step 5: Group by month and saving_id
+    {
+        "$group": {
+            "_id": { "month": "$month", "saving_id": "$saving_id" },
+            "max_total_balance": { "$max": "$total_balance_xyz" },  # Max balance for each saving_id in the month
+            "month_word": { "$first": "$month_word" },              # Include month_word for formatting
+            "month": { "$first": "$month" }                         # Include month for further grouping
+        }
+    },
+    
+    # Step 6: Group by month and sum the max total_balance
+    {
+        "$group": {
+            "_id": "$_id.month",  # Group by month
+            "total_balance": { "$sum": "$max_total_balance" },  # Sum the max balances per saving_id in the month
+            "month_word": { "$first": "$month_word" },          # Keep month_word
+            "month": { "$first": "$month" }                     # Keep month for sorting later
+        }
+    },
+    
+    # Step 7: Project the fields you want
+    {
+        "$project": {
+            "_id": 1,
+            "total_balance": 1,
+            "month_word": 1
+        }
+    },
+    
+    # Step 8: Sort by month
+    { 
+        "$sort": { "_id": 1 }  # Sort by month
+    },
+    
+    # Step 9: Limit to 12 rows
+    { 
+        "$limit": 12 
+    },
+    
+    # Step 10: Aggregate results into an array for final output
+    {
+        "$group": {
+            "_id": None,
+            "grouped_results": {
+                "$push": {
+                    "year_month_word": "$month_word",
+                    "total_balance": "$total_balance"
+                }
+            }
+        }
+    },
+    
+    # Step 11: Project the final output
+    {
+        "$project": {
+            "_id": 0,
+            "grouped_results": 1
+        }
+    }
+]
+
 
     year_month_wise_all = list(collection.aggregate(pipeline))
 

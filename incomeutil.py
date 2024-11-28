@@ -214,7 +214,11 @@ def generate_new_transaction_data_for_income(
         pay_date,
         frequency,
         commit,
-        income_id        
+        income_id,
+        user_id,
+        gross_income_xyz=0,
+        net_income_xyz=0
+
 ):
     
     delta = get_delta(frequency)
@@ -228,14 +232,15 @@ def generate_new_transaction_data_for_income(
     total_gross_for_period = 0
     total_net_for_period = 0
 
-    total_monthly_gross_income = 0
-    total_monthly_net_income = 0
+    total_gross_for_period_xyz = 0
+    total_net_for_period_xyz = 0
 
+    
     next_pay_date = current_date + delta
 
     current_datetime_now = datetime.now()
 
-    current_month = current_datetime_now.strftime('%Y-%m')
+
 
     
 
@@ -248,17 +253,17 @@ def generate_new_transaction_data_for_income(
             total_gross_for_period = round(total_gross_for_period,2)
             total_net_for_period = round(total_net_for_period,2)
 
+            total_gross_for_period_xyz +=gross_income_xyz
+            total_net_for_period_xyz +=net_income_xyz
+
+            total_gross_for_period_xyz = round(total_gross_for_period_xyz,2)
+            total_net_for_period_xyz = round(total_net_for_period_xyz,2)
+
             next_pay_date = current_date + delta
 
             month = current_date.strftime("%Y-%m")
             month_word = current_date.strftime("%b, %Y")
-
-            if current_month == month:
-                total_monthly_gross_income += gross_input
-                total_monthly_net_income += net_input
-
-                total_monthly_gross_income = round(total_monthly_gross_income,2)
-                total_monthly_net_income = round(total_monthly_net_income,2)
+            
 
 
             income_transaction.append({
@@ -267,10 +272,15 @@ def generate_new_transaction_data_for_income(
                 'pay_date':current_date,
                 "next_pay_date":next_pay_date,
                 'gross_income':gross_input,
-                'net_income':net_input,               
-                "total_gross_for_period": total_gross_for_period,
-                'total_net_for_period':total_net_for_period,            
+                'gross_income_xyz':gross_income_xyz,
+                'net_income':net_input,
+                'net_income_xyz':net_income_xyz,               
+                # "total_gross_for_period": total_gross_for_period,
+                # "total_gross_for_period_xyz": total_gross_for_period,
+                # 'total_net_for_period':total_net_for_period,
+                # 'total_net_for_period_xyz':total_net_for_period,             
                 "income_id":income_id,
+                'user_id':user_id,
                 'commit':commit,
                 "deleted_at":None,
                 "closed_at":None            
@@ -288,8 +298,8 @@ def generate_new_transaction_data_for_income(
         'income_transaction':income_transaction,
         'total_gross_for_period':total_gross_for_period,
         'total_net_for_period':total_net_for_period,
-        'total_monthly_gross_income':total_monthly_gross_income,
-        'total_monthly_net_income':total_monthly_net_income,
+        'total_gross_for_period_xyz':total_gross_for_period_xyz,
+        'total_net_for_period_xyz':total_net_for_period_xyz,         
         'next_pay_date':next_pay_date
     })
 
