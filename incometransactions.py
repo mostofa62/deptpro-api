@@ -493,6 +493,7 @@ def list_income_transactions(income_id:str):
     query = {
         #'role':{'$gte':10}
         "income_id":ObjectId(income_id),
+        "income_boost_id":{'$eq':None},
         "deleted_at":None,
         "closed_at":None,
     }
@@ -611,6 +612,7 @@ def list_income_boost_transactions(income_id:str):
     query = {
         #'role':{'$gte':10}
         "income_id":ObjectId(income_id),
+        "income_boost_id":{'$ne':None},
         "deleted_at":None,
         "closed_at":None,
     }
@@ -640,7 +642,7 @@ def list_income_boost_transactions(income_id:str):
     sort_params = [
         ('pay_date',-1)
     ]
-    cursor = income_boost_transaction.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
+    cursor = collection.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
     # for sort in sort_by:
     #     sort_field = sort['id']
     #     sort_direction = -1 if sort['desc'] else 1
@@ -655,7 +657,7 @@ def list_income_boost_transactions(income_id:str):
 
 
 
-    total_count = income_boost_transaction.count_documents(query)
+    total_count = collection.count_documents(query)
     #data_list = list(cursor)
     data_list = []
 
@@ -665,12 +667,13 @@ def list_income_boost_transactions(income_id:str):
 
         todo['income_boost'] = income_boost_ac['earner'] if income_boost_ac!=None else None
 
+        todo['contribution'] = todo['gross_income']
+        todo['total_balance'] = todo['total_gross_for_period']
+        todo['contribution_date_word'] = convertDateTostring(todo['pay_date'])
+        todo['contribution_date'] = convertDateTostring(todo['pay_date'],"%Y-%m-%d")
 
-        todo['contribution_date_word'] = convertDateTostring(todo['contribution_date'])
-        todo['contribution_date'] = convertDateTostring(todo['contribution_date'],"%Y-%m-%d")
-
-        todo['next_pay_date_word'] = convertDateTostring(todo['next_pay_date_boost'])
-        todo['next_pay_date_boost'] = convertDateTostring(todo['next_pay_date_boost'],"%Y-%m-%d")                
+        todo['next_pay_date_word'] = convertDateTostring(todo['next_pay_date'])
+        todo['next_pay_date_boost'] = convertDateTostring(todo['next_pay_date'],"%Y-%m-%d")                
 
         
 

@@ -91,11 +91,10 @@ def header_summary_data(user_id:str):
     #income and incomeboost
       
 
-    total_monthly_net_income = app_datas['total_current_net_income'] if  app_datas!=None and 'total_current_net_income' in app_datas else 0
+    total_monthly_net_income = app_datas['total_monthly_net_income'] if  app_datas!=None and 'total_monthly_net_income' in app_datas else 0
 
-    total_monthly_boost_income = app_datas['total_current_boost_income'] if  app_datas!=None and 'total_current_boost_income' in app_datas else 0
-
-    total_monthly_net_income += total_monthly_boost_income
+    
+    
 
 
     # Aggregation pipeline
@@ -279,6 +278,7 @@ def get_dashboard_data(user_id:str):
 
 
     # Aggregate query to sum the balance field
+    '''
     pipeline = [
         {"$match": {"user_id": ObjectId(user_id),'deleted_at':None}},  # Filter by user_id
        
@@ -296,6 +296,9 @@ def get_dashboard_data(user_id:str):
     # Execute the aggregation pipeline
     income_result = list(income_ac.aggregate(pipeline))
     total_net_income = income_result[0]['total_net_income'] if income_result else 0
+    '''
+
+    total_net_income = app_datas['total_monthly_net_income'] if app_datas != None and 'total_monthly_net_income' in app_datas else 0
 
     
     total_saving = app_datas['total_monthly_saving'] if app_datas != None and 'total_monthly_saving' in app_datas else 0

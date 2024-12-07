@@ -584,16 +584,12 @@ async def save_income():
                         repeat,
                         commit,
                         ObjectId(income_id),
-                        ObjectId(user_id),
-                        gross_income,
-                        net_income
+                        ObjectId(user_id)
                         )
                     
                     income_transaction_list = income_transaction_generate['income_transaction']
                     total_gross_income = income_transaction_generate['total_gross_for_period']
                     total_net_income = income_transaction_generate['total_net_for_period']
-                    total_gross_income_xyz = income_transaction_generate['total_gross_for_period_xyz']
-                    total_net_income_xyz = income_transaction_generate['total_net_for_period_xyz']
                     next_pay_date = income_transaction_generate['next_pay_date']
                    
                     income_transaction_data = None
@@ -609,9 +605,7 @@ async def save_income():
 
                     newvalues = { "$set": {
                         "total_gross_income":total_gross_income, 
-                        "total_gross_income_xyz":total_gross_income_xyz, 
                         "total_net_income":total_net_income, 
-                        "total_net_income_xyz":total_net_income_xyz, 
                         "next_pay_date":next_pay_date,                                                                                                
                         "updated_at":datetime.now()
                     } }
@@ -657,7 +651,7 @@ async def save_income():
                     if result:
                         message = 'Income account added Succefull'
                         session.commit_transaction()
-                        update_current_income(user_id)
+                        #update_current_income(user_id)
                     else:
                         message = 'Income account addition Failed'
                         session.abort_transaction()
