@@ -558,6 +558,7 @@ async def save_income_boost():
                             total_gross_income = contribution_breakdown_b['total_gross_for_period']
                             total_net_income = contribution_breakdown_b['total_net_for_period']
                             next_contribution_date_b = contribution_breakdown_b['next_pay_date']
+                            is_single = contribution_breakdown_b['is_single']
 
                             boost_status = {
                                 '_id':ObjectId(income_id),
@@ -579,7 +580,10 @@ async def save_income_boost():
 
                                 c_data = None
                                 if len(income_transaction_list)> 0:
-                                    c_data = income_transactions.insert_many(income_transaction_list,session=session)
+                                    if is_single > 0:
+                                        c_data = income_transactions.insert_one(income_transaction_list,session=session)
+                                    else:
+                                        c_data = income_transactions.insert_many(income_transaction_list,session=session)
                                 s_b_k = 0
                                 sb_data = collection.update_one({
                                         '_id':boost_status['_id']
@@ -613,8 +617,10 @@ async def save_income_boost():
                                         }
                                 },session=session)
 
+                                c_data_ack = c_data.inserted_id if is_single > 0 else c_data.inserted_ids
 
-                                result = 1 if c_data!=None and c_data.inserted_ids and s_data.modified_count  and s_b_k > 0 and i_m_log.modified_count and i_y_log.modified_count else 0
+
+                                result = 1 if c_data!=None and c_data_ack and s_data.modified_count  and s_b_k > 0 and i_m_log.modified_count and i_y_log.modified_count else 0
                         
 
                         

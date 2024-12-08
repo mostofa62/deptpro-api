@@ -13,8 +13,8 @@ TOKEN_EXPIRATION = os.environ["TOKEN_EXPIRATION"]
 #CORS(app)
 collection = my_col('users')
 
-@app.route('/api/users', methods=['POST'])
-def list_user():
+@app.route('/api/users/<int:role>', methods=['POST'])
+def list_user(role:int):
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -23,7 +23,7 @@ def list_user():
 
     # Construct MongoDB filter query
     query = {
-        'role':{'$gte':10}
+        'role':role
     }
     if global_filter:
         query["$or"] = [
@@ -521,3 +521,59 @@ async def suspend_user(id:str,action:str):
         "done_delete":count_done
 
     })
+
+
+
+
+@app.route('/api/action-user', methods=['POST'])
+def action_user():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+
+        id = data['id']
+        key = data['key']
+        value = data['value']
+        userid = data['userid']
+    
+
+        record_id = None
+        message = None
+        error = 0
+        record_done = 0
+
+        value_params = {                                     
+                key:value,                
+                'updated_by':ObjectId(userid),       
+                                               
+        }
+
+        try:
+            myquery = { "_id" :ObjectId(id)}
+
+            newvalues = { "$set": value_params }
+            user_data =  my_col('users').update_one(myquery, newvalues)
+            record_id = id if user_data.modified_count else None
+
+            error = 0 if user_data.modified_count else 1
+            record_done = 1 if user_data.modified_count  else 0
+            if record_done:
+                message = f'User {key} Successfully'
+                
+            else:
+                message = f'User {key} Failed'
+       
+
+        except Exception as ex:
+            record_id = None
+            print('User Save Exception: ',ex)
+            message = f'User {key} Failed'
+            error  = 1
+            record_done = 0
+    
+    
+        return jsonify({
+            "record_id":record_id,
+            "message":message,
+            "error":error,
+            "deleted_done":record_done
+        }) 

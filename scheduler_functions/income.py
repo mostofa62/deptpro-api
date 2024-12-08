@@ -296,4 +296,4 @@ def income_calculate_monthly_data():
 
 
 #income_calculate_monthly_data()
-income_calculate_yearly_data()
+#income_calculate_yearly_data()

@@ -260,6 +260,7 @@ def list_income(user_id:str):
 
         todo['pay_date'] = convertDateTostring(todo['pay_date'])
         todo['next_pay_date'] = convertDateTostring(todo['next_pay_date'])
+        todo['total_yearly_net_income'] = todo['total_yearly_net_income'] if 'total_yearly_net_income' in todo else 0
 
         # todo['total_monthly_net_income'] = total_monthly_net_income
         # todo['total_monthly_gross_income'] = total_monthly_gross_income
@@ -591,11 +592,16 @@ async def save_income():
                     total_gross_income = income_transaction_generate['total_gross_for_period']
                     total_net_income = income_transaction_generate['total_net_for_period']
                     next_pay_date = income_transaction_generate['next_pay_date']
+                    is_single = income_transaction_generate['is_single']
                    
                     income_transaction_data = None
                     
-                    if len(income_transaction_list)> 0:                    
-                        income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)                        
+                    if len(income_transaction_list)> 0:
+                        if is_single > 0:
+                            income_transaction_data = income_transaction.insert_one(income_transaction_list,session=session)
+                        else:
+                            income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
+
                         
 
 
@@ -645,7 +651,7 @@ async def save_income():
                             }
                         },upsert=True, session=session)
                     
-
+                    
                     result = 1 if income_id!=None and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
                     
                     if result:

@@ -261,12 +261,42 @@ def generate_new_transaction_data_for_income(
     next_pay_date = current_date + delta
 
     current_datetime_now = datetime.now()
+    is_single = 0
 
+    if current_datetime_now < next_pay_date:
+        
+        is_single = 1
+        total_gross_for_period +=  gross_input
+        total_net_for_period += net_input                        
 
+        total_gross_for_period = round(total_gross_for_period,2)
+        total_net_for_period = round(total_net_for_period,2)
+       
+
+        month = current_date.strftime("%Y-%m")
+        month_word = current_date.strftime("%b, %Y")
+        income_transaction = {
+                'month_word':month_word,
+                'month':month,
+                'pay_date':current_date,
+                "next_pay_date":next_pay_date,
+                'gross_income':gross_input,                
+                'net_income':net_input,                         
+                "total_gross_for_period": total_gross_for_period,
+                'total_net_for_period':total_net_for_period,           
+                "income_id":income_id,
+                "income_boost_id":None,
+                'user_id':user_id,
+                'commit':commit,
+                "deleted_at":None,
+                "closed_at":None            
+                
+            }
 
     
 
     if next_pay_date <= current_datetime_now:
+        is_single = 0
         while next_pay_date <= current_datetime_now:
 
             total_gross_for_period +=  gross_input
@@ -314,7 +344,8 @@ def generate_new_transaction_data_for_income(
         'income_transaction':income_transaction,
         'total_gross_for_period':total_gross_for_period,
         'total_net_for_period':total_net_for_period,         
-        'next_pay_date':next_pay_date
+        'next_pay_date':next_pay_date,
+        'is_single':is_single
     })
 
 
@@ -511,10 +542,47 @@ def generate_new_transaction_data_for_income_boost(
     next_pay_date = current_date + delta
 
     current_datetime_now = datetime.now()
+    is_single = 0
+
+    if current_datetime_now < next_pay_date:
+        
+        is_single = 1
+        balance += contribution
+        balance = round(balance,2)
+
+        total_gross_for_period +=  contribution
+        total_net_for_period += contribution
+
+
+        total_gross_for_period = round(total_gross_for_period,2)
+        total_net_for_period = round(total_net_for_period,2)
+       
+
+        month = current_date.strftime("%Y-%m")
+        month_word = current_date.strftime("%b, %Y")
+        income_transaction = {
+                'month_word':month_word,
+                'month':month,
+                'pay_date':current_date,
+                "next_pay_date":next_pay_date,
+                'gross_income':contribution,                
+                'net_income':contribution,                         
+                "total_gross_for_period": total_gross_for_period,
+                'total_net_for_period':total_net_for_period,           
+                "income_id":income_id,
+                "income_boost_id":income_boost_id,
+                'user_id':user_id,
+                'commit':commit,
+                "deleted_at":None,
+                "closed_at":None            
+                
+            }
+
 
     
 
     if next_pay_date <= current_datetime_now:
+        is_single = 0
         while next_pay_date <= current_datetime_now:
 
             balance += contribution
@@ -566,7 +634,8 @@ def generate_new_transaction_data_for_income_boost(
         'total_gross_for_period':total_gross_for_period,
         'total_net_for_period':total_net_for_period,
         'next_pay_date':next_pay_date,
-        'total_boost_for_period': balance       
+        'total_boost_for_period': balance,
+        'is_single':is_single       
     })
 
 
