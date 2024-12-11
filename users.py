@@ -23,7 +23,9 @@ def list_user(role:int):
 
     # Construct MongoDB filter query
     query = {
-        'role':role
+        'role':role,
+        'deleted_at':None,
+        'suspended_at':None
     }
     if global_filter:
         query["$or"] = [
@@ -47,7 +49,11 @@ def list_user(role:int):
         cursor = collection.find(query).skip(page_index * page_size).limit(page_size)
 
     total_count = collection.count_documents(query)
-    data_list = list(cursor)
+    data_list = []
+    for todo in cursor:
+        todo['created_at'] = convertDateTostring(todo['created_at'],"%d %b, %Y %H.%M.%S")
+        data_list.append(todo)
+    #data_list = list(cursor)
     data_json = MongoJSONEncoder().encode(data_list)
     data_obj = json.loads(data_json)
 
@@ -494,6 +500,53 @@ def userbyUsername(userid:str):
     })
 
 
+
+@app.route('/api/suspend_user', methods=['POST'])
+def suspend_member():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+
+        user_id = None
+
+        id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Suspended'
+        field = 'deleted_at' if key < 2 else 'suspended_at'
+
+        try:
+            myquery = { "_id" :ObjectId(id)}
+
+            newvalues = { "$set": {                                     
+                field:datetime.now()                
+            } }
+
+            user_data =  collection.update_one(myquery, newvalues)
+            user_id = id if user_data.modified_count else None
+
+            error = 0 if user_data.modified_count else 1
+            deleted_done = 1 if user_data.modified_count else 0
+            
+            if deleted_done:
+                message = f'Member account {action} Successfully'
+                
+            else:
+                message = f'Member account {action} Failed'
+                
+
+        except Exception as ex:
+            user_id = None
+            print('Member account Save Exception: ',ex)
+            message = f'Member account {action} Failed'
+            error  = 1
+            deleted_done = 0
+
+
+    return jsonify({
+            "user_id":user_id,
+            "message":message,
+            "error":error,
+            "deleted_done":deleted_done
+        })      
 
 
 
