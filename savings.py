@@ -684,6 +684,8 @@ async def update_saving(id:str):
         message = ''
         result = 0
 
+        len_breakdown = 0
+
         myquery = { "_id" :ObjectId(id)}
         previous_saving = collection.find_one(myquery)
 
