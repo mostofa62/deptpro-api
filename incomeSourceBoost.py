@@ -44,11 +44,11 @@ def incomesourceboost_dropdown(user_id:str):
             "deleted_at":None,
             "user_id": {"$in": [None, ObjectId(user_id)]}
         },
-        {'_id': 1, 'name': 1, 'user_id': 1}
+        {'_id': 1, 'name': 1, 'user_id': 1,'bysystem':1}
         )
     income_source_types_list = []
     for todo in income_source_types:               
-        income_source_types_list.append({'value':str(todo['_id']),'label':todo['name']})
+        income_source_types_list.append({'value':str(todo['_id']),'label':todo['name'],'bysystem':todo['bysystem']})
 
 
 

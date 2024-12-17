@@ -328,6 +328,7 @@ def newEntryOptionData(data_obj:any, collectionName:str, user_id:str):
             'name':data_obj['label'],
             'parent':None,
             'deleted_at':None,
+            'bysystem':0,
             'user_id':ObjectId(user_id)
         })
 
