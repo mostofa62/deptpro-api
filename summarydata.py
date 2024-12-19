@@ -1,6 +1,6 @@
 import os
 from flask import Flask,request,jsonify, json
-from matplotlib.dates import relativedelta
+from dateutil.relativedelta import relativedelta
 #from flask_cors import CORS, cross_origin
 from app import app
 from db import my_col,myclient,mydb
