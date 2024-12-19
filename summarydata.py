@@ -1,5 +1,6 @@
 import os
 from flask import Flask,request,jsonify, json
+from matplotlib.dates import relativedelta
 #from flask_cors import CORS, cross_origin
 from app import app
 from db import my_col,myclient,mydb
@@ -165,7 +166,9 @@ def header_summary_data(user_id:str):
 
     monthly_bill_totals = result[0]['total_amount'] if result else 0
 
+    financial_frdom_date = convertDateTostring(datetime.now()+relativedelta(years=1),"%b %Y")
 
+    financial_frdom_target = 100000000
 
     return jsonify({
         "saving_progress":saving_average_progress,
@@ -177,7 +180,9 @@ def header_summary_data(user_id:str):
         'active_debt_account':active_debt_account,
         "month_debt_free":latest_month_debt_free,
         "total_monthly_net_income":total_monthly_net_income,
-        "total_monthly_bill_expese":monthly_bill_totals             
+        "total_monthly_bill_expese":monthly_bill_totals,
+        "financial_frdom_date":  financial_frdom_date,
+        "financial_frdom_target":financial_frdom_target           
     })
 
 

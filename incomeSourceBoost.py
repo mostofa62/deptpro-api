@@ -36,6 +36,88 @@ BoostOperationType = [
     {'label':'Withdraw','value':2},
 ]
 
+@app.route('/api/delete-income-source', methods=['POST'])
+def delete_income_source():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+
+        id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
+
+        income_source_id = None
+        message = None
+        error = 0
+        deleted_done = 0
+
+        income_count = my_col('income').count_documents({
+            'income_source.value':ObjectId(id),
+        })
+        
+        if income_count > 0:
+
+            income_source_id = None                
+            message = f'Income source has {income_count} data!'
+            error  = 1
+            deleted_done = 0
+
+
+            return jsonify({
+                "income_source_id":income_source_id,
+                "message":message,
+                "error":error,
+                "deleted_done":deleted_done
+            })
+
+        
+
+        
+        
+        try:
+
+            
+
+            myquery = { "_id" :ObjectId(id)}
+
+            newvalues = { "$set": {                                     
+                field:datetime.now()                
+            } }
+            income_source_data =  my_col('income_source_types').update_one(myquery, newvalues)
+            income_source_id = id if income_source_data.modified_count else None
+
+
+           
+
+
+            error = 0 if income_source_data.modified_count  else 1
+            deleted_done = 1 if income_source_data.modified_count else 0
+            
+            
+
+            if deleted_done:
+                message = f'Income source {action} Successfully'
+                
+            else:
+                message = f'Income source {action} Failed'
+                
+
+        except Exception as ex:
+            income_source_id = None
+            print('Income source Save Exception: ',ex)
+            message = f'Income source {action} Failed'
+            error  = 1
+            deleted_done = 0           
+        
+        return jsonify({
+            "income_source_id":income_source_id,
+            "message":message,
+            "error":error,
+            "deleted_done":deleted_done
+        })
+
+
+
 @app.route("/api/incomesourceboost-dropdown/<string:user_id>", methods=['GET'])
 def incomesourceboost_dropdown(user_id:str):
     income_source_types = my_col('income_source_types').find(
