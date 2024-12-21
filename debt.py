@@ -259,6 +259,7 @@ def save_debt_transaction(accntid:str):
         debt_trans_id = None
         message = ''
         result = 0
+        closed_at = None
 
         with client.start_session() as session:
             with session.start_transaction():
@@ -311,10 +312,11 @@ def save_debt_transaction(accntid:str):
                     debt_trans_id = str(debt_trans_data.inserted_id)
 
                     
-                    
+                    closed_at = datetime.now() if new_balance >= debtaccounts['highest_balance'] else None 
                     
                     newvalues = { "$set": {
-                        "balance":new_balance,                                                                                                
+                        "balance":new_balance,
+                        "closed_at":closed_at,                                                                                                
                         "updated_at":datetime.now()
                     } }
                     debt_account_data = debt_accounts.update_one(debt_acc_query,newvalues,session=session)
@@ -330,13 +332,15 @@ def save_debt_transaction(accntid:str):
                     result = 0
                     message = 'Debt transaction addition Failed!'
                     session.abort_transaction()
+                    closed_at = None
 
 
                 return jsonify({
                     "debt_account_id":debt_account_id,
                     "debt_trans_id":debt_trans_id,
                     "message":message,
-                    "result":result
+                    "result":result,
+                    "closed_at":closed_at
                 })
 
 
@@ -827,6 +831,7 @@ def save_debt_account():
             interest_rate = float(data.get("interest_rate", 0))
             highest_balance =  float(data.get("highest_balance", 0))
             highest_balance = highest_balance if highest_balance > 0 else balance
+            closed_at  = datetime.now() if balance >= highest_balance else None
             
             debt = {
                 "name": data.get("name"),                
@@ -866,7 +871,7 @@ def save_debt_account():
                 "created_at":datetime.now(),
                 "updated_at":datetime.now(),
                 "deleted_at":None,
-                "closed_at":None,
+                "closed_at":closed_at,
 
                 "months_to_payoff":0,
                 "month_debt_free":None,
