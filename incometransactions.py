@@ -104,7 +104,9 @@ def income_transactions_next_function(todo):
             frequency=todo['repeat']['value'],
             income_boost=total_income_boost_onetime,
             income_boost_date=income_boost_date,                        
-            repeat_income_boost = total_income_boost
+            repeat_income_boost = total_income_boost,
+            earner=todo.get('earner'),
+            earner_id=str(todo['_id'])
         )
 
         income_contribution = income_contribution_data['breakdown']
@@ -132,6 +134,7 @@ def income_transactions_next(income_id=None):
             'deleted_at':None,
             '_id':ObjectId(income_id)
         },{
+            'earner':1,
             'gross_income':1,
             'net_income':1,
             'total_gross_income':1,
@@ -148,6 +151,7 @@ def income_transactions_next(income_id=None):
             'closed_at':None,
             'deleted_at':None
         },{
+            'earner':1,
             'gross_income':1,
             'net_income':1,
             'total_gross_income':1,
@@ -171,40 +175,53 @@ def income_transactions_next(income_id=None):
             projection_list.append(income_contribution)
 
     
+    #print('projection_list',projection_list)
 
-    # Dictionary to store merged results
+    
+
+    # Optimized dictionary to store merged results
     merged_data = defaultdict(lambda: {
         "base_gross_income": 0,
         "base_net_income": 0,
-        #"total_gross_for_period": 0,
-        #"total_net_for_period": 0,
-        "month_word": ""
+        "month_word": "",
+        "earners": []
     })
 
-    # Merging logic
+    # Merging logic with optimization
     for sublist in projection_list:
         for entry in sublist:
-            
             month = entry['month']
-            # if month == current_month:
-            #     merged_data[month]['base_gross_income'] = round(entry['base_gross_income'],2)
-            #     merged_data[month]['base_net_income'] = round(entry['base_net_income'],2)
-                
-            #merged_data[month]['id'] = ObjectId()
-            merged_data[month]['base_gross_income'] += round(entry['base_gross_income'],2)
-            merged_data[month]['base_net_income'] += round(entry['base_net_income'],2)
-            #merged_data[month]['total_gross_for_period'] += entry['total_gross_for_period']
-            #merged_data[month]['total_net_for_period'] += entry['total_net_for_period']
-            merged_data[month]['month_word'] = entry['month_word']
+            merged_entry = merged_data[month]
 
-            merged_data[month]['base_gross_income'] = round(merged_data[month]['base_gross_income'],2)
-            merged_data[month]['base_net_income']  = round(merged_data[month]['base_net_income'] ,2)
+            # Accumulate income values directly
+            merged_entry['base_gross_income'] += entry['base_gross_income']
+            merged_entry['base_net_income'] += entry['base_net_income']
+            # Append earner-specific data
+            merged_entry['earners'].append({
+                'earner': entry['earner'],
+                'earner_id': entry['earner_id'],
+                'gross_income': entry['base_gross_income'],
+                'net_income': entry['base_net_income']
+            })
 
-            #merged_data[month]['id'] = generate_unique_id(month)
+            # Store the month word (assumes it's consistent for the same month)
+            if not merged_entry['month_word']:
+                merged_entry['month_word'] = entry['month_word']
 
-
-    # Convert the merged data back into a list if needed
-    result = [{"month": month, **data} for month, data in merged_data.items()]
+    # Round values during final conversion to avoid redundant operations
+    result = sorted(
+        [
+            {
+                "month": month,
+                "base_gross_income": round(data['base_gross_income'], 2),
+                "base_net_income": round(data['base_net_income'], 2),
+                "month_word": data['month_word'],
+                "earners": data['earners']
+            }
+            for month, data in merged_data.items()
+        ],
+        key=lambda x: datetime.strptime(x['month'], "%Y-%m")
+    )
 
 
         

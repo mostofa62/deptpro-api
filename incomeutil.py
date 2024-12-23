@@ -412,7 +412,9 @@ def calculate_breakdown_future(
         frequency,
         income_boost=0,
         income_boost_date=None,         
-        repeat_income_boost=None               
+        repeat_income_boost=None,
+        earner=None,
+        earner_id=None               
 ):
     
     
@@ -474,7 +476,8 @@ def calculate_breakdown_future(
             'base_net_income':net_income,
             # "total_gross_for_period": gross_income,
             # 'total_net_for_period':net_input                      
-            
+            'earner': earner,
+            'earner_id': earner_id
         })
 
         # Move to the next period based on the contribution frequency
