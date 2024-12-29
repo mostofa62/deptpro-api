@@ -199,6 +199,8 @@ def get_payoff_strategy_account(user_id:str):
     debt_id_list = []
 
     debt_accounts_clist = []
+
+    debt_totals = {}
     
 
     for index,account in enumerate(debt_accounts_list):
@@ -215,6 +217,13 @@ def get_payoff_strategy_account(user_id:str):
             'total_payment':0, 
             'snowball_amount':0,
             'interest':0
+        }
+
+        debt_totals[debt_id] = {
+            "total_payment": 0,
+            "total_interest": 0,
+            "month_debt_free": None,
+            "months_to_payoff": None  # Initialize as None
         }
 
         if debt_id in debt_account_balances:
@@ -372,12 +381,12 @@ def get_payoff_strategy_account(user_id:str):
     debt_ids = debt_id_list
     #debt_ids = {key for entry in all_data for key in entry if key not in ["boost", "month"]}
     #ordered_debt_ids = [debt_id for debt_id in debt_id_list if debt_id in debt_ids]
-    print('debt_id_types',debt_id_types)
+    #print('all_data',all_data)
 
-    debt_totals = {}
+    
 
     # Process each entry
-    for entry in all_data:
+    for month_index, entry in enumerate(all_data, start=1):
         row = [entry["month"]]
         total_snowball = 0
         total_interest = 0
@@ -387,7 +396,7 @@ def get_payoff_strategy_account(user_id:str):
         
         # Add balances for each debt ID dynamically
         #print('entry',entry)
-        m_to_p_off = 0
+        
         for debt_id in debt_id_list:
             balance = entry.get(debt_id, {}).get("balance", 0)
             snowball_amount = entry.get(debt_id, {}).get("snowball_amount", 0)
@@ -407,19 +416,17 @@ def get_payoff_strategy_account(user_id:str):
             total_balance = round(total_balance,2)
             total_payment = round(total_payment,2)
 
-            if debt_id not in debt_totals:
-                debt_totals[debt_id] = {"total_payment": payment, "total_interest": interest,'month_debt_free':None,'months_to_payoff':0}
             
 
-            
-            
-            m_to_p_off +=1
+            # Only add to totals if balance is not yet paid off
+            if debt_totals[debt_id]["month_debt_free"] is None:
+                debt_totals[debt_id]["total_payment"] += payment
+                debt_totals[debt_id]["total_interest"] += interest
 
-            debt_totals[debt_id]["total_payment"] += total_payment
-            debt_totals[debt_id]["total_interest"] += total_interest
-            debt_totals[debt_id]["months_to_payoff"] = m_to_p_off
-
-            debt_totals[debt_id]["month_debt_free"] = entry["month"]
+                # Check if the debt is fully paid off this month
+                if balance <= 0:
+                    debt_totals[debt_id]["month_debt_free"] = entry["month"]
+                    debt_totals[debt_id]["months_to_payoff"] = month_index
             
 
             
@@ -462,7 +469,7 @@ def get_payoff_strategy_account(user_id:str):
             "paid_off":paid_off,
             "max_months_to_payoff":max_months_to_payoff,
             "debt_accounts_list":debt_accounts_clist,
-            'debt_accounts_clist':debt_accounts_clist,
+            #'debt_accounts_clist':debt_accounts_clist,
             #"sorted_month_wise":sorted_month_wise,
             
             "debt_type_ammortization":chart_data,
