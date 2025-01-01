@@ -7,7 +7,7 @@ def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit
     interest_rate_decimal = interest_rate / 100
     
     # Calculate a date max 50 years from the original current date
-    limit_years = current_date + relativedelta(years=50)
+    limit_years = current_date + relativedelta(years=100)
     
     while balance > 0:
         balance = min(balance, credit_limit)

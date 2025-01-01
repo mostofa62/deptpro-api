@@ -256,7 +256,7 @@ def get_payoff_strategy_account(user_id:str):
                 total_payment = record.get('total_payment', 0)
                 snowball_amount = record.get('snowball_amount', 0)
                 interest = record.get('interest', 0)
-                print('month',month)
+                #print('month',month)
 
                 pipeline_boost = [
                     # Step 1: Match documents with debt_type.value in debttype_id_list
@@ -288,7 +288,7 @@ def get_payoff_strategy_account(user_id:str):
 
                 total_month_wise_boost = payment_boost_data[0]['total_amount'] if payment_boost_data else 0
 
-                print('total_month_wise_boost',total_month_wise_boost)
+                #print('total_month_wise_boost',total_month_wise_boost)
 
                 # Initialize the month entry if not already present
                 if month not in data:
@@ -332,7 +332,7 @@ def get_payoff_strategy_account(user_id:str):
                 return datetime.min  # Default to a minimal date if parsing fails
 
         all_months = sorted(all_months, key=parse_month)
-        print('all months',all_months)
+        #print('all months',all_months)
 
         # Initialize merged_data with all months and set missing values to debt_type_balances
         for month in all_months:
