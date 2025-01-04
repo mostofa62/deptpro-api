@@ -906,6 +906,7 @@ async def save_saving():
         next_contribution_date = contribution_breakdown['next_contribution_date']
         goal_reached = contribution_breakdown['goal_reached']
         period = contribution_breakdown['period']
+        is_single = contribution_breakdown['is_single']
 
         len_breakdown = len(breakdown)
 
@@ -958,19 +959,36 @@ async def save_saving():
                         
                         saving_data = collection.insert_one(merge_data,session=session)
 
-                        breakdown_data = []
-                        for todo in breakdown:
-                            breakdown_data.append({
+                        breakdown_data = {} if is_single > 0 else []
+                        
+                        if is_single > 0:
+                            breakdown_data = {
                                 'saving_id':saving_data.inserted_id,
                                 'deleted_at':None,
                                 'closed_at':None,
                                 #"goal_reached":goal_reached,
                                 'commit':commit,
                                 'user_id':ObjectId(user_id),
-                                **todo
-                            })
-                        
-                        contribution_data = contributions.insert_many(breakdown_data,session=session )
+                                **breakdown
+                            }
+                        else:
+                            for todo in breakdown:
+                                breakdown_data.append({
+                                    'saving_id':saving_data.inserted_id,
+                                    'deleted_at':None,
+                                    'closed_at':None,
+                                    #"goal_reached":goal_reached,
+                                    'commit':commit,
+                                    'user_id':ObjectId(user_id),
+                                    **todo
+                                })
+                        contribution_data = None
+
+                        if len_breakdown > 0:
+                            if is_single > 0:
+                                contribution_data = contributions.insert_one(breakdown_data,session=session )
+                            else:
+                                contribution_data = contributions.insert_many(breakdown_data,session=session )
 
                         saving_id = str(saving_data.inserted_id)
 

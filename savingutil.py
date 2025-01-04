@@ -194,13 +194,63 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     
     #less then current date
     current_datetime_now = datetime.now()
+    is_single = 0
+
+    if current_datetime_now < next_contribution_date:
+        is_single = 1
+
+        # Calculate next contribution date
+        next_contribution_date = current_date + delta
+        
+        
+        days_in_period = (next_contribution_date - current_date).days
+        interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
+        
+        balance += interest + contribution
+        period += 1
+        #increase contribution by periodically
+        inc_contri = period * i_contribution
+        balance += inc_contri
+        #increase contribution end
+
+        #contribution_with_increse
+        contribution_i =  contribution + inc_contri
+        #end contribution_with_increase
+
+        contribution_i_intrs = interest + contribution_i
+
+        
+        # Calculate progress towards the goal
+        progress = (balance / goal_amount) * 100
+
+        # Append the current breakdown data
+        months_breakdown = {
+            "period": period,
+            "month": current_date.strftime('%Y-%m'),
+            "month_word": current_date.strftime('%b, %Y'),
+            "interest": round(interest, 2),
+            'interest_xyz':round(interest, 2),
+            "contribution": contribution,
+            "contribution_i":contribution_i,
+            "contribution_i_intrs":round(contribution_i_intrs,2),
+            'contribution_i_intrs_xyz':round(contribution_i_intrs,2),
+            "increase_contribution":i_contribution,
+            "increase_contribution_prd":inc_contri,
+            "total_balance": round(balance, 2),
+            "total_balance_xyz": round(balance, 2),
+            "progress": round(progress, 2),
+            "progress_xyz": round(progress, 2),
+            "contribution_date":current_date,
+            "next_contribution_date": next_contribution_date           
+        }
+        
 
 
     # Calculate a date 3 years from the original current date
     limit_years = current_date + relativedelta(years=10)
 
     if next_contribution_date <= current_datetime_now:
-    
+        is_single = 0
         while balance < goal_amount:
             
             # Calculate next contribution date
@@ -277,7 +327,8 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
         'total_balance':round(total_balance, 2),
         'total_balance_xyz':round(total_balance_xyz,2),
         'goal_reached':goal_reached,
-        'period':period
+        'period':period,
+        'is_single':is_single
     })
 
 

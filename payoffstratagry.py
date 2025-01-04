@@ -84,7 +84,22 @@ def save_payoff_strategy():
 
 
 
+def distribute_amount(amount, debt_accounts):
+    remaining_amount = amount
 
+    # Distribute payments
+    for account in debt_accounts:
+        if remaining_amount == 0:
+            break
+        payment = min(account["monthly_payment"], remaining_amount)
+        account["monthly_payment"] = payment
+        remaining_amount -= payment
+
+    # Add remaining amount back to the first account
+    if remaining_amount > 0:
+        debt_accounts[0]["monthly_payment"] += remaining_amount
+
+    return debt_accounts
 
 
 debt_types_collection = my_col('debt_type')
@@ -178,7 +193,7 @@ def get_payoff_strategy_account(user_id:str):
 
     
 
-   
+    
     
     
     initail_date = datetime.now()
@@ -201,7 +216,10 @@ def get_payoff_strategy_account(user_id:str):
     debt_accounts_clist = []
 
     debt_totals = {}
-    
+
+    total_monthly_payment = round(sum(account["monthly_payment"] for account in debt_accounts_list),2)
+
+    debt_accounts_list = distribute_amount(payoff_strategy['monthly_budget'], debt_accounts_list)
 
     for index,account in enumerate(debt_accounts_list):
         debt_id = str(account['_id'])
@@ -248,6 +266,8 @@ def get_payoff_strategy_account(user_id:str):
             monthly_data = calculate_amortization(account['balance'], account['interest_rate'],account['monthly_payment'], account['credit_limit'], initail_date,payoff_strategy['monthly_budget']) 
         except Exception as ex:
             print('Exception handling',ex)
+        
+        #print(debt_id,'monthly_data',monthly_data)
 
         if len(monthly_data) > 0:  # If there's data, add it to the correct month
             for record in monthly_data:
@@ -342,10 +362,22 @@ def get_payoff_strategy_account(user_id:str):
             for debt_id in debt_account_balances:  # Iterate over all debt types
                 if month == start_date:
                     # Use debt_type_balances for start_date
-                    merged_data[month][debt_id] = debt_account_balances.get(debt_id, 0)
+                    #merged_data[month][debt_id] = debt_account_balances.get(debt_id, 0)
+                    merged_data[month][debt_id] = {
+                        'balance':data[month][debt_id]['balance'],
+                        'interest':data[month][debt_id]['interest'],
+                        'total_payment':data[month][debt_id]['total_payment'],
+                        'snowball_amount':data[month][debt_id]['snowball_amount']
+                    }
                 elif parse_month(month) < parse_month(start_date):
                     # For months before start_date, use debt_type_balances
-                    merged_data[month][debt_id] = debt_account_balances.get(debt_id, 0)
+                    #merged_data[month][debt_id] = debt_account_balances.get(debt_id, 0)
+                    merged_data[month][debt_id] = {
+                        'balance':data[month][debt_id]['balance'],
+                        'interest':data[month][debt_id]['interest'],
+                        'total_payment':data[month][debt_id]['total_payment'],
+                        'snowball_amount':data[month][debt_id]['snowball_amount']
+                    }
                 else:
                     # For other months, check if data is present
                     if month in data and debt_id in data[month]:
@@ -378,10 +410,12 @@ def get_payoff_strategy_account(user_id:str):
     #print('all data',all_data)
     
     output = []
-    debt_ids = debt_id_list
+    #debt_ids = debt_id_list
     #debt_ids = {key for entry in all_data for key in entry if key not in ["boost", "month"]}
     #ordered_debt_ids = [debt_id for debt_id in debt_id_list if debt_id in debt_ids]
     #print('all_data',all_data)
+    seen = set()
+    debt_ids = [key for entry in all_data for key in entry if key not in ["boost", "month"] and key not in seen and not seen.add(key)]
 
     
 
@@ -395,13 +429,19 @@ def get_payoff_strategy_account(user_id:str):
         
         
         # Add balances for each debt ID dynamically
-        #print('entry',entry)
+        print('entry',entry)
         
-        for debt_id in debt_id_list:
-            balance = entry.get(debt_id, {}).get("balance", 0)
-            snowball_amount = entry.get(debt_id, {}).get("snowball_amount", 0)
-            interest = entry.get(debt_id, {}).get("interest", 0)
-            payment = entry.get(debt_id, {}).get("total_payment", 0)
+        
+        for debt_id in debt_ids:
+            # balance = entry.get(debt_id, {}).get("balance", 0)
+            # snowball_amount = entry.get(debt_id, {}).get("snowball_amount", 0)
+            # interest = entry.get(debt_id, {}).get("interest", 0)
+            # payment = entry.get(debt_id, {}).get("total_payment", 0)
+
+            balance = entry[debt_id]["balance"]
+            snowball_amount = entry[debt_id]["snowball_amount"]
+            interest = entry[debt_id]["interest"]
+            payment = entry[debt_id]["total_payment"]
 
             
             
@@ -469,13 +509,15 @@ def get_payoff_strategy_account(user_id:str):
             "paid_off":paid_off,
             "max_months_to_payoff":max_months_to_payoff,
             "debt_accounts_list":debt_accounts_clist,
-            #'debt_accounts_clist':debt_accounts_clist,
+            'debt_accounts_clist':debt_accounts_list,
             #"sorted_month_wise":sorted_month_wise,
-            
+            'total_monthly_payment':total_monthly_payment,
             "debt_type_ammortization":chart_data,
             #"data":data,
             "debt_type_names":debt_names,
-            "all_data":output            
+            "all_data":output,
+            'all_d':data,
+            'all_d1':all_data            
         })
 
     

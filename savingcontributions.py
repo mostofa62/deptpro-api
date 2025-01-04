@@ -31,6 +31,8 @@ def saving_contributions_next(userid:str):
     #     "pay_date": {"$eq": pay_date},
     # }
 
+    total_balance = 0
+
     cursor = saving.find({
         'closed_at':None,
         'deleted_at':None,
@@ -95,7 +97,7 @@ def saving_contributions_next(userid:str):
 
         #total_balance = todo['total_balance'] + total_saving_boost if  total_repeat_boost > 0 else todo['total_balance']
         #print(total_balance,todo['total_balance'])
-        total_balance = todo['total_balance']
+        total_balance += todo['total_balance']
         #contribution = todo['contribution'] + total_saving_boost if  total_repeat_boost > 0 else todo['contribution']
         contribution = todo['contribution']
 
@@ -154,6 +156,7 @@ def saving_contributions_next(userid:str):
             repeat_saving_boost = total_saving_boost
         )
         saving_contribution = saving_contribution_data['breakdown']
+        total_balance = saving_contribution_data['total_balance']
 
         projection_list.append(saving_contribution)
 
