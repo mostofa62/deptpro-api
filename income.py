@@ -426,25 +426,33 @@ async def update_income(id:str):
                         total_gross_income = income_transaction_generate['total_gross_for_period']
                         total_net_income = income_transaction_generate['total_net_for_period']
                         next_pay_date = income_transaction_generate['next_pay_date']                        
+                        is_single = income_transaction_generate['is_single']
+                   
                         income_transaction_data = None
-                        if len(income_transaction_list)> 0:                    
-                            income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
+                    
+                        if len(income_transaction_list)> 0:
+                            if is_single > 0:
+                                income_transaction_data = income_transaction.insert_one(income_transaction_list,session=session)
+                            else:
+                                income_transaction_data = income_transaction.insert_many(income_transaction_list,session=session)
                             
                                                 
                         
 
-                        #update latest commit and transaction summary
-                        new_data_value = {
-                            'commit':commit,
+                        income_query = {
+                            "_id" :ObjectId(income_id)
+                        }
+
+                        newvalues = { "$set": {
                             "total_gross_income":total_gross_income, 
                             "total_net_income":total_net_income, 
                             "next_pay_date":next_pay_date,                                                                                                
-                            "updated_at":datetime.now()
-                        }
-                        new_merge_value = new_data_value | merge_data
-                        #print(new_merge_value)
-                        newvalues = { "$set": new_merge_value }                       
-                        income_data = collection.update_one(myquery, newvalues, session=session)
+                            "updated_at":datetime.now(),
+                            'commit':commit,
+                            **merge_data
+                        } }
+                        
+                        income_data = collection.update_one(income_query,newvalues,session=session)
 
 
                         #delete previous commits data
@@ -458,17 +466,40 @@ async def update_income(id:str):
                         },session=session)
 
 
+                        '''
+                        
+                        income_monthly_log.update_one({                            
+                            "income_id":ObjectId(income_id),
+                            "user_id":ObjectId(user_id)                            
+                        },{
+                            '$set':{                               
+                                "income_id":ObjectId(income_id),
+                                "user_id":ObjectId(user_id),
+                                "total_monthly_gross_income" :0,
+                                "total_monthly_net_income":0,
+                                'updated_at':None                                
+                            }
+                        },upsert=True, session=session)
+                    
 
-                        
-                        #income_monthly_log_data = income_monthly_log.update_one(filter_query, update_document, upsert=True, session=session)
+                        income_yearly_log.update_one({                            
+                                "income_id":ObjectId(income_id),
+                                "user_id":ObjectId(user_id)                            
+                            },{
+                                '$set':{                               
+                                    "income_id":ObjectId(income_id),
+                                    "user_id":ObjectId(user_id),
+                                    "total_yearly_gross_income" :0,
+                                    "total_yearly_net_income":0,
+                                    'updated_at':None                                
+                                }
+                            },upsert=True, session=session)
 
-                        #print(income_monthly_log_data)
-                        #monthly_log_result = income_monthly_log_data.upserted_id !=None or income_monthly_log_data.modified_count
+                        '''
+                    
+                    
+                        result = 1 if income_id!=None and income_data_delete.modified_count and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
 
-                        
-                        
-                        
-                        result = 1 if income_id!=None and  income_transaction_data!=None and income_transaction_data.inserted_ids and income_data.modified_count and income_data_delete.modified_count  else 0                                 
 
                         #print(total_monthly_net_income, total_monthly_gross_income,income_monthly_log_data.modified_count, result)
                         

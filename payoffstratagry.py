@@ -84,20 +84,22 @@ def save_payoff_strategy():
 
 
 
+
 def distribute_amount(amount, debt_accounts):
     remaining_amount = amount
 
-    # Distribute payments
-    for account in debt_accounts:
-        if remaining_amount == 0:
-            break
-        payment = min(account["monthly_payment"], remaining_amount)
-        account["monthly_payment"] = payment
-        remaining_amount -= payment
+    while remaining_amount > 0:
+        for account in debt_accounts:
+            if remaining_amount == 0:
+                break
 
-    # Add remaining amount back to the first account
-    if remaining_amount > 0:
-        debt_accounts[0]["monthly_payment"] += remaining_amount
+            # Get the initial monthly payment of the account
+            initial_payment = account["monthly_payment"]
+
+            # Allocate up to the initial payment or the remaining amount
+            allocation = min(initial_payment, remaining_amount)
+            account["monthly_payment"] += allocation
+            remaining_amount -= allocation
 
     return debt_accounts
 
@@ -107,8 +109,6 @@ payment_boost = my_col('payment_boost')
 @app.route("/api/get-payoff-strategy-account/<user_id>", methods=['GET'])
 def get_payoff_strategy_account(user_id:str):
 
-
-    
 
     debt_payoff_method = 0
     
@@ -146,8 +146,7 @@ def get_payoff_strategy_account(user_id:str):
 
     
 
-    deb_query = {
-        
+    deb_query = {        
         "user_id":ObjectId(user_id),        
         "deleted_at":None,
         "closed_at":None
@@ -231,10 +230,10 @@ def get_payoff_strategy_account(user_id:str):
         account_balance = float(account['balance']+account['monthly_interest'])
 
         debt_account_balances[debt_id]= {
-            'balance':0,
-            'total_payment':0, 
-            'snowball_amount':0,
-            'interest':0
+            'balance':account_balance,
+            # 'total_payment':0, 
+            # 'snowball_amount':0,
+            # 'interest':0
         }
 
         debt_totals[debt_id] = {
@@ -244,16 +243,16 @@ def get_payoff_strategy_account(user_id:str):
             "months_to_payoff": None  # Initialize as None
         }
 
-        if debt_id in debt_account_balances:
-            debt_account_balances[debt_id]['balance'] +=account_balance
-            debt_account_balances[debt_id]['total_payment'] +=account['total_payment_sum']
-            debt_account_balances[debt_id]['interest'] +=account['total_interest_sum']
-            debt_account_balances[debt_id]['snowball_amount'] +=payoff_strategy['monthly_budget']
-        else:
-            debt_account_balances[debt_id]['balance'] = account_balance
-            debt_account_balances[debt_id]['total_payment'] =account['total_payment_sum']
-            debt_account_balances[debt_id]['interest'] =account['total_interest_sum']
-            debt_account_balances[debt_id]['snowball_amount'] =payoff_strategy['monthly_budget']
+        # if debt_id in debt_account_balances:
+        #     debt_account_balances[debt_id]['balance'] +=account_balance
+        #     debt_account_balances[debt_id]['total_payment'] +=account['total_payment_sum']
+        #     debt_account_balances[debt_id]['interest'] +=account['total_interest_sum']
+        #     debt_account_balances[debt_id]['snowball_amount'] +=payoff_strategy['monthly_budget']
+        # else:
+        #     debt_account_balances[debt_id]['balance'] = account_balance
+        #     debt_account_balances[debt_id]['total_payment'] =account['total_payment_sum']
+        #     debt_account_balances[debt_id]['interest'] =account['total_interest_sum']
+        #     debt_account_balances[debt_id]['snowball_amount'] =payoff_strategy['monthly_budget']
 
         
         
@@ -384,7 +383,8 @@ def get_payoff_strategy_account(user_id:str):
                         merged_data[month][debt_id] = data[month][debt_id]
                     else:
                         # Fill missing month data with last known debt_type_balances
-                        merged_data[month][debt_id] = merged_data[all_months[all_months.index(month)-1]].get(debt_id, debt_account_balances.get(debt_id, 0))
+                        #merged_data[month][debt_id] = merged_data[all_months[all_months.index(month)-1]].get(debt_id, debt_account_balances.get(debt_id, 0))
+                        merged_data[month][debt_id] = merged_data[all_months[all_months.index(month)-1]].get(debt_id, 0)
         
 
     # Convert to list of dicts for the frontend
@@ -429,7 +429,7 @@ def get_payoff_strategy_account(user_id:str):
         
         
         # Add balances for each debt ID dynamically
-        print('entry',entry)
+        #print('entry',entry)
         
         
         for debt_id in debt_ids:
@@ -484,7 +484,9 @@ def get_payoff_strategy_account(user_id:str):
 
     # Add headers for display
     headers = ["month"] + [str(debt_id_list.index(debt_id)+1)+f"{debt_id}" for debt_id in debt_ids] + ["total_snowball", "boost", "total_interest","total_balance","total_payment"]
+    headers_below = [""] + [debt_account_balances[debt_id]['balance'] for debt_id in debt_account_balances] + ["", "", "","",""]
     output.insert(0, headers)
+    output.insert(1, headers_below)
 
     total_paid_amount = round(total_paid_amount,2)
     total_interest_amount = round(total_interest_amount,2)
