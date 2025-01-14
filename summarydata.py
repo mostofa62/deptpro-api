@@ -415,6 +415,6 @@ def get_dashboard_data(user_id:str):
         'total_wealth':total_wealth,
         'debt_to_wealth':debt_to_wealth,
         'credit_ratio':credit_ratio,
-
+        'total_saving':total_saving,
         'total_allocation_data':total_allocation_data             
     })

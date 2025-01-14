@@ -369,6 +369,8 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     print('balance check',balance)
 
     if next_contribution_date >= current_datetime_now and balance:
+
+        print('next and current and goal_amount',next_contribution_date,current_datetime_now, goal_amount)
     
         while balance < goal_amount:            
             

@@ -31,7 +31,30 @@ def saving_contributions_next(userid:str):
     #     "pay_date": {"$eq": pay_date},
     # }
 
-    total_balance = 0
+    pipeline_goal_amount = [
+        {
+            '$match': {
+                    'closed_at':None,
+                    'deleted_at':None,
+                    'goal_reached':None,
+                    'next_contribution_date':{'$ne':None},
+                    'user_id':ObjectId(userid)
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "goal_amount": {"$sum": "$goal_amount"},
+
+                }
+            
+            }
+        ]
+
+    saving_result = list(saving.aggregate(pipeline_goal_amount))
+    goal_amount = saving_result[0]['goal_amount'] if saving_result else 0
+
+    total_balance = 0    
 
     cursor = saving.find({
         'closed_at':None,
@@ -98,6 +121,8 @@ def saving_contributions_next(userid:str):
         #total_balance = todo['total_balance'] + total_saving_boost if  total_repeat_boost > 0 else todo['total_balance']
         #print(total_balance,todo['total_balance'])
         total_balance += todo['total_balance']
+
+        
         #contribution = todo['contribution'] + total_saving_boost if  total_repeat_boost > 0 else todo['contribution']
         contribution = todo['contribution']
 
@@ -147,7 +172,7 @@ def saving_contributions_next(userid:str):
             contribution=contribution,
             annual_interest_rate=todo['interest'],
             start_date = todo['next_contribution_date'],
-            goal_amount = todo['goal_amount'],
+            goal_amount = goal_amount,
             frequency=todo['repeat']['value'],
             saving_boost=total_saving_boost_onetime,
             saving_boost_date=saving_boost_date,

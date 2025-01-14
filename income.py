@@ -466,7 +466,7 @@ async def update_income(id:str):
                         },session=session)
 
 
-                        '''
+                        
                         
                         income_monthly_log.update_one({                            
                             "income_id":ObjectId(income_id),
@@ -495,7 +495,7 @@ async def update_income(id:str):
                                 }
                             },upsert=True, session=session)
 
-                        '''
+                        
                     
                     
                         result = 1 if income_id!=None and income_data_delete.modified_count and income_transaction_data!=None and income_transaction_data.acknowledged and income_data.modified_count else 0
