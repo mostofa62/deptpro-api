@@ -109,17 +109,23 @@ def member_registration():
         member_id = None
         message = ''
         error = 0
+        role  = 13 if 'role' not in data else data['role']
 
         total_members=my_col('users').count_documents({"role":{'$gte':10}})
-        memberid = datetime.now().strftime('%Y%m%d%H%M%S')+str(total_members+1)
+        total_admins = my_col('users').count_documents({"role":2})
+        memberid = datetime.now().strftime('%Y%m%d%H%M%S')+ str( total_members +1) if role > 9 else None
+        adminid =  datetime.now().strftime('%Y%m%d%H%M%S')+ str( total_admins +1) if role  < 9 else None
+        
+        
         try:      
             members = my_col('users').insert_one({
                 "name":data['name'],            
                 "email":data['email'],
                 "memberid":memberid,
+                "adminid":adminid,
                 "phone":data['phone'],
                 "password":data['password'],
-                "role":13, #1-9 for admin, staff , 10-client, 12-affiliated,13-prospect users
+                "role":role, #1-9 for admin, staff , 10-client, 12-affiliated,13-prospect users
                 "token":None,
                 "token_expired_at":None,                
                 "notified_by_email":0,
@@ -128,7 +134,8 @@ def member_registration():
                 "updated_at":datetime.now(),
                 "suspended_at":None,
                 "deleted_at":None,
-                'id':(total_members+1)
+                'id':(total_admins +1 if role  < 9 else total_members+1),
+                'refer_id':None
                 })
             member_id = str(members.inserted_id)
             error = 0
