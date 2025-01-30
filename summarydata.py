@@ -310,9 +310,16 @@ def get_dashboard_data(user_id:str):
 
     total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total),2)
 
-    debt_to_wealth = 0
-    if total_wealth > 0:
-        debt_to_wealth  = round((debt_total_balance * 100) / total_wealth,0)
+
+    ##debt to wealth actual calculation
+    remaining_income = total_net_income - ( debt_total_balance + bill_paid_total + total_saving )
+    saving_ratio = (total_saving / total_net_income ) * 100
+    remaining_income_ratio = ( remaining_income / total_net_income ) * 100
+
+    ##end debt to wealth actual collectin
+
+    debt_to_wealth = round(( saving_ratio * 0.5) + ( remaining_income_ratio * 0.5 ),0)
+    
 
 
     debttype_id_list = []
