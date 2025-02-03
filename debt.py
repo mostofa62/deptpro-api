@@ -216,7 +216,7 @@ def get_debt_trans(accntid:str):
         todo['year'] = matching_dicts['label']
 
         todo['billing_month_year'] = f"{todo['month']}, {todo['year']}"
-        todo['trans_date'] = todo['trans_date'].strftime('%Y-%m-%d')
+        todo['trans_date'] = todo['trans_date'].strftime('%d %b, %Y')
         todo['amount'] = round(todo['amount'],2)
         todo['previous_balance'] = round(todo['previous_balance'],2)
         todo['new_balance'] = round(todo['new_balance'],2)        
@@ -710,7 +710,7 @@ def get_dept_all(accntid:str):
         
 
         #todo['billing_month_year'] = f"{todo['month']}, {todo['year']}"
-        todo['trans_date'] = todo['trans_date'].strftime('%Y-%m-%d')
+        todo['trans_date'] = todo['trans_date'].strftime('%d %b, %Y')
         todo['amount'] = round(todo['amount'],2)
         todo['previous_balance'] = round(todo['previous_balance'],2)
         todo['new_balance'] = round(todo['new_balance'],2)        
