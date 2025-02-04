@@ -27,7 +27,8 @@ from summarydata import *
 from payoffstratagry import *
 #from datetime import datetime,timedelta
 from savingfunctions import *
-from scheduler import *
+## removing scheduler from this sytem
+##from scheduler import *
 #import logging
 from calenderdata import *
 #logging.basicConfig(filename='error.log',level=logging.DEBUG)

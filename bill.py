@@ -1,6 +1,7 @@
 import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
+from billtype import bill_type_dropdown
 from app import app
 from db import my_col,myclient
 from bson.objectid import ObjectId
@@ -69,7 +70,7 @@ reminder_days = [
 
 
 @app.route('/api/bill-summary/<string:accntid>', methods=['GET'])
-def get_bill_summary(accntid:str):
+def get_bill_summary(accntid:str, value_return:int=0):
 
     sort_params = [
     ('due_date',-1),
@@ -95,19 +96,30 @@ def get_bill_summary(accntid:str):
     ('due_date',-1),
     ('updated_at',-1)
     ]
-    page_size = 6
+    page_size = 12
 
     cursor = bill_transactions.find(query,{
-        '_id':0,
-        'amount':1
+        'amount': 1,
+        '_id':0        
+        
         }).sort(sort_params).limit(page_size)
 
     monthTransaction = list(cursor)
+    #data_json = MongoJSONEncoder().encode(monthTransaction)
+    #monthTransaction = json.loads(data_json)
 
-    return jsonify({
-        "currentBalance":billaccounts['current_amount'],
-        "monthTransaction":monthTransaction,        
-    })
+    #print('monthTransaction',monthTransaction)
+
+    if value_return > 0:
+        return({
+            "currentBalance":billaccounts['current_amount'],
+            "monthTransaction":monthTransaction,        
+        })
+    else:
+        return jsonify({
+            "currentBalance":billaccounts['current_amount'],
+            "monthTransaction":monthTransaction,        
+        })
 
 @app.route('/api/billutils',methods=['GET'])
 def get_bill_utils():
@@ -124,8 +136,12 @@ def get_bill(accntid:str):
 
     billaccounts = bill_accounts.find_one(
         {"_id":ObjectId(accntid)},
-        {"_id":0,'user_id':0,'latest_transaction_id':0}
+        {"_id":0,'latest_transaction_id':0}
         )
+    
+    user_id = billaccounts['user_id']
+
+    del billaccounts['user_id']
     
     bill_type = my_col('bill_type').find_one(
         {"_id":billaccounts['bill_type']['value']},
@@ -168,13 +184,21 @@ def get_bill(accntid:str):
         'label':matching_dicts['label']
     }
     
+    bill_types = bill_type_dropdown(user_id,1)
+
+    bill_summary = get_bill_summary(accntid,1)
+
+    #print('bill_summary',bill_summary)
+    
 
 
     return jsonify({
         "billaccounts":billaccounts,
         # "repeat_count":repeat_count,
         "repeat_frequency":repeat_frequency,
-        "reminder_days":reminder_days
+        "reminder_days":reminder_days,
+        "bill_types":bill_types,
+        "bill_summary":bill_summary
     })
 
 

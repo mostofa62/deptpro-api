@@ -11,7 +11,7 @@ from datetime import datetime,timedelta
 
 
 @app.route("/api/billtype-dropdown/<string:user_id>", methods=['GET'])
-def bill_type_dropdown(user_id:str):
+def bill_type_dropdown(user_id:str,value_return:int=0):
     sort_params = [('order', 1)]  # Sort by the 'order' field in ascending order
     cursor = my_col('bill_type').find(
         {
@@ -74,8 +74,11 @@ def bill_type_dropdown(user_id:str):
     # Combine the sorted optgroups and sorted standalone options
     result = sorted_grouped_categories + sorted_standalone_options
 
-    return jsonify({
-        "list":result
-    })
+    if value_return > 0:
+        return result
+    else:
+        return jsonify({
+            "list":result
+        })
 
 
