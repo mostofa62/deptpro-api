@@ -2,19 +2,39 @@ import os
 from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col,myclient
+from db import my_col,myclient, mydb
 from bson.objectid import ObjectId
 from bson.json_util import dumps
 import re
 from util import *
 from datetime import datetime,timedelta
 from billextra import extra_type
-
+import pprint
 
 client = myclient
 bill_accounts = my_col('bill_accounts')
 bill_transactions = my_col('bill_transactions')
 bill_payment = my_col('bill_payment')
+
+@app.route('/api/bill-payments/<string:tranid>', methods=['GET'])
+def get_bill_trans_payments(tranid:str):
+
+    cursor = bill_payment.find({
+            'bill_trans_id':ObjectId(tranid),            
+            'deleted_at':None
+            },{
+                '_id':0,
+                'amount':1,
+                'pay_date':1
+            }).sort([
+           ('pay_date',-1) 
+        ])
+    
+
+    payments = list(cursor)
+    return jsonify({
+        'payments': payments    
+    })
 
 @app.route('/api/bill-trans/<string:accntid>', methods=['POST'])
 def get_bill_trans(accntid:str):
@@ -32,20 +52,27 @@ def get_bill_trans(accntid:str):
         "deleted_at":None
     }
 
+    
+    
     sort_params = [
     #('due_date',-1),
     ('created_at',-1)
     ]
+    
+
+    
 
     cursor = bill_transactions.find(query).sort(sort_params).skip(page_index * page_size).limit(page_size)
+    data_list = list(cursor)
+    '''
     data_list = []
     
     for todo in cursor:
         #print(todo)
         todo['due_date_word'] = todo['due_date'].strftime('%B %d, %Y')
         todo['due_date'] = todo['due_date'].strftime('%Y-%m-%d')
-        print(todo['_id'])
-
+        #print(todo['_id'])
+        
         payments = []
         bill_payment_data = bill_payment.find({
             'bill_trans_id':todo['_id'],            
@@ -62,6 +89,70 @@ def get_bill_trans(accntid:str):
         todo['payments'] = payments        
         data_list.append(todo)
 
+    '''
+
+    
+    '''
+    sort_params = {"created_at": -1}
+
+    pipeline = [
+    {"$match": query},
+    {"$sort": sort_params},
+    {"$skip": page_index * page_size},
+    {"$limit": page_size},
+    {
+        "$lookup": {
+            "from": "bill_payment",
+            "localField": "_id",
+            "foreignField": "bill_trans_id",
+            "pipeline": [
+                {"$match": {"deleted_at": None}},
+                {"$sort": {"pay_date": -1}},
+                {
+                    "$project": {
+                        "_id": 1,
+                        "amount": 1,
+                        "pay_date": 1,
+                        "pay_date_word": {
+                            "$dateToString": {
+                                "format": "%Y-%m-%d",
+                                "date": "$pay_date"
+                            }
+                        }
+                    }
+                }
+            ],
+            "as": "payments"
+        }
+    },
+    {
+        "$addFields": {
+            "due_date_word": {
+                "$dateToString": {
+                    "format": "%Y-%m-%d",
+                    "date": "$due_date"
+                }
+            },
+            "due_date": {
+                "$dateToString": {
+                    "format": "%Y-%m-%d",
+                    "date": "$due_date"
+                }
+            }
+        }
+    }
+]
+    # ✅ Run aggregation explain using db.command()
+    #explain_result = mydb.command("aggregate", "bill_transactions", pipeline=pipeline, explain=True)
+
+    # ✅ Print execution plan
+    #pprint.pprint(explain_result)
+    # Convert the BSON explain result to a JSON-serializable format
+    #explain_json = dumps(explain_result)
+    
+    data_list = list(bill_transactions.aggregate(pipeline))
+    '''
+
     total_count = bill_transactions.count_documents(query)
     #data_list = list(cursor)
     data_json = MongoJSONEncoder().encode(data_list)
@@ -73,7 +164,8 @@ def get_bill_trans(accntid:str):
     return jsonify({
         'rows': data_obj,
         'pageCount': total_pages,
-        'totalRows': total_count
+        'totalRows': total_count,
+        #'explain': explain_json 
     })
 
 

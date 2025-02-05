@@ -71,11 +71,7 @@ reminder_days = [
 
 @app.route('/api/bill-summary/<string:accntid>', methods=['GET'])
 def get_bill_summary(accntid:str, value_return:int=0):
-
-    sort_params = [
-    ('due_date',-1),
-    ('updated_at',-1)
-    ]
+    
 
     billaccounts = bill_accounts.find_one(
         {"_id":ObjectId(accntid)},
@@ -99,7 +95,7 @@ def get_bill_summary(accntid:str, value_return:int=0):
     page_size = 12
 
     cursor = bill_transactions.find(query,{
-        'amount': 1,
+        'amount': 1,        
         '_id':0        
         
         }).sort(sort_params).limit(page_size)
@@ -108,7 +104,7 @@ def get_bill_summary(accntid:str, value_return:int=0):
     #data_json = MongoJSONEncoder().encode(monthTransaction)
     #monthTransaction = json.loads(data_json)
 
-    #print('monthTransaction',monthTransaction)
+    print('monthTransaction',monthTransaction)
 
     if value_return > 0:
         return({
@@ -186,7 +182,7 @@ def get_bill(accntid:str):
     
     bill_types = bill_type_dropdown(user_id,1)
 
-    bill_summary = get_bill_summary(accntid,1)
+    #bill_summary = get_bill_summary(accntid,1)
 
     #print('bill_summary',bill_summary)
     
@@ -198,7 +194,7 @@ def get_bill(accntid:str):
         "repeat_frequency":repeat_frequency,
         "reminder_days":reminder_days,
         "bill_types":bill_types,
-        "bill_summary":bill_summary
+        "current_balance":billaccounts['current_amount']
     })
 
 

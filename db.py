@@ -34,3 +34,41 @@ except Exception as e:
 
 def my_col(name):
     return mydb[name]
+
+
+def ensure_index(collection, index_fields, unique=False):
+    """ Create an index only if it does not exist """
+    collection_name = collection.name  # Get the collection name
+    existing_indexes = [idx["key"] for idx in collection.list_indexes()]
+    index_tuple = dict(index_fields)
+
+    if index_tuple not in existing_indexes:
+        collection.create_index(index_fields, unique=unique)
+        print(f"[{collection_name}] Index created: {index_fields}")
+    else:
+        print(f"[{collection_name}] Index already exists: {index_fields}")
+
+# Create indexes for all collections
+print('...creating indexes...')
+
+# Unique indexes
+ensure_index(my_col('users'), [("email", 1)], unique=True)
+ensure_index(my_col('user_settings'), [("user_id", 1)], unique=True)
+ensure_index(my_col('app_data'), [("user_id", 1)], unique=True)
+
+# Heavy indexes for bill_transactions
+ensure_index(my_col('bill_transactions'), [("bill_acc_id", 1), ("type", 1), ("deleted_at", 1), ("created_at", -1)])
+ensure_index(my_col('bill_transactions'), [("user_id", 1), ("deleted_at", 1)])
+ensure_index(my_col('bill_transactions'), [("latest_payment_id", 1)])
+
+ensure_index(my_col('bill_transactions'), [("bill_acc_id", 1),("deleted_at", 1), ("due_date", -1), ("updated_at", -1)])
+
+# Indexes for bill_payment
+ensure_index(my_col('bill_payment'), [("bill_trans_id", 1)])
+ensure_index(my_col('bill_payment'), [("bill_trans_id", 1), ("pay_date", -1),("deleted_at", 1)])
+ensure_index(my_col('bill_payment'), [("bill_account_id", 1)])
+
+
+
+print('...finished creating indexes...')
+
