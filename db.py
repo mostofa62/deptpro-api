@@ -48,27 +48,55 @@ def ensure_index(collection, index_fields, unique=False):
     else:
         print(f"[{collection_name}] Index already exists: {index_fields}")
 
-# Create indexes for all collections
-print('...creating indexes...')
 
-# Unique indexes
-ensure_index(my_col('users'), [("email", 1)], unique=True)
-ensure_index(my_col('user_settings'), [("user_id", 1)], unique=True)
-ensure_index(my_col('app_data'), [("user_id", 1)], unique=True)
+def create_index_for_all():
+    # Create indexes for all collections
+    print('...creating indexes...')
 
-# Heavy indexes for bill_transactions
-ensure_index(my_col('bill_transactions'), [("bill_acc_id", 1), ("type", 1), ("deleted_at", 1), ("created_at", -1)])
-ensure_index(my_col('bill_transactions'), [("user_id", 1), ("deleted_at", 1)])
-ensure_index(my_col('bill_transactions'), [("latest_payment_id", 1)])
+    # Unique indexes
+    ensure_index(my_col('users'), [("email", 1)], unique=True)
+    ensure_index(my_col('user_settings'), [("user_id", 1)], unique=True)
+    ensure_index(my_col('app_data'), [("user_id", 1)], unique=True)
 
-ensure_index(my_col('bill_transactions'), [("bill_acc_id", 1),("deleted_at", 1), ("due_date", -1), ("updated_at", -1)])
+    # Heavy indexes for bill_transactions
+    ensure_index(my_col('bill_transactions'), [("bill_acc_id", 1), ("type", 1), ("deleted_at", 1), ("created_at", -1)])
+    ensure_index(my_col('bill_transactions'), [("user_id", 1), ("deleted_at", 1)])
+    ensure_index(my_col('bill_transactions'), [("latest_payment_id", 1)])
 
-# Indexes for bill_payment
-ensure_index(my_col('bill_payment'), [("bill_trans_id", 1)])
-ensure_index(my_col('bill_payment'), [("bill_trans_id", 1), ("pay_date", -1),("deleted_at", 1)])
-ensure_index(my_col('bill_payment'), [("bill_account_id", 1)])
+    ensure_index(my_col('bill_transactions'), [("bill_acc_id", 1),("deleted_at", 1), ("due_date", -1), ("updated_at", -1)])
+
+    # Indexes for bill_payment
+    ensure_index(my_col('bill_payment'), [("bill_trans_id", 1)])
+    ensure_index(my_col('bill_payment'), [("bill_trans_id", 1), ("pay_date", -1),("deleted_at", 1)])
+    ensure_index(my_col('bill_payment'), [("bill_account_id", 1)])
 
 
+    # Index for Income
+    ensure_index(my_col('income'), [("deleted_at", 1),("closed_at", 1)])
+    ensure_index(my_col('income_boost'), [
+        ("income.value", 1),
+        ("deleted_at", 1),
+        ("closed_at", 1),
+        ("repeat_boost.value", 1),
+        ("income_boost", 1)  # Helps `$sum` aggregation
+    ])
+    ensure_index(my_col('income_transactions'),[
+        ("income_id", 1),
+        ("deleted_at", 1),
+        ("closed_at", 1),
+        ("pay_date", 1),
+        ("base_input_boost", 1),  # Used in $sum
+        ("month_word", 1),  # Used in $group and $project
+        ("month", 1)  # Used in $group
+    ])
 
-print('...finished creating indexes...')
+    ensure_index(my_col('income_transactions'),[
+        ("income_id", 1), 
+        ("income_boost_id", 1), 
+        ("deleted_at", 1), 
+        ("closed_at", 1)
+    ])
+
+
+    print('...finished creating indexes...')
 

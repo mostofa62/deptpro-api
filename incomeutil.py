@@ -378,7 +378,7 @@ def generate_new_transaction_data_for_future_income_v1(
         days_left_in_month = (end_of_month - current_date).days + 1
         num_periods = days_left_in_month // frequency
 
-        print('days_left_in_month',end_of_month.strftime("%Y-%m"),days_left_in_month)
+        #print('days_left_in_month',end_of_month.strftime("%Y-%m"),days_left_in_month)
 
         # Add recurring income for each period within the current month
         monthly_gross_total += gross_input * num_periods
@@ -437,12 +437,12 @@ def calculate_breakdown_future(
         income_boost_gross = None 
         income_boost_net = None
         if month_string == income_boost_date:
-                print('month==saving_boost',month_string,income_boost_date)
+                #print('month==saving_boost',month_string,income_boost_date)
                 #print(contribution, balance)
                 income_boost_gross = income_boost + gross_input
                 income_boost_net = income_boost + net_input
         #     #balance += saving_boost
-                print('income_boost_gross, income_boost_net',income_boost_gross,income_boost_net)
+                #print('income_boost_gross, income_boost_net',income_boost_gross,income_boost_net)
         else:
             income_boost_gross = None 
             income_boost_net = None

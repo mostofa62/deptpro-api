@@ -629,7 +629,7 @@ async def save_income_boost():
                                         message = 'Income boost added Succefull'
                                         session.commit_transaction()
                                 else:
-                                        message = 'Income boost added Succefull' 
+                                        message = 'Income boost addition Failed' 
                                         session.abort_transaction() 
 
                             

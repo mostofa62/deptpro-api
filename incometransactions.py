@@ -53,7 +53,7 @@ def income_transactions_next_function(todo):
         total_repeat_boost = result_boost[0]['total_repeat_boost'] if result_boost else 0
         total_income_boost = result_boost[0]['total_income_boost'] if result_boost else 0
 
-        print('total_repeat_boost, total_income_boost',total_repeat_boost, total_income_boost)
+        #print('total_repeat_boost, total_income_boost',total_repeat_boost, total_income_boost)
 
         total_gross_income = todo['total_gross_income']
         total_net_income = todo['total_net_income']
@@ -87,7 +87,7 @@ def income_transactions_next_function(todo):
 
         total_income_boost_onetime = result_boost_onetime[0]['total_income_boost'] if result_boost_onetime else None
 
-        print('total_income_boost_onetime',total_income_boost_onetime)
+        #print('total_income_boost_onetime',total_income_boost_onetime)
         #print(total_balance, contribution)
 
         #total_balance = todo['total_balance']
