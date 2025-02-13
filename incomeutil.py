@@ -507,7 +507,9 @@ def calculate_breakdown_future(
             months_breakdown  = max_balance_per_month
 
     return ({
-        'breakdown':months_breakdown
+        'breakdown':months_breakdown,
+        'gross_total':gross_income,
+        'net_total':net_income
     })
 
 def generate_unique_id(month):

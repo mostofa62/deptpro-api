@@ -182,22 +182,22 @@ def member_login_pg():
     ).first()
 
     if not user:
-        return jsonify({"message": "Member not found!", "login_status": 0}), 404
+        return jsonify({"user":None,"message": "Member not found!", "login_status": 0}), 200
 
     # Check if account is suspended or deleted
     if user.suspended_at:
-        return jsonify({"message": "Your account is suspended!", "login_status": 2}), 403
+        return jsonify({"user":None,"message": "Your account is suspended!", "login_status": 2}), 200
 
     if user.deleted_at:
-        return jsonify({"message": "Your account is removed!", "login_status": 3}), 403
+        return jsonify({"user":None,"message": "Your account is removed!", "login_status": 3}), 200
 
     # Role-based access restriction
     if user.role < 10:
-        return jsonify({"message": "You are not allowed here!", "login_status": 5}), 403
+        return jsonify({"user":None,"message": "You are not allowed here!", "login_status": 5}), 200
 
     # Verify plain-text password
     if user.password != password:
-        return jsonify({"message": "Maybe you forgot your password!", "login_status": 4}), 401
+        return jsonify({"user":None,"password":None,"message": "Maybe you forgot your password!", "login_status": 4}), 200
 
     # Generate JWT Token
     token_and_expiration = get_token_and_expiration({"user_id": user.id, "email": user.email})
@@ -275,22 +275,22 @@ def admin_login_pg():
     ).first()
 
     if not user:
-        return jsonify({"message": "Member not found!", "login_status": 0}), 404
+        return jsonify({"user":None,"message": "Member not found!", "login_status": 0}), 200
 
     # Check if account is suspended or deleted
     if user.suspended_at:
-        return jsonify({"message": "Your account is suspended!", "login_status": 2}), 403
+        return jsonify({"user":None,"message": "Your account is suspended!", "login_status": 2}), 200
 
     if user.deleted_at:
-        return jsonify({"message": "Your account is removed!", "login_status": 3}), 403
+        return jsonify({"user":None,"message": "Your account is removed!", "login_status": 3}), 200
 
     # Role-based access restriction
-    if user.role >= 10:
-        return jsonify({"message": "You are not allowed here!", "login_status": 5}), 403
+    if user.role < 10:
+        return jsonify({"user":None,"message": "You are not allowed here!", "login_status": 5}), 200
 
     # Verify plain-text password
     if user.password != password:
-        return jsonify({"message": "Maybe you forgot your password!", "login_status": 4}), 401
+        return jsonify({"user":None,"password":None,"message": "Maybe you forgot your password!", "login_status": 4}), 200
 
     # Generate JWT Token
     token_and_expiration = get_token_and_expiration({"user_id": user.id, "email": user.email})

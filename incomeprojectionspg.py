@@ -25,115 +25,15 @@ income_monthly_log = my_col('income_monthly_log')
 income_boost_monthly_log = my_col('income_boost_monthly_log')
 app_data = my_col('app_data')
 
-'''
-def income_transactions_next_function(todo):
 
-        
-        pipeline_boost = [
-        {
-            '$match': {
-                'income.value': todo['_id'],
-                'deleted_at':None,
-                'closed_at':None,
-                'repeat_boost.value': {'$gt': 0}
-            }
-            },
-            {
-                '$group': {
-                    '_id': None,
-                    'total_repeat_boost': {'$sum': '$repeat_boost.value'},
-                    'total_income_boost': {
-                        '$sum': '$income_boost'
-                    }
-                }
-            }
-        ]
-
-        # Execute the aggregation
-        result_boost = list(income_boost.aggregate(pipeline_boost))
-
-        # Get the sums if any results found
-        total_repeat_boost = result_boost[0]['total_repeat_boost'] if result_boost else 0
-        total_income_boost = result_boost[0]['total_income_boost'] if result_boost else 0
-
-        #print('total_repeat_boost, total_income_boost',total_repeat_boost, total_income_boost)
-
-        total_gross_income = todo['total_gross_income']
-        total_net_income = todo['total_net_income']
-
-        gross_income = todo['gross_income']
-        net_income = todo['net_income']
-
-
-        pipeline_boost_onetime = [
-            {
-                '$match': {
-                    'income.value': todo['_id'],
-                    'deleted_at': None,
-                    'closed_at':None,
-                    'repeat_boost.value': {'$lt': 1}
-                }
-            },
-            {
-                '$group': {
-                    '_id': None,
-                    'total_income_boost': {
-                        '$sum': '$income_boost'
-                    }
-                }
-            }
-        ]
-
-
-        # Execute the aggregation
-        result_boost_onetime = list(income_boost.aggregate(pipeline_boost_onetime))
-
-        total_income_boost_onetime = result_boost_onetime[0]['total_income_boost'] if result_boost_onetime else None
-
-        #print('total_income_boost_onetime',total_income_boost_onetime)
-        #print(total_balance, contribution)
-
-        #total_balance = todo['total_balance']
-        #contribution = todo['contribution']
-        income_boost_date = todo['next_pay_date'].strftime('%Y-%m') if total_income_boost_onetime !=None else None
-
-        income_contribution_data = calculate_breakdown_future(
-
-            initial_gross_input=total_gross_income,
-            initial_net_input=total_net_income,
-            gross_input=gross_income,
-            net_input=net_income,            
-            pay_date = todo['next_pay_date'],            
-            frequency=todo['repeat']['value'],
-            income_boost=total_income_boost_onetime,
-            income_boost_date=income_boost_date,                        
-            repeat_income_boost = total_income_boost,
-            earner=todo.get('earner'),
-            earner_id=str(todo['_id'])
-        )
-
-        income_contribution = income_contribution_data['breakdown']
-
-        
-               
-
-    
-        
-
-
-        return income_contribution
-
-
-
-'''
-def process_projections(todo):
+def process_projections(todo, initial_gross_input:float=0, initial_net_input:float=0):
 
     frequency_boost = todo['frequency_boost']
     onetime_boost = todo['onetime_boost']
     income_boost_date = convertDateTostring(todo['next_pay_date'],'%Y-%m') if onetime_boost < 1 else None
     print('income_boost_date',income_boost_date)
-    total_gross_income = todo['total_gross_income']
-    total_net_income = todo['total_net_income']
+    total_gross_income = todo['total_gross_income']+initial_gross_input
+    total_net_income = todo['total_net_income']+initial_net_input
     gross_income = todo['gross_income']
     net_income = todo['net_income']
 
@@ -153,10 +53,16 @@ def process_projections(todo):
         )
 
     income_contribution = income_contribution_data['breakdown']
+    gross_total = income_contribution_data['gross_total']
+    net_total = income_contribution_data['net_total']
 
-    return income_contribution
+    return (
+        income_contribution,
+        gross_total,
+        net_total
+    )
 
-def get_projection_list(projection_list):
+def get_projection_list(projection_list,single:int=1):
 
     # Optimized dictionary to store merged results
     merged_data = defaultdict(lambda: {
@@ -167,24 +73,46 @@ def get_projection_list(projection_list):
     })
 
     # Merging logic with optimization
-    for entry in projection_list:        
-            month = entry['month']
-            merged_entry = merged_data[month]
+    if single:
+        for entry in projection_list:        
+                month = entry['month']
+                merged_entry = merged_data[month]
 
-            # Accumulate income values directly
-            merged_entry['base_gross_income'] += entry['base_gross_income']
-            merged_entry['base_net_income'] += entry['base_net_income']
-            # Append earner-specific data
-            merged_entry['earners'].append({
-                'earner': entry['earner'],
-                'earner_id': entry['earner_id'],
-                'gross_income': entry['base_gross_income'],
-                'net_income': entry['base_net_income']
-            })
+                # Accumulate income values directly
+                merged_entry['base_gross_income'] += entry['base_gross_income']
+                merged_entry['base_net_income'] += entry['base_net_income']
+                # Append earner-specific data
+                merged_entry['earners'].append({
+                    'earner': entry['earner'],
+                    'earner_id': entry['earner_id'],
+                    'gross_income': entry['base_gross_income'],
+                    'net_income': entry['base_net_income']
+                })
 
-            # Store the month word (assumes it's consistent for the same month)
-            if not merged_entry['month_word']:
-                merged_entry['month_word'] = entry['month_word']
+                # Store the month word (assumes it's consistent for the same month)
+                if not merged_entry['month_word']:
+                    merged_entry['month_word'] = entry['month_word']
+    else:
+         # Merging logic with optimization
+        for sublist in projection_list:
+            for entry in sublist:
+                month = entry['month']
+                merged_entry = merged_data[month]
+
+                # Accumulate income values directly
+                merged_entry['base_gross_income'] += entry['base_gross_income']
+                merged_entry['base_net_income'] += entry['base_net_income']
+                # Append earner-specific data
+                merged_entry['earners'].append({
+                    'earner': entry['earner'],
+                    'earner_id': entry['earner_id'],
+                    'gross_income': entry['base_gross_income'],
+                    'net_income': entry['base_net_income']
+                })
+
+                # Store the month word (assumes it's consistent for the same month)
+                if not merged_entry['month_word']:
+                    merged_entry['month_word'] = entry['month_word']
 
     # Round values during final conversion to avoid redundant operations
     result = sorted(
@@ -267,7 +195,7 @@ def income_transactions_next_pg(income_id:int):
         "onetime_boost": row.onetime_boost
     }
 
-    projection_list = process_projections(data)
+    projection_list = process_projections(data)[0]
     result = get_projection_list(projection_list)
 
     return jsonify({
@@ -324,8 +252,6 @@ def income_transactions_next_pgu(user_id:int):
     )
     
 
-  
-
     # # Get the raw SQL statement
     # raw_sql = str(query.statement.compile(dialect=db.engine.dialect))
 
@@ -334,9 +260,11 @@ def income_transactions_next_pgu(user_id:int):
 
     results = query.all()
 
-    data = []
+    projection_list = []
+    #initial_gross_input = 0
+    #initial_net_input = 0
     for row in results:
-        data.append({
+        data= {
             "id": row.id,
             "earner":row.earner,
             "gross_income": row.gross_income,
@@ -348,146 +276,21 @@ def income_transactions_next_pgu(user_id:int):
             "repeat": row.repeat,
             "frequency_boost": row.frequency_boost,
             "onetime_boost": row.onetime_boost
-        })
-
-    return jsonify(data)
-    
-'''
-
-@app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
-def income_transactions_next_pgu(user_id:int):
-
-@app.route('/api/income-transactions-next/<income_id>', methods=['GET'])
-@app.route('/api/income-transactions-next', methods=['GET'])
-def income_transactions_next_pg(income_id=None):
-    
-    cursor = None
-    
-    if income_id!=None:
-
-        cursor = income.find_one({
-            'closed_at':None,
-            'deleted_at':None,
-            '_id':ObjectId(income_id)
-        },{
-            'earner':1,
-            'gross_income':1,
-            'net_income':1,
-            'total_gross_income':1,
-            'total_net_income':1,
-            'pay_date':1,
-            'next_pay_date':1,
-            'repeat':1
-            })
-
-
-    else:
-
-        cursor = income.find({
-            'closed_at':None,
-            'deleted_at':None
-        },{
-            'earner':1,
-            'gross_income':1,
-            'net_income':1,
-            'total_gross_income':1,
-            'total_net_income':1,
-            'pay_date':1,
-            'next_pay_date':1,
-            'repeat':1
-            })
-    
-    projection_list = []
-
-    if income_id!=None:
-        
-        todo = cursor
-        income_contribution = income_transactions_next_function(todo)
-        projection_list.append(income_contribution)
-    else:
-        
-        for todo in cursor:
-            income_contribution = income_transactions_next_function(todo)
-            projection_list.append(income_contribution)
-
-    
-    #print('projection_list',projection_list)
-
+        }
+        projections = process_projections(data)
+        projection = projections[0]
+        #initial_gross_input = projections[1]
+        #initial_net_input = projections[2]
+         
+        projection_list.append(projection)
     
 
-    # Optimized dictionary to store merged results
-    merged_data = defaultdict(lambda: {
-        "base_gross_income": 0,
-        "base_net_income": 0,
-        "month_word": "",
-        "earners": []
-    })
+    result = get_projection_list(projection_list,0) if len(projection_list) > 0 else []
 
-    # Merging logic with optimization
-    for sublist in projection_list:
-        for entry in sublist:
-            month = entry['month']
-            merged_entry = merged_data[month]
-
-            # Accumulate income values directly
-            merged_entry['base_gross_income'] += entry['base_gross_income']
-            merged_entry['base_net_income'] += entry['base_net_income']
-            # Append earner-specific data
-            merged_entry['earners'].append({
-                'earner': entry['earner'],
-                'earner_id': entry['earner_id'],
-                'gross_income': entry['base_gross_income'],
-                'net_income': entry['base_net_income']
-            })
-
-            # Store the month word (assumes it's consistent for the same month)
-            if not merged_entry['month_word']:
-                merged_entry['month_word'] = entry['month_word']
-
-    # Round values during final conversion to avoid redundant operations
-    result = sorted(
-        [
-            {
-                "month": month,
-                "base_gross_income": round(data['base_gross_income'], 2),
-                "base_net_income": round(data['base_net_income'], 2),
-                "month_word": data['month_word'],
-                "earners": data['earners']
-            }
-            for month, data in merged_data.items()
-        ],
-        key=lambda x: datetime.strptime(x['month'], "%Y-%m")
-    )
-
-
-        
-
-
-    
-    
-    
     return jsonify({
-        "payLoads":{            
-            
-               #'projection_list':result,
-               #'projection_list_boost':result_boost,
+        "payLoads":{                        
                'projection_list':result
-                     
-
 
         }        
     })
-
-
-
     
-'''
-
-
-
-
-
-
-
-
-
