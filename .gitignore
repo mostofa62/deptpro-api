@@ -21,3 +21,5 @@ __pycache__/
 
 # Thumbnails
 ._*
+
+migrations/*

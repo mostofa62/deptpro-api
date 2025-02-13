@@ -11,6 +11,7 @@ import calendar
 
 JWT_SECRET = os.environ["JWT_SECRET"]
 key = JWT_SECRET
+TOKEN_EXPIRATION = os.environ["TOKEN_EXPIRATION"]
 
 class MongoJSONEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
@@ -36,6 +37,16 @@ def JWT_ENCODE(data):
 def JWT_DECODE(token):    
     decoded = jwt.decode(token, key, algorithms="HS256")
     return decoded
+
+
+def get_token_and_expiration(data):
+    token = JWT_ENCODE(data)
+    token_expired_at = datetime.now()+timedelta(minutes=datetime.now().minute+int(TOKEN_EXPIRATION))
+
+    return (token, token_expired_at)
+
+def decode_token(data):
+    return JWT_DECODE(data)
 
 # Enum for size units
 '''

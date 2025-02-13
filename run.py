@@ -4,6 +4,7 @@ from app import app
 import os
 from home import *
 from users import *
+from userspg import *
 from bill import *
 from billtype import *
 from billextra import *
@@ -32,6 +33,12 @@ from savingfunctions import *
 ##from scheduler import *
 #import logging
 from calenderdata import *
+
+from incometransactionspg import *
+from incomesourceboostpg import *
+from incomepg import *
+from incomeboostpg import *
+from incomeprojectionspg import *
 #logging.basicConfig(filename='error.log',level=logging.DEBUG)
 '''
 token_expired_at = datetime.now().minute+120
