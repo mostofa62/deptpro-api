@@ -29,6 +29,21 @@ BoostOperationType = [
     {'label':'Withdraw','value':2},
 ]
 
+ReminderDays = [
+    {'value':0, 'label':'Disabled'},
+    {'value':1, 'label':'1 days before'},
+    {'value':2, 'label':'2 days before'},
+    {'value':3, 'label':'3 days before'},
+    {'value':4, 'label':'4 days before'},
+    {'value':5, 'label':'5 days before'},
+    {'value':6, 'label':'6 days before'},
+    {'value':7, 'label':'7 days before'},
+    {'value':8, 'label':'8 days before'},
+    {'value':9, 'label':'9 days before'},
+    {'value':10, 'label':'10 days before'},    
+
+]
+
 def new_entry_option_data(data_obj: any, model_class, user_id: str) -> dict:
     """
     Function to create a new entry or return existing based on data.

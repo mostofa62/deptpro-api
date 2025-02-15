@@ -117,8 +117,8 @@ def member_registration_pg():
             total_admins = User.query.filter(User.role == 2).count()
 
             # Generate member ID and admin ID based on the role
-            memberid = f"{datetime.now().strftime('%Y%m%d%H%M%S')}{total_members + 1}" if role > 9 else None
-            adminid = f"{datetime.now().strftime('%Y%m%d%H%M%S')}{total_admins + 1}" if role < 9 else None
+            memberid = f"{datetime.now().strftime('%Y%m%d')}{total_members + 1}" if role > 9 else None
+            adminid = f"{datetime.now().strftime('%Y%m%d')}{total_admins + 1}" if role < 9 else None
             
             # Create the new user object
             new_member = User(
@@ -285,7 +285,7 @@ def admin_login_pg():
         return jsonify({"user":None,"message": "Your account is removed!", "login_status": 3}), 200
 
     # Role-based access restriction
-    if user.role < 10:
+    if user.role >= 10:
         return jsonify({"user":None,"message": "You are not allowed here!", "login_status": 5}), 200
 
     # Verify plain-text password

@@ -8,3 +8,7 @@ flask[async]==2.3.2
 pytz==2023.3.post1
 python-dateutil==2.9.0.post0
 Flask-APScheduler==1.12.4
+Flask-SQLAlchemy #if you adjust with upgarde version skip version number
+#Flask-Alembic ##only for migration
+#Flask-Migrate ##only required for migration
+psycopg2

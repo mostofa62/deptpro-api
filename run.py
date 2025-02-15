@@ -6,10 +6,13 @@ from home import *
 from users import *
 from userspg import *
 from bill import *
+from billpg import *
 from billtype import *
+from billtypepg import bill_type_dropdown_pg
 from billextra import *
 from billtransactions import *
 from billpayments import *
+from billpaymentspg import *
 from billprojection import *
 from debt import *
 from debttype import *

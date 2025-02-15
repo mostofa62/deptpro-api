@@ -244,3 +244,128 @@ class IncomeYearlyLog(db.Model):
 
     def __repr__(self):
         return f"<IncomeYearlyLog income_id={self.income_id} user_id={self.user_id} total_yearly_gross_income={self.total_yearly_gross_income} total_yearly_net_income={self.total_yearly_net_income}>"
+
+
+#BILL MODELS
+class BillType(db.Model):
+    __tablename__ = 'bill_types'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('bill_types.id'), nullable=True)
+    #parent_id = db.Column(db.Integer, nullable=True) # use this avoid conflict
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    ordering = db.Column(db.Integer, nullable=True)
+
+    parent = db.relationship('BillType', remote_side=[id], backref='children', lazy='joined')
+    user = db.relationship('User', backref='bill_types', lazy='joined')
+
+    def __repr__(self):
+        return f"<BillType(name={self.name}, parent_id={self.parent_id}, user_id={self.user_id})>"
+
+
+class BillAccounts(db.Model):
+    __tablename__ = 'bill_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    bill_type_id = db.Column(db.Integer, db.ForeignKey('bill_types.id', ondelete='SET NULL'), nullable=True)
+    payor = db.Column(db.String(100), nullable=True)
+    default_amount = db.Column(db.Float, nullable=True)
+    current_amount = db.Column(db.Float, nullable=True)
+    paid_total = db.Column(db.Float, nullable=True)
+    next_due_date = db.Column(DateTime, nullable=True)
+    repeat_frequency = db.Column(db.Integer, nullable=True)
+    reminder_days = db.Column(db.Integer, nullable=True)
+    note = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(DateTime, default=db.func.now())
+    updated_at = db.Column(DateTime, default=db.func.now(), onupdate=db.func.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    latest_transaction_id = db.Column(db.Integer, db.ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    deleted_at = db.Column(DateTime, nullable=True)
+    closed_at = db.Column(DateTime, nullable=True)
+    calender_at = db.Column(DateTime, nullable=True)
+
+    bill_type = relationship('BillType', backref='bill_accounts', lazy='joined')
+    user = relationship('User', backref='bill_accounts', lazy='joined')
+    latest_transaction = relationship(
+        'BillTransactions',
+        backref='bill_accounts',
+        lazy='joined',
+        foreign_keys=[latest_transaction_id]  # Explicitly specify the foreign key to use
+    )
+    def __repr__(self):
+        return f"<BillAccounts(name={self.name}, bill_type_id={self.bill_type_id}, payor={self.payor})>"
+
+
+
+class BillTransactions(db.Model):
+    __tablename__ = 'bill_transactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    type = db.Column(db.Integer, nullable=False)
+    payor = db.Column(db.String(100), nullable=True)
+    note = db.Column(db.String(255), nullable=True)
+    current_amount = db.Column(db.Float, nullable=True)
+    due_date = db.Column(DateTime, nullable=True)
+    created_at = db.Column(DateTime, default=db.func.now())
+    updated_at = db.Column(DateTime, default=db.func.now(), onupdate=db.func.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    bill_acc_id = db.Column(db.Integer, db.ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)    
+    payment_status = db.Column(db.Integer, nullable=True)
+    deleted_at = db.Column(DateTime, nullable=True)
+    closed_at = db.Column(DateTime, nullable=True)
+    latest_payment_id = db.Column(db.Integer, db.ForeignKey('bill_payments.id', ondelete='SET NULL'), nullable=True)
+    
+
+    bill_account = relationship(
+        'BillAccounts',
+        backref='bill_transactions',
+        lazy='joined',
+        foreign_keys=[bill_acc_id]  # Explicitly specify the foreign key to use
+    )
+    user = relationship('User', backref='bill_transactions', lazy='joined')
+    latest_payment = relationship(
+        'BillPayments', 
+        backref='bill_transactions', 
+        lazy='joined',
+        foreign_keys=[latest_payment_id]
+    )
+
+    def __repr__(self):
+        return f"<BillTransactions(amount={self.amount}, bill_acc_id={self.bill_acc_id}, payment_status={self.payment_status})>"
+
+
+
+
+class BillPayments(db.Model):
+    __tablename__ = 'bill_payments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    pay_date = db.Column(DateTime, nullable=False)
+    created_at = db.Column(DateTime, default=db.func.now())
+    updated_at = db.Column(DateTime, default=db.func.now(), onupdate=db.func.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    bill_trans_id = db.Column(db.Integer, db.ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    bill_account_id = db.Column(db.Integer, db.ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)
+    deleted_at = db.Column(DateTime, nullable=True)
+
+    bill_transaction = relationship(
+        'BillTransactions', 
+        backref='bill_payments', 
+        lazy='joined',
+        foreign_keys=[bill_trans_id]
+    )
+    user = relationship('User', backref='bill_payments', lazy='joined')
+    bill_account = relationship(
+        'BillAccounts', 
+        backref='bill_payments', 
+        lazy='joined',
+        foreign_keys=[bill_account_id]
+    )
+
+    def __repr__(self):
+        return f"<BillPayments(amount={self.amount}, bill_trans_id={self.bill_trans_id}, bill_account_id={self.bill_account_id})>"
