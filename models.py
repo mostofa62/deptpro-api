@@ -56,8 +56,8 @@ class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Relating to the users table
-    debt_payoff_method = Column(PgEnum(DebtPayOffMethod), nullable=False)  # Enum for debt payoff methods
+    user_id = Column(Integer, ForeignKey("users.id"),unique=True, nullable=False, index=True)  # Relating to the users table
+    debt_payoff_method = Column(JSON, nullable=False)  # Enum for debt payoff methods
     monthly_budget = Column(Float, nullable=True, default=0.0)  # Monthly budget for debt repayment
 
     # Relationships
@@ -71,7 +71,7 @@ class AppData(db.Model):
     __tablename__ = "app_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Foreign key to users table
+    user_id = Column(Integer, ForeignKey("users.id"),unique=True, nullable=False, index=True)  # Foreign key to users table
     total_monthly_gross_income = Column(Float, nullable=True, default=0.0)
     total_monthly_net_income = Column(Float, nullable=True, default=0.0)
     total_yearly_gross_income = Column(Float, nullable=True, default=0.0)
@@ -369,3 +369,141 @@ class BillPayments(db.Model):
 
     def __repr__(self):
         return f"<BillPayments(amount={self.amount}, bill_trans_id={self.bill_trans_id}, bill_account_id={self.bill_account_id})>"
+
+
+#DEBT modesl
+class DebtType(db.Model):
+    __tablename__ = 'debt_types'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('debt_types.id'), nullable=True)
+    #parent_id = db.Column(db.Integer, nullable=True) # use this avoid conflict
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    ordering = db.Column(db.Integer, nullable=True)
+
+    parent = db.relationship('DebtType', remote_side=[id], backref='children', lazy='joined')
+    user = db.relationship('User', backref='debt_types', lazy='joined')
+
+    def __repr__(self):
+        return f"<DebtType(name={self.name}, parent_id={self.parent_id}, user_id={self.user_id})>"
+
+
+class DebtAccounts(db.Model):
+    __tablename__ = 'debt_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    debt_type_id = db.Column(db.Integer, db.ForeignKey('debt_types.id', ondelete='SET NULL'), nullable=True)
+    payor = db.Column(db.String(100), nullable=True)
+    balance = db.Column(db.Float, nullable=True)
+    highest_balance = db.Column(db.Float, nullable=True)
+    monthly_payment = db.Column(db.Float, nullable=True)
+    credit_limit = db.Column(db.Float, nullable=True)
+    interest_rate = db.Column(db.Float, nullable=True)
+    start_date = db.Column(db.DateTime, nullable=True)
+    due_date = db.Column(db.DateTime, nullable=True)
+    monthly_interest = db.Column(db.Float, nullable=True)
+    note = db.Column(db.Text, nullable=True)
+    promo_rate = db.Column(db.Float, nullable=True)
+    deffered_interest = db.Column(db.Float, nullable=True)
+    promo_interest_rate = db.Column(db.Float, nullable=True)
+    promo_good_through_month = db.Column(db.Integer, nullable=True)
+    promo_good_through_year = db.Column(db.Integer, nullable=True)
+    promo_monthly_interest = db.Column(db.Float, nullable=True)
+    autopay = db.Column(db.Boolean, default=False)
+    inlclude_payoff = db.Column(db.Boolean, default=False)
+    payoff_order = db.Column(db.Integer, nullable=True)
+    custom_payoff_order = db.Column(db.Integer, nullable=True)
+    reminder_days = db.Column(db.Integer, nullable=True)
+    monthly_payment_option = db.Column(db.Float, nullable=True)
+    percentage = db.Column(db.Float, nullable=True)
+    lowest_payment = db.Column(db.Float, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, onupdate=datetime.now())
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    months_to_payoff = db.Column(db.Integer, nullable=True)
+    month_debt_free = db.Column(db.DateTime, nullable=True)
+    total_payment_sum = db.Column(db.Float, nullable=True)
+    total_interest_sum = db.Column(db.Float, nullable=True)
+    calender_at = db.Column(db.DateTime, nullable=True)
+
+    debt_type = db.relationship(
+        'DebtType', 
+        backref='debt_account', 
+        lazy='joined',
+        foreign_keys=[debt_type_id]
+        )
+    user = db.relationship('User', backref='debt_account', lazy='joined')
+    transactions = db.relationship('DebtTransactions', backref='debt_account', lazy=True)
+
+
+class DebtTransactions(db.Model):
+    __tablename__ = 'debt_transactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    previous_balance = db.Column(db.Float, nullable=True)
+    new_balance = db.Column(db.Float, nullable=True)
+    trans_date = db.Column(db.DateTime, nullable=True)
+    type = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=True)
+    year = db.Column(db.Integer, nullable=True)
+    autopay = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, onupdate=datetime.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    debt_acc_id = db.Column(db.Integer, db.ForeignKey('debt_accounts.id'), nullable=True)
+    payment_status = db.Column(db.Integer, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+
+    user = db.relationship('User', backref='debt_transaction', lazy='joined')
+
+    debtAccount = db.relationship(
+        'DebtAccounts', 
+        backref='debt_transaction', 
+        lazy=True,
+        foreign_keys=[debt_acc_id]
+        )
+
+
+
+class PaymentBoost(db.Model):
+    __tablename__ = 'payment_boosts'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
+    amount = db.Column(db.Float, nullable=False)  # The payment boost amount
+    pay_date_boost = db.Column(db.DateTime, nullable=False)  # The date for the boost
+    comment = db.Column(db.String(255), nullable=True)  # Optional comment field
+    month = db.Column(db.String(50), nullable=False)  # Month in string format
+    created_at = db.Column(db.DateTime, default=datetime.now())  # Automatically sets the creation date
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())  # Automatically updates on modification
+    deleted_at = db.Column(db.DateTime, nullable=True)  # Can be used for soft delete functionality
+
+    # Relationship with User
+    user = db.relationship('User', backref='payment_boosts', lazy='select')
+
+    def __repr__(self):
+        return f"<PaymentBoost(id={self.id}, user_id={self.user_id}, amount={self.amount}, pay_date_boost={self.pay_date_boost}, month={self.month}, created_at={self.created_at}, updated_at={self.updated_at}, deleted_at={self.deleted_at})>"
+
+
+
+class PayoffStrategy(db.Model):
+    __tablename__ = 'payoff_strategies'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
+    debt_payoff_method = db.Column(JSON, nullable=False)  # Storing method as JSON (value, label)
+    selected_month = db.Column(JSON, nullable=False)  # Storing selected month as JSON (value, label)
+    monthly_budget = db.Column(db.Integer, nullable=False)
+
+    # Relationship to Users with lazy loading
+    user = db.relationship('User', backref='payoff_strategies', lazy='select')
+
+    def __repr__(self):
+        return f"<PayoffStrategy(id={self.id}, user_id={self.user_id}, debt_payoff_method={self.debt_payoff_method}, selected_month={self.selected_month}, monthly_budget={self.monthly_budget})>"

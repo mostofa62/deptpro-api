@@ -1,22 +1,27 @@
 import os
 from flask import Flask,request,jsonify, json
 from sqlalchemy import or_
+#from flask_cors import CORS, cross_origin
 from app import app
+from db import my_col,myclient
+from bson.objectid import ObjectId
+from bson.json_util import dumps
+import re
 from util import *
 from datetime import datetime,timedelta
+from models import DebtType
 from dbpg import db
-from models import BillType
-from pgutils import RepeatFrequency, ReminderDays
 
-@app.route("/api/billtype-dropdownpg/<int:user_id>", methods=['GET'])
-def bill_type_dropdown_pg(user_id: int, value_return: int = 0):
+@app.route("/api/debttype-dropdownpg/<int:user_id>", methods=['GET'])
+def debt_type_dropdown_pg(user_id:int, value_return:int=0):
+
     # Query BillType with filtering for deleted records, user_id, and sorting by ordering
-    query = db.session.query(BillType.id, BillType.name, BillType.parent_id, BillType.ordering).filter(
-        BillType.deleted_at.is_(None),
+    query = db.session.query(DebtType.id, DebtType.name, DebtType.parent_id, DebtType.ordering).filter(
+        DebtType.deleted_at.is_(None),        
         or_(
-            BillType.user_id.in_([user_id]),  # Check for the specific user_id
-            BillType.user_id.is_(None)         # Check for NULL (None) user_id
-        )        
+            DebtType.user_id.in_([user_id]),  # Check for the specific user_id
+            DebtType.user_id.is_(None)         # Check for NULL (None) user_id
+        )
     ).all()
 
     # Organize categories into parent-child hierarchical structure
@@ -91,10 +96,7 @@ def bill_type_dropdown_pg(user_id: int, value_return: int = 0):
     if value_return > 0:
         return result
     else:
-        return jsonify({
-            "payLoads":{
-            "bill_types": result,
-            "repeat_frequency":RepeatFrequency,
-            "reminder_days":ReminderDays
-            }
-        })
+       return jsonify({
+        "list":result
+    })
+   

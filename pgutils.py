@@ -1,4 +1,5 @@
 
+from datetime import datetime
 from dbpg import db
 from sqlalchemy.exc import IntegrityError
 
@@ -42,6 +43,42 @@ ReminderDays = [
     {'value':9, 'label':'9 days before'},
     {'value':10, 'label':'10 days before'},    
 
+]
+
+ExtraType = [   
+    {'value':1, 'label':'Bill Purchase'},
+    {'value':2, 'label':'Withdrawl'},
+    
+
+]
+
+PayoffOrder = [
+    {'value':0, 'label':'0'},
+    {'value':1, 'label':'1'}    
+
+]
+
+TransactionType = [
+    {'value':0, 'label':'None'},
+    {'value':1, 'label':'Payment'},
+    {'value':2, 'label':'Purchase'}    
+
+]
+
+TransactionMonth = [
+    {'value': i, 'label': month}
+    for i, month in enumerate([
+        'January', 'February', 'March', 'April', 'May', 'June', 
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ], start=1)
+]
+
+PreviousYear = datetime.now().year - 1
+YearRange = 12
+
+TransactionYear = [
+    {'value': year, 'label': str(year)}
+    for year in range(PreviousYear, PreviousYear + YearRange + 1)
 ]
 
 def new_entry_option_data(data_obj: any, model_class, user_id: str) -> dict:

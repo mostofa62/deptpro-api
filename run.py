@@ -10,14 +10,23 @@ from billpg import *
 from billtype import *
 from billtypepg import bill_type_dropdown_pg
 from billextra import *
+from billextrapg import *
 from billtransactions import *
+from billtransactionspg import *
 from billpayments import *
 from billpaymentspg import *
 from billprojection import *
+from billprojectionpg import *
 from debt import *
+from debtpg import *
+from debtransactionspg import *
 from debttype import *
+from debttypepg import *
 from debtpayoff import *
+from debtpayoffpg import *
 from debtusersetting import *
+from debtusersettingpg import *
+from debtprojectionpg import debt_projection_pg
 from ammortization import *
 
 from income import *
@@ -28,8 +37,10 @@ from savings import *
 from savingboost import *
 from savingcontributions import *
 from paymentboost import *
+from paymentboostpg import *
 from summarydata import *
 from payoffstratagry import *
+from payoffstratagrypg import *
 #from datetime import datetime,timedelta
 from savingfunctions import *
 ## removing scheduler from this sytem

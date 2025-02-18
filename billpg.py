@@ -39,10 +39,11 @@ def list_bills_pg(user_id: int):
         bill_types_subquery_stmt = select(BillType.id).where(
             BillType.name.ilike(f"%{global_filter}%")
         )
-        
-        try:
+        pattern_str = r'^\d{4}-\d{2}-\d{2}$'
+        next_due_date = None
+        if re.match(pattern_str, global_filter):
             next_due_date = convertStringTodate(global_filter)
-        except ValueError:
+        else:
             next_due_date = None
 
         query = query.filter(or_(
@@ -82,7 +83,7 @@ def list_bills_pg(user_id: int):
         repeat_frequency = matching_dict['label'] if matching_dict else None
 
         matching_dict = next(
-            (item for item in ReminderDays if item['value'] == bill.repeat_frequency),
+            (item for item in ReminderDays if item['value'] == bill.reminder_days),
             None
         )
         reminder_days = matching_dict['label'] if matching_dict else None
@@ -356,21 +357,23 @@ def get_bill_pg(accntid:int):
     key_to_search = 'value'
     value_to_search = bill_account.repeat_frequency
     matching_dicts = next((dictionary for dictionary in RepeatFrequency if dictionary.get(key_to_search) == value_to_search),None)    
+
+    if matching_dicts:
     
-    billaccounts['repeat_frequency'] = {
-        'value':value_to_search,
-        'label':matching_dicts['label']
-    }    
+        billaccounts['repeat_frequency'] = {
+            'value':value_to_search,
+            'label':matching_dicts['label']
+        }    
 
 
     key_to_search = 'value'
     value_to_search = bill_account.reminder_days
     matching_dicts = next((dictionary for dictionary in ReminderDays if dictionary.get(key_to_search) == value_to_search),None)    
-    
-    billaccounts['reminder_days'] = {
-        'value':value_to_search,
-        'label':matching_dicts['label']
-    }
+    if matching_dicts:
+        billaccounts['reminder_days'] = {
+            'value':value_to_search,
+            'label':matching_dicts['label']
+        }
 
     
     
@@ -385,3 +388,51 @@ def get_bill_pg(accntid:int):
         "bill_types":bill_types,
         "current_balance":billaccounts['current_amount']
     })
+
+
+
+
+
+@app.route('/api/delete-billpg', methods=['POST'])
+def delete_bill_pg():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+
+        bill_account_id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
+
+        message = None
+        error = 0
+        deleted_done = 0
+
+        try:
+            # Get the bill account object by ID
+            bill_account = BillAccounts.query.filter_by(id=bill_account_id).first()
+
+            if not bill_account:
+                message = f'Bill account {action} Failed: Account not found'
+                error = 1
+                deleted_done = 0
+            else:
+                # Update the appropriate field based on the 'key'
+                setattr(bill_account, field, datetime.now())
+                db.session.commit()  # Commit the changes to the database
+
+                message = f'Bill account {action} Successfully'
+                deleted_done = 1
+
+        except Exception as ex:
+            print('Bill account Save Exception: ', ex)
+            message = f'Bill account {action} Failed'
+            error = 1
+            deleted_done = 0
+            db.session.rollback()  # Rollback the transaction in case of error
+
+        return jsonify({
+            "bill_account_id": bill_account_id if bill_account else None,
+            "message": message,
+            "error": error,
+            "deleted_done": deleted_done
+        })
