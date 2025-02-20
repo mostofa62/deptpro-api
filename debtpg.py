@@ -19,6 +19,80 @@ from sqlalchemy import func, or_, select
 from models import db, DebtAccounts, DebtType
 from sqlalchemy.orm import joinedload
 
+
+@app.route('/api/debt-allpg/<int:accntid>', methods=['GET'])
+def get_dept_all_pg(accntid:int):
+
+    debt_account = (
+        db.session.query(DebtAccounts)
+        .options(
+            joinedload(DebtAccounts.debt_type).joinedload(DebtType.parent)
+        )
+        .filter(DebtAccounts.id == accntid, DebtAccounts.deleted_at.is_(None))
+        .first()
+    )    
+
+    debtaccounts = {
+        "name": debt_account.name,
+        "payor":debt_account.payor,        
+        "note":debt_account.note        
+    }
+
+    debt_type = debt_account.debt_type
+    if debt_type:            
+        debtaccounts['debt_type']= debt_type.name
+     
+        
+    debtaccounts['due_date_word'] = convertDateTostring(debt_account.due_date)
+    debtaccounts['due_date'] = convertDateTostring(debt_account.due_date,'%Y-%m-%d')
+    debtaccounts['start_date_word'] = convertDateTostring(debt_account.start_date)
+    debtaccounts['start_date'] = convertDateTostring(debt_account.start_date,'%Y-%m-%d')
+    
+
+    key_to_search = 'value'
+    value_to_search = int(debt_account.payoff_order)
+    matching_dicts = next((dictionary for dictionary in PayoffOrder if dictionary.get(key_to_search) == value_to_search),None)    
+
+    if matching_dicts:
+        debtaccounts['payoff_order'] = matching_dicts['label']
+
+    debtaccounts['balance'] = round(debt_account.balance,2)
+    debtaccounts['highest_balance'] = round(debt_account.highest_balance,2)   
+    debtaccounts['monthly_payment'] = round(debt_account.monthly_payment,2)
+    debtaccounts['interest_rate'] = round(debt_account.interest_rate,2)
+    debtaccounts['credit_limit'] = round(debt_account.credit_limit,2)
+    debtaccounts['monthly_interest'] = round(debt_account.monthly_interest,2)
+    
+
+
+    key_to_search = 'value'
+    value_to_search = int(debt_account.reminder_days)
+    matching_dicts = next((dictionary for dictionary in ReminderDays if dictionary.get(key_to_search) == value_to_search),None)    
+    if matching_dicts:
+        debtaccounts['reminder_days'] = matching_dicts['label']
+
+    debtaccounts['autopay'] = 'Yes'  if debt_account.autopay > 0 else 'No'
+    debtaccounts['inlclude_payoff'] = 'Yes'  if debt_account.inlclude_payoff > 0 else 'No'
+    
+    paid_off_percentage = calculate_paid_off_percentage(debtaccounts['highest_balance'], debtaccounts['balance'])
+    left_to_go = round(float(100) - float(paid_off_percentage),1)
+
+    twelve_months_ago = datetime.now() - timedelta(days=365)
+
+    
+    
+
+    return jsonify({
+        "payLoads":{
+            "debtaccounts":debtaccounts,
+            "debttrasactions":[],        
+            "left_to_go":left_to_go,
+            "paid_off_percentage":paid_off_percentage            
+        }        
+    })
+
+
+
 @app.route('/api/debt-transaction-dropdownpg', methods=['GET'])
 def get_debt_transaction_dropdown_pg():
 

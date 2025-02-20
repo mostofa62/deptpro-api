@@ -3,27 +3,15 @@ import os
 from flask import Flask,request,jsonify, json
 from sqlalchemy import Integer, case, cast, func
 #from flask_cors import CORS, cross_origin
-from models import Income, IncomeBoost, IncomeMonthlyLog, IncomeSourceType, IncomeTransaction
-from incomeutil import calculate_breakdown_future,generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_future_income_v1, generate_new_transaction_data_for_income, generate_unique_id
+from models import Income, IncomeBoost
+from incomeutil import calculate_breakdown_future
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
-import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
+from datetime import datetime
 from dbpg import db
 from sqlalchemy.orm import aliased
 
-client = myclient
-collection = my_col('income_transactions')
-income = my_col('income')
-income_boost = my_col('income_boost')
-income_boost_transaction = my_col('income_boost_transactions')
-income_monthly_log = my_col('income_monthly_log')
-income_boost_monthly_log = my_col('income_boost_monthly_log')
-app_data = my_col('app_data')
+
 
 
 def process_projections(todo, initial_gross_input:float=0, initial_net_input:float=0):

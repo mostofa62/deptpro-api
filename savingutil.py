@@ -366,11 +366,11 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
     #less then current date
     current_datetime_now = datetime.now()
 
-    print('balance check',balance)
+    #print('balance check',balance)
 
     if next_contribution_date >= current_datetime_now and balance:
 
-        print('next and current and goal_amount',next_contribution_date,current_datetime_now, goal_amount)
+        #print('next and current and goal_amount',next_contribution_date,current_datetime_now, goal_amount)
     
         while balance < goal_amount:            
             
@@ -378,21 +378,21 @@ def calculate_breakdown_future(initial_amount, contribution, annual_interest_rat
             # print('contribution',contribution)
             month_string = current_date.strftime('%Y-%m')
 
-            print('month string',month_string,saving_boost_date)
+            #print('month string',month_string,saving_boost_date)
             
            
             saving_boost_contribution = None 
             if month_string == saving_boost_date:
-                 print('month==saving_boost',month_string,saving_boost_date)
+                 #print('month==saving_boost',month_string,saving_boost_date)
                  #print(contribution, balance)
                  saving_boost_contribution = saving_boost + contribution
             #     #balance += saving_boost
-                 print('saving_boost_contribution',saving_boost_contribution)
+                 #print('saving_boost_contribution',saving_boost_contribution)
             else:
                 saving_boost_contribution = None
            
 
-            print('repeat_saving_boost',repeat_saving_boost)
+            #print('repeat_saving_boost',repeat_saving_boost)
             
             # Calculate next contribution date
             next_contribution_date = current_date + delta

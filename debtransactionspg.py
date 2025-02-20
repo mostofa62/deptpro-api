@@ -32,6 +32,8 @@ def get_debt_trans_pg(accntid:int):
 
     # Construct SQLAlchemy filter query
 
+    
+    '''
     query = DebtTransactions.query.with_entities(
         DebtTransactions.id,
         DebtTransactions.amount, 
@@ -45,6 +47,23 @@ def get_debt_trans_pg(accntid:int):
         DebtTransactions.debt_acc_id == accntid,
         DebtAccounts.deleted_at == None        
     )
+
+    '''
+    query = db.session.query( 
+        DebtTransactions.id,
+        DebtTransactions.amount, 
+        DebtTransactions.trans_date,
+        DebtTransactions.type,
+        DebtTransactions.previous_balance,
+        DebtTransactions.new_balance,
+        DebtTransactions.month,
+        DebtTransactions.year
+        ).filter(
+        DebtTransactions.debt_acc_id == accntid,
+        DebtAccounts.deleted_at == None 
+    )
+
+    
     
 
     sort_params = []
@@ -65,7 +84,7 @@ def get_debt_trans_pg(accntid:int):
     if sort_params:
         query = query.order_by(*sort_params)
 
-
+    total_count = query.count()
     # Apply pagination
     query = query.offset(page_index * page_size).limit(page_size)
 
@@ -74,11 +93,12 @@ def get_debt_trans_pg(accntid:int):
     
     deebt_transactions = query.all()
     
-
+    '''
     total_count = DebtTransactions.query.filter(
         DebtTransactions.debt_acc_id == accntid,
         DebtTransactions.deleted_at == None
     ).count()
+    '''
     
     
     data_list = []

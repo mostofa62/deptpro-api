@@ -81,6 +81,7 @@ TransactionYear = [
     for year in range(PreviousYear, PreviousYear + YearRange + 1)
 ]
 
+
 def new_entry_option_data(data_obj: any, model_class, user_id: str) -> dict:
     """
     Function to create a new entry or return existing based on data.

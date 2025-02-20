@@ -382,6 +382,7 @@ class DebtType(db.Model):
     deleted_at = db.Column(db.DateTime, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     ordering = db.Column(db.Integer, nullable=True)
+    in_calculation = db.Column(db.Integer, nullable=True)
 
     parent = db.relationship('DebtType', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='debt_types', lazy='joined')
@@ -438,7 +439,7 @@ class DebtAccounts(db.Model):
         foreign_keys=[debt_type_id]
         )
     user = db.relationship('User', backref='debt_account', lazy='joined')
-    transactions = db.relationship('DebtTransactions', backref='debt_account', lazy=True)
+    #transactions = db.relationship('DebtTransactions', backref='debt_account', lazy=True)
 
 
 class DebtTransactions(db.Model):
@@ -507,3 +508,191 @@ class PayoffStrategy(db.Model):
 
     def __repr__(self):
         return f"<PayoffStrategy(id={self.id}, user_id={self.user_id}, debt_payoff_method={self.debt_payoff_method}, selected_month={self.selected_month}, monthly_budget={self.monthly_budget})>"
+    
+
+
+
+
+class SavingCategory(db.Model):
+    __tablename__ = 'saving_categories'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('saving_categories.id'), nullable=True)
+    #parent_id = db.Column(db.Integer, nullable=True) # use this avoid conflict
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    ordering = db.Column(db.Integer, nullable=True)
+    in_dashboard_cal = db.Column(db.Integer, nullable=True,default= 0)
+
+    parent = db.relationship('SavingCategory', remote_side=[id], backref='children', lazy='joined')
+    user = db.relationship('User', backref='saving_categories', lazy='joined')
+
+    def __repr__(self):
+        return f"<SavingCategory(name={self.name}, parent_id={self.parent_id}, user_id={self.user_id})>"
+
+
+
+class Saving(db.Model):
+    __tablename__ = 'savings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('saving_categories.id'), nullable=False)
+    savings_strategy = db.Column(JSON, nullable=False)
+    saver = db.Column(db.String(10), nullable=False)
+    nickname = db.Column(db.String(100), nullable=True)
+    goal_amount = db.Column(db.Float, nullable=False)
+    interest = db.Column(db.Float, nullable=False)
+    interest_type = db.Column(JSON, nullable=False)
+    starting_date = db.Column(db.DateTime, nullable=False)
+    starting_amount = db.Column(db.Float, nullable=False)
+    contribution = db.Column(db.Float, nullable=False)
+    increase_contribution_by = db.Column(db.Float, nullable=True, default=0)
+    repeat = db.Column(JSON, nullable=False)
+    note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now(), nullable=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    goal_reached = db.Column(db.Boolean, nullable=True)
+    next_contribution_date = db.Column(db.DateTime, nullable=True)
+    total_balance = db.Column(db.Float, nullable=False, default=0)
+    total_balance_xyz = db.Column(db.Float, nullable=False, default=0)
+    progress = db.Column(db.Float, nullable=False, default=0)
+    period = db.Column(db.Integer, nullable=False, default=0)
+    commit = db.Column(db.DateTime, nullable=False, default=datetime.now())
+    calender_at = db.Column(db.DateTime, nullable=True)
+    total_monthly_balance = db.Column(db.Float, nullable=False, default=0)
+
+    category = db.relationship('SavingCategory', backref='savings', lazy='joined')
+    user = db.relationship('User', backref='savings', lazy='joined')
+
+    def __repr__(self):
+        return f"<Saving(nickname={self.nickname}, goal_amount={self.goal_amount}, total_balance={self.total_balance})>"
+
+
+
+class SavingBoostType(db.Model):
+    __tablename__ = 'saving_boost_types'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref='saving_boost_types', lazy='joined')
+
+    def __repr__(self):
+        return f"<SavingBoostType(name={self.name}, user_id={self.user_id})>"
+    
+
+class SavingBoost(db.Model):
+    __tablename__ = 'saving_boosts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    saving_id = db.Column(db.Integer, db.ForeignKey('savings.id'), nullable=False)
+    saver = db.Column(db.String(10), nullable=False)
+    saving_boost = db.Column(db.Float, nullable=False)
+    saving_boost_source_id = db.Column(db.Integer, db.ForeignKey('saving_boost_types.id'), nullable=False)
+    pay_date_boost = db.Column(db.DateTime, nullable=False)
+    repeat_boost = db.Column(JSON, nullable=False)
+    boost_operation_type = db.Column(JSON, nullable=False)
+    note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now(), nullable=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    next_contribution_date = db.Column(db.DateTime, nullable=True)
+    total_balance = db.Column(db.Float, nullable=False, default=0)
+
+    saving = db.relationship('Saving', backref='saving_boosts', lazy='select')
+    saving_boost_source = db.relationship('SavingBoostType', backref='saving_boosts', lazy='select')
+    user = db.relationship('User', backref='saving_boosts', lazy=True)
+
+    def __repr__(self):
+        return f"<SavingBoost(saving_boost={self.saving_boost}, total_balance={self.total_balance})>"
+
+
+
+class SavingContribution(db.Model):
+    __tablename__ = 'saving_contributions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    saving_id = db.Column(db.Integer, db.ForeignKey('savings.id'), nullable=False)
+    saving_boost_id = db.Column(db.Integer, db.ForeignKey('saving_boosts.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    period = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.String(7), nullable=False)
+    month_word = db.Column(db.String(20), nullable=False)
+    interest = db.Column(db.Float, nullable=False)
+    interest_xyz = db.Column(db.Float, nullable=False)
+    contribution = db.Column(db.Float, nullable=False)
+    contribution_i = db.Column(db.Float, nullable=False)
+    contribution_i_intrs = db.Column(db.Float, nullable=False)
+    contribution_i_intrs_xyz = db.Column(db.Float, nullable=False)
+    increase_contribution = db.Column(db.Float, nullable=False)
+    increase_contribution_prd = db.Column(db.Float, nullable=False)
+    total_balance = db.Column(db.Float, nullable=False)
+    total_balance_xyz = db.Column(db.Float, nullable=False)
+    progress = db.Column(db.Float, nullable=False)
+    progress_xyz = db.Column(db.Float, nullable=False)
+    contribution_date = db.Column(db.DateTime, nullable=False)
+    next_contribution_date = db.Column(db.DateTime, nullable=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    commit = db.Column(db.DateTime, nullable=False, default=datetime.now())
+
+    saving = db.relationship('Saving', backref='saving_contributions', lazy='joined')
+    saving_boost = db.relationship('SavingBoost', backref='saving_contributions', lazy='joined')
+    user = db.relationship('User', backref='saving_contributions', lazy='joined')
+
+    def __repr__(self):
+        return f"<SavingContribution(month={self.month}, contribution={self.contribution}, total_balance={self.total_balance})>"
+
+
+
+class SavingMonthlyLog(db.Model):
+    __tablename__ = 'saving_monthly_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    saving_id = db.Column(db.Integer, db.ForeignKey('savings.id'), nullable=False, unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    total_monthly_balance = db.Column(db.Float, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    saving = db.relationship('Saving', backref='saving_monthly_logs', lazy='joined')
+    user = db.relationship('User', backref='saving_monthly_logs', lazy='joined')
+
+    def __repr__(self):
+        return f"<SavingMonthlyLog(saving_id={self.saving_id}, total_monthly_balance={self.total_monthly_balance})>"
+
+
+
+class CalendarData(db.Model):
+    __tablename__ = 'calendar_data'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    module_name = db.Column(db.String(255), nullable=False)
+    module_id = db.Column(db.String(255), nullable=False)
+    month = db.Column(db.String(7), nullable=False)  # Format: YYYY-MM
+    month_word = db.Column(db.String(50), nullable=False)
+    event_date = db.Column(db.Date, nullable=False)
+    data_id = db.Column(db.Integer, nullable=False)  # Simple integer, no foreign key relation
+    data = db.Column(JSON, nullable=True)  # JSON column to store additional data
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    def to_dict(self):
+        """Serialize the model to a dictionary."""
+        return {
+            'id': self.id,
+            'module_name': self.module_name,
+            'module_id': self.module_id,
+            'month': self.month,
+            'month_word': self.month_word,
+            'event_date': self.event_date.isoformat() if self.event_date else None,  # Date to ISO format
+            'data_id': self.data_id,
+            'data': self.data,
+            'user_id': self.user_id
+        }
