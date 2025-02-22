@@ -1,18 +1,11 @@
 from collections import defaultdict
 import os
-from flask import Flask,request,jsonify, json
+from flask import jsonify
 from sqlalchemy import Integer, case, cast, func
-#from flask_cors import CORS, cross_origin
-
 from savingutil import calculate_breakdown_future
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
-import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
+from datetime import datetime
 
 from models import Saving, SavingBoost
 from dbpg import db

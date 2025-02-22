@@ -23,7 +23,7 @@ myclient = pymongo.MongoClient(
 )
 
 #myclient = pymongo.MongoClient(MONGO_URI, server_api=ServerApi('1'))
-
+'''
 mydb = myclient["deptpro-data"]
 
 try:
@@ -100,3 +100,4 @@ def create_index_for_all():
 
     print('...finished creating indexes...')
 
+'''

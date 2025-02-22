@@ -7,8 +7,7 @@ from app import app
 import re
 from util import *
 from datetime import datetime,timedelta
-from billextra import extra_type
-from pgutils import ReminderDays, RepeatFrequency, new_entry_option_data
+from pgutils import ReminderDays, RepeatFrequency, new_entry_option_data, ExtraType
 from dbpg import db
 from models import *
 from sqlalchemy.orm import joinedload
@@ -130,7 +129,7 @@ def save_bill_account_pg():
             repeat_frequency = int(data['repeat_frequency']['value'])
             reminder_days = int(data['reminder_days']['value'])
             next_due_date = convertStringTodate(data['next_due_date'])
-            op_type = extra_type[0]['value']  # Assuming you fetch operation type somewhere
+            op_type = ExtraType[0]['value']  # Assuming you fetch operation type somewhere
             
             # Get user and bill type
             user_id = data['user_id']
@@ -417,11 +416,19 @@ def delete_bill_pg():
                 deleted_done = 0
             else:
                 # Update the appropriate field based on the 'key'
-                setattr(bill_account, field, datetime.now())
-                db.session.commit()  # Commit the changes to the database
+                setattr(bill_account, field, datetime.now())               
+                #bill_account.calender_at = None
 
+                # Delete related CalendarData records
+                deleted_rows = db.session.query(CalendarData).filter(
+                    CalendarData.module_id == "bill",
+                    CalendarData.data_id == bill_account_id
+                ).delete(synchronize_session=False)
+               
+                db.session.commit()  # Commit the changes to the database
                 message = f'Bill account {action} Successfully'
                 deleted_done = 1
+               
 
         except Exception as ex:
             print('Bill account Save Exception: ', ex)

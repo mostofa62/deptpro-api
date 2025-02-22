@@ -1,19 +1,12 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import request,jsonify, json
 from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
 from pgutils import new_entry_option_data
 from models import Income, IncomeBoost, IncomeBoostType, IncomeMonthlyLog, IncomeTransaction, IncomeYearlyLog
-from incomefunctions import update_current_boost
-from incomeutil import calculate_total_income_for_sepecific_month, generate_new_transaction_data_for_income_boost, get_single_boost
+from incomeutil import generate_new_transaction_data_for_income_boost, get_single_boost
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
 import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
 from dbpg import db
 
 @app.route('/api/delete-income-boostpg', methods=['POST'])

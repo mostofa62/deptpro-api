@@ -1,14 +1,12 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import request,jsonify, json
 #from flask_cors import CORS, cross_origin
 from app import app
 
 import re
 from util import *
 from datetime import datetime,timedelta
-from decimal import Decimal
 
-from models import DebtAccounts, DebtType
+from models import CalendarData, DebtAccounts, DebtType
 from dbpg import db
 from pgutils import PayoffOrder, ReminderDays, RepeatFrequency, new_entry_option_data, TransactionType, TransactionMonth, TransactionYear
 
@@ -18,6 +16,59 @@ from datetime import datetime
 from sqlalchemy import func, or_, select
 from models import db, DebtAccounts, DebtType
 from sqlalchemy.orm import joinedload
+
+@app.route('/api/delete-debtpg', methods=['POST'])
+def delete_dept_pg():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+
+        dept_account_id = data['id']
+        key = data['key']
+        action = 'Deleted' if key < 2 else 'Closed'
+        field = 'deleted_at' if key < 2 else 'closed_at'
+
+        message = None
+        error = 0
+        deleted_done = 0
+
+        try:
+            # Get the dept account object by ID
+            dept_account = DebtAccounts.query.filter_by(id=dept_account_id).first()
+
+            if not dept_account:
+                message = f'Dept account {action} Failed: Account not found'
+                error = 1
+                deleted_done = 0
+            else:
+                # Update the appropriate field based on the 'key'
+                setattr(dept_account, field, datetime.now())
+                #dept_account.calender_at = None
+
+                # Delete related CalendarData records
+                deleted_rows = db.session.query(CalendarData).filter(
+                    CalendarData.module_id == "debt",
+                    CalendarData.data_id == dept_account_id
+                ).delete(synchronize_session=False)
+                
+                db.session.commit()  # Commit the changes to the database
+
+                message = f'Dept account {action} Successfully'
+                deleted_done = 1
+                
+
+        except Exception as ex:
+            print('Dept account Save Exception: ', ex)
+            message = f'Dept account {action} Failed'
+            error = 1
+            deleted_done = 0
+            db.session.rollback()  # Rollback the transaction in case of error
+
+        return jsonify({
+            "dept_account_id": dept_account_id if dept_account else None,
+            "message": message,
+            "error": error,
+            "deleted_done": deleted_done
+        })
 
 
 @app.route('/api/debt-allpg/<int:accntid>', methods=['GET'])
@@ -240,7 +291,7 @@ def list_debts_pg(user_id:int):
 @app.route('/api/debt-summarypg/<int:accntid>', methods=['GET'])
 def get_dept_summary_pg(accntid:int):
 
-    # Load the BillAccount along with related BillType and Parent BillType in one query
+    # Load the DeptAccount along with related DeptType and Parent DeptType in one query
     debt_account = (
         db.session.query(DebtAccounts.highest_balance, DebtAccounts.balance)        
         .filter(DebtAccounts.id == accntid, DebtAccounts.deleted_at.is_(None))
@@ -262,7 +313,7 @@ def get_dept_summary_pg(accntid:int):
 @app.route('/api/debtpg/<int:accntid>', methods=['GET'])
 def get_debt_pg(accntid:int):
 
-    # Load the BillAccount along with related BillType and Parent BillType in one query
+    # Load the DeptAccount along with related DeptType and Parent DeptType in one query
     debt_account = (
         db.session.query(DebtAccounts)
         .options(

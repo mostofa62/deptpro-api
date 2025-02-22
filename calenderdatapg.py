@@ -1,10 +1,7 @@
-from bson import ObjectId
-from flask import json, jsonify, request
-from util import MongoJSONEncoder, convertDateTostring
+from flask import jsonify
+from util import convertDateTostring
 from app import app
-from db import my_col
 from datetime import datetime
-
 from models import CalendarData
 from dbpg import db
 

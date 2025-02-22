@@ -1,22 +1,10 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import request,jsonify
 #from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col,myclient,mydb
-from bson.objectid import ObjectId
-from bson.json_util import dumps
-import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
-
-client = myclient
-debt_transactions = my_col('debt_transactions')
-debt_accounts = my_col('debt_accounts')
-usersetting = my_col('user_settings')
 from models import  DebtAccounts, DebtType, UserSettings
 from dbpg import db
-from sqlalchemy.orm import joinedload
+
 
 @app.route('/api/debtpayoffpg/<int:user_id>', methods=['POST'])
 def debtpayoff_pg(user_id: int):

@@ -1,14 +1,12 @@
 from collections import defaultdict
 import os
 from flask import Flask,request,jsonify, json
-from sqlalchemy import func
+from sqlalchemy import and_, func
 #from flask_cors import CORS, cross_origin
 from models import Income, IncomeBoost, IncomeMonthlyLog, IncomeSourceType, IncomeTransaction
 from incomeutil import calculate_breakdown_future,generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_future_income_v1, generate_new_transaction_data_for_income, generate_unique_id
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
+
 import re
 from util import *
 from datetime import datetime,timedelta
@@ -26,10 +24,15 @@ def transaction_previous(id: int, column: str = 'income_id'):
             IncomeTransaction.income_id,
             func.max(IncomeTransaction.total_net_for_period).label('max_total_net_for_period'),
             func.min(IncomeTransaction.month_word).label('month_word')
-        ).filter(
-            IncomeTransaction.pay_date >= twelve_months_ago,
-            IncomeTransaction.deleted_at == None,
-            IncomeTransaction.closed_at == None,
+        ).join(Income, 
+               and_(
+               Income.id == IncomeTransaction.income_id,
+               Income.commit == IncomeTransaction.commit,
+               )
+            ).filter(
+            IncomeTransaction.pay_date >= twelve_months_ago,            
+            Income.deleted_at == None,  # Filter for deleted_at == None
+            Income.closed_at == None,
             IncomeTransaction.user_id == id  # Here we filter by user_id
         ).group_by(
             IncomeTransaction.month,
@@ -54,10 +57,15 @@ def transaction_previous(id: int, column: str = 'income_id'):
             IncomeTransaction.income_id,
             func.max(IncomeTransaction.total_net_for_period).label('total_balance_net'),
             func.min(IncomeTransaction.month_word).label('month_word')
-        ).filter(
-            IncomeTransaction.pay_date >= twelve_months_ago,
-            IncomeTransaction.deleted_at == None,
-            IncomeTransaction.closed_at == None,
+        ).join(Income, 
+               and_(
+               Income.id == IncomeTransaction.income_id,
+               Income.commit == IncomeTransaction.commit,
+               )
+            ).filter(
+            IncomeTransaction.pay_date >= twelve_months_ago,            
+            Income.deleted_at == None,  # Filter for deleted_at == None
+            Income.closed_at == None,
             IncomeTransaction.income_id == id  # Filter dynamically by income_id
         ).group_by(
             IncomeTransaction.month,
@@ -137,11 +145,18 @@ def list_income_transactions_pg(income_id: int):
     page_size = data.get('pageSize', 10)
 
     # Create a base query for IncomeTransaction model
-    query = db.session.query(IncomeTransaction).filter(
-        IncomeTransaction.income_id == income_id,
+    query = db.session.query(IncomeTransaction)\
+    .join(Income, 
+               and_(
+               Income.id == IncomeTransaction.income_id,
+               Income.commit == IncomeTransaction.commit,
+               )
+            )\
+    .filter(
+        IncomeTransaction.income_id == income_id,       
         IncomeTransaction.income_boost_id == None,
-        IncomeTransaction.deleted_at == None,
-        IncomeTransaction.closed_at == None
+        Income.deleted_at == None,  # Filter for deleted_at == None
+        Income.closed_at == None,
     )
 
     # Get the total count of records matching the query
@@ -201,11 +216,16 @@ def list_income_boost_transactions_pg(income_id:int):
         IncomeTransaction.next_pay_date,
         IncomeTransaction.month_word,
         IncomeBoost.earner.label('income_boost')
-        ).filter(
+        ).join(Income, 
+               and_(
+               Income.id == IncomeTransaction.income_id,
+               Income.commit == IncomeTransaction.commit,
+               )
+            ).filter(
         IncomeTransaction.income_id == income_id,
         IncomeTransaction.income_boost_id != None,
-        IncomeTransaction.deleted_at == None,
-        IncomeTransaction.closed_at == None
+        Income.deleted_at == None,  # Filter for deleted_at == None
+        Income.closed_at == None,
     ).join(IncomeBoost, IncomeTransaction.income_boost_id == IncomeBoost.id, isouter=True)
 
     # Get the total count of records matching the query
@@ -265,11 +285,18 @@ def get_typewise_income_info_pg(user_id:int):
         IncomeSourceType.name.label("name"),
         func.sum(IncomeTransaction.net_income).label("balance"),
         func.count(Income.income_source_id).label('count'),
-    ).join(Income, IncomeTransaction.income_id == Income.id) \
+    ).join(Income, 
+               and_(
+               Income.id == IncomeTransaction.income_id,
+               Income.commit == IncomeTransaction.commit,
+               )
+            ) \
      .join(IncomeSourceType, Income.income_source_id == IncomeSourceType.id) \
      .filter(
          IncomeTransaction.month == current_month_str,
-         Income.user_id == user_id  # Filter by user_id
+         Income.user_id == user_id,  # Filter by user_id
+         Income.deleted_at == None,
+         Income.closed_at == None
      ) \
      .group_by(
          Income.income_source_id,

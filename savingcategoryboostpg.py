@@ -1,6 +1,5 @@
 
-import os
-from flask import Flask,request,jsonify, json
+from flask import jsonify
 from util import convertDateTostring
 from app import app
 from models import SavingCategory, SavingBoostType, Saving

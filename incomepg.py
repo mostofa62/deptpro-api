@@ -5,7 +5,7 @@ from app import app
 from bson.json_util import dumps
 from util import *
 from datetime import datetime
-from models import AppData, Income, IncomeMonthlyLog, IncomeYearlyLog, IncomeTransaction, IncomeSourceType
+from models import AppData, CalendarData, Income, IncomeMonthlyLog, IncomeYearlyLog, IncomeTransaction, IncomeSourceType
 from dbpg import db
 from pgutils import *
 from sqlalchemy import insert, select, update
@@ -17,7 +17,7 @@ from sqlalchemy import or_, desc, asc
 @app.route('/api/delete-incomepg', methods=['POST'])
 def delete_income_pg():
     data = request.get_json()
-
+    user_id = data.get('user_id')
     income_id = data.get('id')
     key = data.get('key')
     action = 'Deleted' if key < 2 else 'Closed'
@@ -28,34 +28,52 @@ def delete_income_pg():
     deleted_done = 0
 
     try:
-        with db.session.begin_nested():  # Ensures rollback on failure
-            # Fetch the previous commit from Income
-            previous_commit = db.session.query(Income.commit).filter(Income.id == income_id).scalar()
+                
+        # Update the Income record
+        income_update = db.session.query(Income).filter(Income.id == income_id).update(
+            {
+                field: datetime.now(),
+                #Income.calender_at: None
+            }, synchronize_session=False
+        )        
 
-            if previous_commit is None:
-                return jsonify({"error": 1, "message": "Income record not found"}), 404
+        # Delete related CalendarData records
+        deleted_rows = db.session.query(CalendarData).filter(
+            CalendarData.module_id == "income",
+            CalendarData.data_id == income_id
+        ).delete(synchronize_session=False)
 
 
-            # Update the Income record
-            income_update = db.session.query(Income).filter(Income.id == income_id).update(
-                {field: datetime.now()}, synchronize_session=False
-            )
+        deleted_monthly_income = db.session.query(IncomeMonthlyLog).filter(            
+            IncomeMonthlyLog.income_id == income_id
+        ).delete(synchronize_session=False)
 
-            # Delete previous commit data from IncomeTransaction
-            transaction_update = db.session.query(IncomeTransaction).filter(
-                IncomeTransaction.income_id == income_id,
-                IncomeTransaction.commit == previous_commit
-            ).update({field: datetime.now()}, synchronize_session=False)
+        deleted_yearly_income = db.session.query(IncomeYearlyLog).filter(            
+            IncomeYearlyLog.income_id == income_id
+        ).delete(synchronize_session=False)
 
-            # Commit or rollback based on the update success
-            if income_update and transaction_update:
-                message = f'Income account {action} Successfully'
-                deleted_done = 1
-                db.session.commit()
-            else:
-                message = f'Income account {action} Failed'
-                db.session.rollback()
-                error = 1
+
+        app_update = db.session.query(AppData).filter(AppData.user_id == user_id).update(
+            {
+                AppData.total_yearly_gross_income:0,
+                AppData.total_yearly_net_income:0,
+                AppData.total_monthly_gross_income: 0,
+                AppData.total_monthly_net_income: 0,
+                AppData.income_updated_at:None
+
+            }, synchronize_session=False
+        )       
+
+        # Ensure the update was successful before committing
+        if income_update and deleted_rows:
+            db.session.commit()  # Commit only once
+            message = f'Income account {action} Successfully'
+            deleted_done = 1
+        else:
+            db.session.rollback()  # Rollback everything if update fails
+            message = f'Income account {action} Failed'
+            error = 1
+
 
     except Exception as ex:
         db.session.rollback()
@@ -373,9 +391,34 @@ def create_income():
                     total_yearly_net_income=0,
                     updated_at=None
                 )
+                # Query to check if the user already exists
+                app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
+
+                if app_data:
+                    # Update the existing record
+                    app_data.total_yearly_gross_income = 0
+                    app_data.total_yearly_net_income = 0
+                    app_data.total_monthly_gross_income = 0
+                    app_data.total_monthly_net_income = 0
+                    app_data.income_updated_at = None
+                    
+                    
+                else:
+                    # Insert a new record if the user doesn't exist
+                    app_data = AppData(
+                        user_id=user_id,
+                        total_yearly_gross_income=0,
+                        total_yearly_net_income=0,
+                        total_monthly_gross_income=0,
+                        total_monthly_net_income=0,
+                        income_updated_at=None
+                    )
+    
+
 
                 session.add(monthly_log)
                 session.add(yearly_log)
+                session.add(app_data)
                 print('income_id', income_id)
 
                 
@@ -547,6 +590,31 @@ async def edit_income(id: int):
 
                 session.execute(stmt_yearly_log)
 
+
+                # Query to check if the user already exists
+                app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
+
+                if app_data:
+                    # Update the existing record
+                    app_data.total_yearly_gross_income = 0
+                    app_data.total_yearly_net_income = 0
+                    app_data.total_monthly_gross_income = 0
+                    app_data.total_monthly_net_income = 0
+                    app_data.income_updated_at = None
+                    
+                    
+                else:
+                    # Insert a new record if the user doesn't exist
+                    app_data = AppData(
+                        user_id=user_id,
+                        total_yearly_gross_income=0,
+                        total_yearly_net_income=0,
+                        total_monthly_gross_income=0,
+                        total_monthly_net_income=0,
+                        income_updated_at=None
+                    )
+                    
+                session.add(app_data)
                 # Commit the transaction
                 session.commit()
                 message = 'Income account updated successfully'                        

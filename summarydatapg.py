@@ -1,5 +1,4 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import jsonify
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import Float, case, cast, desc, extract, func
 from app import app

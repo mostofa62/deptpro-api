@@ -3,7 +3,7 @@ from flask import Flask,request,jsonify, json
 #from flask_cors import CORS, cross_origin
 from app import app
 from util import *
-from billextra import extra_type
+from pgutils import ExtraType
 from models import *
 
 @app.route('/api/bill-paymentspg/<int:tranid>', methods=['GET'])
@@ -38,7 +38,7 @@ def get_bill_trans_pg(accntid: int):
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)    
-    op_type = extra_type[0]['value']
+    op_type = ExtraType[0]['value']
 
     # Build query using SQLAlchemy
     query = db.session.query(BillTransactions).filter(

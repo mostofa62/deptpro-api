@@ -1,11 +1,9 @@
 
-import os
-from flask import Flask,request,jsonify, json
+from flask import request,jsonify, json
 from sqlalchemy import func
 #from flask_cors import CORS, cross_origin
 from payoffutil import calculate_amortization, sort_debts_payoff
 from app import app
-import re
 from util import *
 from datetime import datetime
 
@@ -174,7 +172,9 @@ def get_payoff_strategy_account_pg(user_id:int):
         DebtAccounts.total_interest_sum,
         DebtAccounts.total_payment_sum,
         DebtType.id.label('debt_type')
-    ).filter(
+    )\
+    .join(DebtType, DebtType.id == DebtAccounts.debt_type_id)\
+    .filter(
         DebtAccounts.user_id == user_id,
         DebtAccounts.deleted_at == None,
         DebtAccounts.closed_at == None

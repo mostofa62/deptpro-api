@@ -1,20 +1,83 @@
-import os
-from flask import Flask,request,jsonify, json
-from sqlalchemy import func, or_, select, update
-#from flask_cors import CORS, cross_origin
-from savingutil import calculate_breakdown, get_single_breakdown
+from flask import request,jsonify, json
+from sqlalchemy import func, or_, select
+from savingutil import calculate_breakdown
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
 import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
-from models import Saving,SavingBoost, SavingBoostType, SavingCategory, SavingContribution, SavingMonthlyLog
+from datetime import datetime
+from models import AppData, CalendarData, Saving,SavingBoost, SavingCategory, SavingContribution, SavingMonthlyLog
 from dbpg import db
 from pgutils import new_entry_option_data
 from sqlalchemy.orm import joinedload
+
+
+@app.route('/api/delete-savingpg', methods=['POST'])
+def delete_saving_pg():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    saving_id = data.get('id')
+    key = data.get('key')
+    action = 'Deleted' if key < 2 else 'Closed'
+    field = Saving.deleted_at if key < 2 else Saving.closed_at
+
+    message = None
+    error = 0
+    deleted_done = 0
+
+    try:
+                
+        # Update the Saving record
+        saving_update = db.session.query(Saving).filter(Saving.id == saving_id).update(
+            {
+                field: datetime.now(),
+                #Saving.calender_at: None
+            }, synchronize_session=False
+        )        
+
+        # Delete related CalendarData records
+        deleted_rows = db.session.query(CalendarData).filter(
+            CalendarData.module_id == "saving",
+            CalendarData.data_id == saving_id
+        ).delete(synchronize_session=False)
+
+
+        deleted_monthly_saving = db.session.query(SavingMonthlyLog).filter(            
+            SavingMonthlyLog.saving_id == saving_id
+        ).delete(synchronize_session=False)
+       
+
+
+        app_update = db.session.query(AppData).filter(AppData.user_id == user_id).update(
+            {
+                AppData.total_monthly_saving:0,               
+                AppData.saving_updated_at:None
+
+            }, synchronize_session=False
+        )       
+
+        # Ensure the update was successful before committing
+        if saving_update and deleted_rows:
+            db.session.commit()  # Commit only once
+            message = f'Saving account {action} Successfully'
+            deleted_done = 1
+        else:
+            db.session.rollback()  # Rollback everything if update fails
+            message = f'Saving account {action} Failed'
+            error = 1
+
+
+    except Exception as ex:
+        db.session.rollback()
+        print('Saving account Delete Exception:', ex)
+        message = f'Saving account {action} Failed'
+        error = 1
+
+    return jsonify({
+        "saving_account_id": saving_id if deleted_done else None,
+        "message": message,
+        "error": error,
+        "deleted_done": deleted_done
+    })
 
 @app.route('/api/savingpg/<int:user_id>', methods=['POST'])
 def list_saving_pg(user_id: int):
@@ -368,7 +431,25 @@ async def save_saving_pg():
                     updated_at=None
                 )
 
+                # Query to check if the user already exists
+                app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+
+                if app_data:
+                    # Update the existing record                    
+                    app_data.total_monthly_saving = 0                    
+                    app_data.saving_updated_at = None
+                    
+                    
+                else:
+                    # Insert a new record if the user doesn't exist
+                    app_data = AppData(
+                        user_id=user_id,
+                        total_monthly_saving=0,                        
+                        saving_updated_at=None
+                    )
+
                 db.session.add(monthly_log)
+                db.session.add(app_data)
                 db.session.commit()
                 message = 'Saving account added Succefull'
                 result = 1

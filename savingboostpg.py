@@ -1,16 +1,12 @@
 import os
-from flask import Flask,request,jsonify, json
-from sqlalchemy import func, or_, select
+from flask import request,jsonify, json
+from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
 from pgutils import new_entry_option_data
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
 import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
+from datetime import datetime
 
 from models import Saving, SavingBoost, SavingBoostType, SavingContribution
 from dbpg import db

@@ -4,8 +4,8 @@ import time
 import os
 from flask_apscheduler import APScheduler
 from util import *
-from scheduler_functions.saving import *
-from scheduler_functions.income import *
+from scheduler_functions.savingpg import *
+from scheduler_functions.incomepg import *
 from app import app
 
 
@@ -181,13 +181,14 @@ def calender_entry():
         time.sleep(1)
         saving_to_calender()
 
-# def monthly_log_update():
-#     print('MONTHLY LOG UPDATE', datetime.now())
-#     saving_calculate_yearly_and_monthly_data()
-#     time.sleep(1)
-#     income_calculate_monthly_data()
-#     time.sleep(1)
-#     income_calculate_yearly_data()
+def monthly_log_update():
+     with app.app_context():
+        print('MONTHLY LOG UPDATE', datetime.now())
+        saving_calculate_yearly_and_monthly_data_pg()
+        time.sleep(1)
+        income_calculate_monthly_data_pg()
+        time.sleep(1)
+        income_calculate_yearly_data_pg()
 
 # def transaction_udpate():
 #     print('TRANSACTION UPDATE', datetime.now())
@@ -197,7 +198,7 @@ def calender_entry():
 scheduler = APScheduler()
 #scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger="cron", minute='*/'+str(CALENDER_ENTRY_DURATION))
 scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger='interval',minutes=int(CALENDER_ENTRY_DURATION))
-#scheduler.add_job(id = 'MONTHLY_LOG_UPDATE', func=monthly_log_update, trigger='interval',minutes=int(MONTHLY_LOG_UPDATE))
+scheduler.add_job(id = 'MONTHLY_LOG_UPDATE', func=monthly_log_update, trigger='interval',minutes=int(MONTHLY_LOG_UPDATE))
 #scheduler.add_job(id = 'TRANSACTION_UPDATE',func=transaction_udpate, trigger='cron', hour=23, minute=45)
 scheduler.start()
 

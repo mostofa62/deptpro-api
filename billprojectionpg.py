@@ -1,5 +1,4 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import jsonify
 from sqlalchemy import and_, asc, func
 #from flask_cors import CORS, cross_origin
 from models import BillAccounts, BillPayments, BillType

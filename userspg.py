@@ -1,20 +1,14 @@
 import os
-from flask import Flask,request,jsonify, json
+from flask import request,jsonify, json
 from sqlalchemy import asc, desc
-#from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col
-from bson.objectid import ObjectId
-from bson.json_util import dumps
-import re
 from util import *
-from datetime import datetime,timedelta
+from datetime import datetime
 from models import User
 from dbpg import db
 
 TOKEN_EXPIRATION = os.environ["TOKEN_EXPIRATION"]
-#CORS(app)
-collection = my_col('users')
+
 
 @app.route('/api/userspg/<int:role>', methods=['POST'])
 def list_user_pg(role: int):
@@ -449,28 +443,25 @@ def userbyUsername_pg(userid:int):
     if request.method == 'POST':
         data = json.loads(request.data)
         username = data['username']
-        #print(token)
-        #exit()
-        
-        unexpected_token_value = ["undefined", "null"]
-        user_self = None
-        if(userid not in unexpected_token_value):
-            myquery = { "_id" :ObjectId(userid)}
-            user_self = my_col('users').find_one(myquery)
-            
-        myquery = { "username" :username}
-        user = my_col('users').find_one(myquery)
-
+              # Initialize a variable to indicate if the email exists for this user
         found = True
+        user_self = None
+        
+        # Find the user by user ID
+        if userid:
+            user_self = User.query.filter_by(id=userid).first()
 
-        if(user_self and username == user_self['username']):
+        user = User.query.filter_by(username=username).first()
+        
+        if(user_self and username == user_self.username):
             found = True
-        elif((user and user_self) and username != user_self['username']):
+        elif((user and user_self) and username != user_self.username):
             found = False
         elif(user and user_self == None):
             found = False        
         elif(user== None and user_self == None):
             found=True
+        
         
     return({
         "success":found

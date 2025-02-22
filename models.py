@@ -76,7 +76,9 @@ class AppData(db.Model):
     total_monthly_net_income = Column(Float, nullable=True, default=0.0)
     total_yearly_gross_income = Column(Float, nullable=True, default=0.0)
     total_yearly_net_income = Column(Float, nullable=True, default=0.0)
+    income_updated_at = Column(DateTime, nullable=True)
     total_monthly_saving = Column(Float, nullable=True, default=0.0)
+    saving_updated_at = Column(DateTime, nullable=True)
     total_current_gross_income = Column(Float, nullable=True, default=0.0)
     total_current_net_income = Column(Float, nullable=True, default=0.0)
 
@@ -187,7 +189,7 @@ class IncomeTransaction(db.Model):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     month_word = Column(String, nullable=False)  # Example: "Dec, 2024"
-    month = Column(String, nullable=False)  # Example: "2024-12"
+    month = Column(String, nullable=False, index=True)  # Example: "2024-12"
     pay_date = Column(DateTime, nullable=False)
     next_pay_date = Column(DateTime, nullable=True)
     gross_income = Column(Float, nullable=False, default=0.0)
@@ -202,7 +204,7 @@ class IncomeTransaction(db.Model):
     closed_at = Column(DateTime, nullable=True)
 
     # Relationships
-    income = relationship("Income", backref="income_transactions", lazy="joined")
+    income = relationship("Income", backref="income_transactions", lazy="joined",foreign_keys=[income_id])
     income_boost = relationship("IncomeBoost", backref="income_transactions", lazy="joined")
     user = relationship("User", backref="income_transactions", lazy="joined")
 
@@ -624,7 +626,7 @@ class SavingContribution(db.Model):
     saving_boost_id = db.Column(db.Integer, db.ForeignKey('saving_boosts.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     period = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.String(7), nullable=False)
+    month = Column(String, nullable=False, index=True)
     month_word = db.Column(db.String(20), nullable=False)
     interest = db.Column(db.Float, nullable=False)
     interest_xyz = db.Column(db.Float, nullable=False)

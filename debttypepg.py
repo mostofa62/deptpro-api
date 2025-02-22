@@ -1,14 +1,8 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import jsonify
 from sqlalchemy import or_
 #from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
-import re
 from util import *
-from datetime import datetime,timedelta
 from models import DebtType
 from dbpg import db
 

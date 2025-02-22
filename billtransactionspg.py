@@ -1,19 +1,9 @@
-import os
-from flask import Flask,request,jsonify, json
+from flask import request,jsonify, json
 from sqlalchemy import asc, update
 #from flask_cors import CORS, cross_origin
 from app import app
-from db import my_col,myclient
-from bson.objectid import ObjectId
-from bson.json_util import dumps
-import re
 from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
-client = myclient
-bill_accounts = my_col('bill_accounts')
-bill_transactions = my_col('bill_transactions')
-bill_payment = my_col('bill_payment')
+from datetime import datetime
 from dbpg import db
 from models import BillAccounts, BillPayments, BillTransactions
 from pgutils import ExtraType
