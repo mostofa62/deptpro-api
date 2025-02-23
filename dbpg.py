@@ -17,7 +17,10 @@ PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "1234")
 PG_DB = os.getenv("PG_DB", "deptpro")
 
-PG_PASSWORD = quote_plus(PG_PASSWORD)
+
+#PG_PASSWORD = quote_plus(PG_PASSWORD) # removed quota for live connection
+
+#print(PG_PASSWORD)
 # Connection string (without specifying database, connects to default `postgres`)
 POSTGRES_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/postgres"
 
@@ -51,7 +54,7 @@ def create_database_if_not_exists():
         print(f"Error checking/creating database: {e}")
 
 # Run the function to ensure the database exists
-create_database_if_not_exists()
+##create_database_if_not_exists()
 
 # Now use the actual database connection
 DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"

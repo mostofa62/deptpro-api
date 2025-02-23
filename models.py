@@ -433,6 +433,7 @@ class DebtAccounts(db.Model):
     total_payment_sum = db.Column(db.Float, nullable=True)
     total_interest_sum = db.Column(db.Float, nullable=True)
     calender_at = db.Column(db.DateTime, nullable=True)
+    ammortization_at = db.Column(db.DateTime, nullable=True)
 
     debt_type = db.relationship(
         'DebtType', 

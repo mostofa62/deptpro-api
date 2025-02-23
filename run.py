@@ -16,7 +16,7 @@ from debttypepg import *
 from debtpayoffpg import *
 from debtusersettingpg import *
 from debtprojectionpg import debt_projection_pg
-#from ammortization import *
+from ammortization import get_dept_amortization_dynamic
 
 from savingspg import *
 from savingcategoryboostpg import *

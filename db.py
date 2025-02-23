@@ -23,7 +23,7 @@ myclient = pymongo.MongoClient(
 )
 
 #myclient = pymongo.MongoClient(MONGO_URI, server_api=ServerApi('1'))
-'''
+
 mydb = myclient["deptpro-data"]
 
 try:
@@ -34,7 +34,7 @@ except Exception as e:
 
 def my_col(name):
     return mydb[name]
-
+'''
 
 def ensure_index(collection, index_fields, unique=False):
     """ Create an index only if it does not exist """

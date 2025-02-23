@@ -6,7 +6,7 @@ import re
 from util import *
 from datetime import datetime,timedelta
 
-from models import CalendarData, DebtAccounts, DebtType
+from models import CalendarData, DebtAccounts, DebtType, UserSettings
 from dbpg import db
 from pgutils import PayoffOrder, ReminderDays, RepeatFrequency, new_entry_option_data, TransactionType, TransactionMonth, TransactionYear
 
@@ -16,6 +16,9 @@ from datetime import datetime
 from sqlalchemy import func, or_, select
 from models import db, DebtAccounts, DebtType
 from sqlalchemy.orm import joinedload
+
+from db import my_col
+debt_accounts_log = my_col('debt_accounts_log')
 
 @app.route('/api/delete-debtpg', methods=['POST'])
 def delete_dept_pg():
@@ -388,9 +391,17 @@ def save_debt_account_pg():
         debt_id = None
         message = ''
         result = 0
+
+        
         
         try:
-            user_id = data["user_id"]
+            user_id =int(data["user_id"])
+
+            usersetting = (
+                db.session.query(UserSettings.monthly_budget)
+                .filter(UserSettings.user_id == user_id)
+                .first()
+            )
             total_count = db.session.query(func.count(DebtAccounts.id)).filter(
                 DebtAccounts.user_id == user_id,
                 DebtAccounts.deleted_at == None
@@ -401,6 +412,9 @@ def save_debt_account_pg():
             highest_balance = float(data.get("highest_balance", 0))
             highest_balance = highest_balance if highest_balance > 0 else balance
             closed_at = datetime.now() if balance >= highest_balance else None
+            monthly_payment = float(data.get("monthly_payment", 0))
+            credit_limit = float(data.get("credit_limit", 0))
+            due_date = convertStringTodate(data['due_date'])
             
             debt_account = DebtAccounts(
                 name=data.get("name"),
@@ -408,11 +422,11 @@ def save_debt_account_pg():
                 payor=data.get("payor"), 
                 balance=balance,                
                 highest_balance=highest_balance,
-                monthly_payment=float(data.get("monthly_payment", 0)),
-                credit_limit=float(data.get("credit_limit", 0)),
+                monthly_payment=monthly_payment,
+                credit_limit=credit_limit,
                 interest_rate=interest_rate,
                 start_date=convertStringTodate(data['start_date']),
-                due_date=convertStringTodate(data['due_date']),
+                due_date=due_date,
                 monthly_interest=calculate_monthly_interest(balance, interest_rate),
                 note=None,
                 promo_rate=0,
@@ -439,11 +453,32 @@ def save_debt_account_pg():
                 total_payment_sum=0,
                 total_interest_sum=0
             )
-
+            
+            
+                
             db.session.add(debt_account)
             db.session.commit()
 
             debt_id = debt_account.id
+
+            debt_acc_query = {
+                            "debt_id": debt_id,
+                            "user_id":user_id
+                }
+            newvalues = { "$set": {                                  
+                            'balance': balance,
+                            'interest_rate': interest_rate,
+                            'monthly_payment': monthly_payment,
+                            'credit_limit': credit_limit,
+                            'current_date': due_date,
+                            'monthly_budget': monthly_payment,
+                            'user_monthly_budget':usersetting.monthly_budget,
+                            'ammortization_at':None
+                        } }
+            debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
+
+
+            
             result = 1 if debt_id else 0
             message = 'Debt account added successfully'
         
@@ -473,7 +508,13 @@ def update_debt_account_pg(accntid:int):
         
         try:
 
-            user_id = data["user_id"]
+            user_id = int(data["user_id"])
+
+            usersetting = (
+                db.session.query(UserSettings.monthly_budget)
+                .filter(UserSettings.user_id == user_id)
+                .first()
+            )
             
             debtaccounts = (
                 db.session.query(DebtAccounts)               
@@ -484,6 +525,34 @@ def update_debt_account_pg(accntid:int):
             interest_rate = float(data.get("interest_rate", 0))
             highest_balance =  float(data.get("highest_balance", 0))
             highest_balance = highest_balance if highest_balance > 0 else balance
+            due_date = convertStringTodate(data['due_date'])
+            monthly_payment = float(data.get("monthly_payment", 0))
+            credit_limit = float(data.get("credit_limit", 0))
+            #check changes
+            change_found_balance = False if are_floats_equal(balance, debtaccounts.balance) else True
+            change_found_monthly_payment = False if are_floats_equal(monthly_payment, debtaccounts.monthly_payment) else True
+            change_found_due_date = False if due_date == debtaccounts.due_date else True
+            change_found_interest_rate = False if are_floats_equal(interest_rate, debtaccounts.interest_rate) else True
+            change_found_credit_limit = False if are_floats_equal(credit_limit, debtaccounts.credit_limit) else True
+            any_change = change_found_balance or change_found_monthly_payment or change_found_due_date or change_found_interest_rate or change_found_credit_limit
+            debt_account_data = None
+            if any_change:
+                debt_acc_query = {
+                            "debt_id": debtaccounts.id,
+                            "user_id":user_id
+                }
+                newvalues = { "$set": {                                  
+                                'balance': balance,
+                                'interest_rate': interest_rate,
+                                'monthly_payment': monthly_payment,
+                                'credit_limit': credit_limit,
+                                'current_date': due_date,
+                                'monthly_budget': monthly_payment,
+                                'user_monthly_budget':usersetting.monthly_budget,
+                                'ammortization_at':None
+                            } }
+                debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
+            #end check changes
 
             autopay = True if 'autopay' in data else False
             inlclude_payoff=True if 'inlclude_payoff' in data  else False
@@ -499,13 +568,13 @@ def update_debt_account_pg(accntid:int):
 
             debtaccounts.name = data.get("name")
             debtaccounts.debt_type_id = new_entry_option_data(data['debt_type'], DebtType, user_id)
-            debtaccounts.balance=balance
-            debtaccounts.highest_balance= highest_balance              
-            debtaccounts.monthly_payment= float(data.get("monthly_payment", 0))
-            debtaccounts.credit_limit= float(data.get("credit_limit", 0))
-            debtaccounts.interest_rate=interest_rate
-            debtaccounts.monthly_interest=monthly_interest
-            debtaccounts.due_date=convertStringTodate(data['due_date'])
+            debtaccounts.balance = balance
+            debtaccounts.highest_balance = highest_balance              
+            debtaccounts.monthly_payment = monthly_payment
+            debtaccounts.credit_limit = credit_limit
+            debtaccounts.interest_rate = interest_rate
+            debtaccounts.monthly_interest = monthly_interest
+            debtaccounts.due_date=due_date
             debtaccounts.start_date= convertStringTodate(data['start_date'])                            
             debtaccounts.inlclude_payoff=inlclude_payoff
             debtaccounts.payoff_order=payoff_order               
@@ -514,8 +583,6 @@ def update_debt_account_pg(accntid:int):
             debtaccounts.note=data['note'] if 'note' in data and data['note']!=""  else None                                     
             debtaccounts.updated_at=datetime.now()
             
-           
-                
 
             db.session.add(debtaccounts)
             db.session.commit()
