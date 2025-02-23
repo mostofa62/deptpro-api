@@ -1,15 +1,14 @@
 
-import os
-from flask import Flask,request,jsonify, json
+
+from flask import request,jsonify, json
 #from flask_cors import CORS, cross_origin
 from app import app
 
-import re
-from util import *
-from datetime import datetime,timedelta
-from decimal import Decimal
 
-from models import DebtAccounts, DebtType
+from util import *
+from datetime import datetime
+
+
 from dbpg import db
 from pgutils import PayoffOrder, ReminderDays, RepeatFrequency, new_entry_option_data, TransactionType, TransactionMonth, TransactionYear
 
@@ -17,7 +16,7 @@ from pgutils import PayoffOrder, ReminderDays, RepeatFrequency, new_entry_option
 from flask import request, jsonify
 from datetime import datetime
 from sqlalchemy import func, or_, select
-from models import db, DebtAccounts, DebtType, DebtTransactions
+from models import DebtAccounts,DebtTransactions,UserSettings
 from sqlalchemy.orm import joinedload
 from db import my_col
 debt_accounts_log = my_col('debt_accounts_log')
@@ -181,6 +180,11 @@ def save_debt_transaction_pg(accntid:int):
             #end previous debt balance to update
 
             user_id = int(data['user_id'])
+            usersetting = (
+                db.session.query(UserSettings.monthly_budget)
+                .filter(UserSettings.user_id == user_id)
+                .first()
+            )
 
             #print(debt_account_id)
             #save debt transaction defaults
@@ -217,7 +221,13 @@ def save_debt_transaction_pg(accntid:int):
                             "user_id":user_id
                 }
             newvalues = { "$set": {                                  
-                            'balance': new_balance,                            
+                            'balance': new_balance,
+                            'interest_rate': debt_account.interest_rate,
+                            'monthly_payment': debt_account.monthly_payment,
+                            'credit_limit': debt_account.credit_limit,
+                            'current_date': debt_account.due_date,
+                            'monthly_budget': debt_account.monthly_payment,
+                            'user_monthly_budget':usersetting.monthly_budget,                            
                             'ammortization_at':None
                         } }
             debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
