@@ -19,7 +19,8 @@ from datetime import datetime
 from sqlalchemy import func, or_, select
 from models import db, DebtAccounts, DebtType, DebtTransactions
 from sqlalchemy.orm import joinedload
-
+from db import my_col
+debt_accounts_log = my_col('debt_accounts_log')
 
 @app.route('/api/debt-transpg/<int:accntid>', methods=['POST'])
 def get_debt_trans_pg(accntid:int):
@@ -179,6 +180,8 @@ def save_debt_transaction_pg(accntid:int):
             new_balance = float(float(previous_balance) - float(amount)) if type > 1 else float(float(previous_balance) + float(amount))
             #end previous debt balance to update
 
+            user_id = int(data['user_id'])
+
             #print(debt_account_id)
             #save debt transaction defaults
             debt_trans_data = DebtTransactions(                           
@@ -192,7 +195,7 @@ def save_debt_transaction_pg(accntid:int):
                 autopay=autopay,                                         
                 created_at=datetime.now(),
                 updated_at=datetime.now(),                        
-                user_id=data['user_id'],
+                user_id=user_id,
                 debt_acc_id=debt_account_id,
                 payment_status=0,
                 deleted_at=None
@@ -208,11 +211,23 @@ def save_debt_transaction_pg(accntid:int):
             debt_account.balance = new_balance
             debt_account.closed_at = closed_at
             debt_account.updated_at = datetime.now()
+
+            debt_acc_query = {
+                            "debt_id": debt_account_id,
+                            "user_id":user_id
+                }
+            newvalues = { "$set": {                                  
+                            'balance': new_balance,                            
+                            'ammortization_at':None
+                        } }
+            debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
             
             
             result = 1 if debt_account_id!=None and debt_trans_id!=None else 0
             message = 'Debt transaction added Succefull' if debt_account_id!=None and debt_trans_id!=None  else 'Debt transaction addition Failed!'
             db.session.commit()
+
+            
         except Exception as ex:
             print('DEBT EXP: ',ex)
             debt_account_id = None
