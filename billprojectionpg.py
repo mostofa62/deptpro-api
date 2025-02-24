@@ -35,13 +35,10 @@ def bill_projection_pg(userid:int):
         )
     ).order_by(asc(BillAccounts.next_due_date)).all()
 
-    # Extract BillType names directly from the loaded BillAccounts
-    bill_type_names = {
-        str(account.bill_type.id): account.bill_type.name
-        for account in bill_accounts_data if account.bill_type
-    }
+    
 
-    bill_type_ids = list(bill_type_names.keys())  # Get all unique bill_type_ids
+    bill_type_ids = list({str(account.bill_type.id) for account in bill_accounts_data if account.bill_type})
+
 
     bill_type_balances = {}    
     data = {}
@@ -114,17 +111,18 @@ def bill_projection_pg(userid:int):
    
     total_balance = 0
     total_bill_type = 0
-    bill_type_names = {}
+    #bill_type_names = {}
     bill_type_bill_counts = []
 
     for row in results:
         total_balance += row.balance
         total_bill_type += 1
-        bill_type_names[row.id] = row.name
+        #bill_type_names[row.id] = row.name
         bill_type_bill_counts.append({"id": row.id, "name": row.name, "balance": row.balance, "count": row.count})
 
            
-    
+    bill_types = db.session.query(BillType.id, BillType.name).all()
+    bill_type_names = {str(d.id): d.name for d in bill_types}
     
 
     return jsonify({
