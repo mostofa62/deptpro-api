@@ -12,6 +12,7 @@ from app import app
 
 CALENDER_ENTRY_DURATION = os.environ["CALENDER_ENTRY_DURATION"]
 MONTHLY_LOG_UPDATE = os.environ["MONTHLY_LOG_UPDATE"]
+SCHEDULER_STATUS = os.environ["SCHEDULER_STATUS"]
 from models import CalendarData, BillAccounts, DebtAccounts, Income, Saving
 from dbpg import db
 
@@ -194,11 +195,11 @@ def monthly_log_update():
 #     print('TRANSACTION UPDATE', datetime.now())
 #     transaction_update_income()
 
-
-scheduler = APScheduler()
-#scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger="cron", minute='*/'+str(CALENDER_ENTRY_DURATION))
-scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger='interval',minutes=int(CALENDER_ENTRY_DURATION))
-scheduler.add_job(id = 'MONTHLY_LOG_UPDATE', func=monthly_log_update, trigger='interval',minutes=int(MONTHLY_LOG_UPDATE))
-#scheduler.add_job(id = 'TRANSACTION_UPDATE',func=transaction_udpate, trigger='cron', hour=23, minute=45)
-scheduler.start()
+if int(SCHEDULER_STATUS) > 0:
+    scheduler = APScheduler()
+    #scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger="cron", minute='*/'+str(CALENDER_ENTRY_DURATION))
+    scheduler.add_job(id = 'CALENDER_ENTRY', func=calender_entry, trigger='interval',minutes=int(CALENDER_ENTRY_DURATION))
+    scheduler.add_job(id = 'MONTHLY_LOG_UPDATE', func=monthly_log_update, trigger='interval',minutes=int(MONTHLY_LOG_UPDATE))
+    #scheduler.add_job(id = 'TRANSACTION_UPDATE',func=transaction_udpate, trigger='cron', hour=23, minute=45)
+    scheduler.start()
 

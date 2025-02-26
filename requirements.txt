@@ -12,3 +12,4 @@ Flask-SQLAlchemy #if you adjust with upgarde version skip version number
 #Flask-Alembic ##only for migration
 #Flask-Migrate ##only required for migration
 psycopg2
+gunicorn
