@@ -133,6 +133,7 @@ async def income_transactions_next_pg(income_id:int):
 
     session = db.session
     try:
+        '''
         # Subquery for frequency_boost
         frequency_boost_subquery = session.query(
             func.sum(income_boosts_1.income_boost).label('frequency_boost')
@@ -188,6 +189,9 @@ async def income_transactions_next_pg(income_id:int):
 
         projection_list = process_projections(data)[0]
         result = get_projection_list(projection_list)
+        '''
+        #COMMENT FOR SAFE
+        result = []
 
         return jsonify({
             "payLoads":{                        
