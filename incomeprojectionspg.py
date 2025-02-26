@@ -24,6 +24,7 @@ def process_projections(todo, initial_gross_input:float=0, initial_net_input:flo
     total_net_income = todo['total_net_income']+initial_net_input
     gross_income = todo['gross_income']
     net_income = todo['net_income']
+    pay_date =  todo['next_pay_date'] if todo['next_pay_date']!=None else todo['pay_date']
 
     income_contribution_data = calculate_breakdown_future(
 
@@ -31,7 +32,7 @@ def process_projections(todo, initial_gross_input:float=0, initial_net_input:flo
             initial_net_input=total_net_income,
             gross_input=gross_income,
             net_input=net_income,            
-            pay_date = todo['next_pay_date'],            
+            pay_date = pay_date,            
             frequency=todo['repeat']['value'],
             income_boost=onetime_boost,
             income_boost_date=income_boost_date,                        
@@ -130,128 +131,47 @@ income_boosts_2 = aliased(IncomeBoost)
 @app.route('/api/income-transactions-nextpg/<int:income_id>', methods=['GET'])
 def income_transactions_next_pg(income_id:int):
 
-    # Subquery for frequency_boost
-    frequency_boost_subquery = db.session.query(
-        func.sum(income_boosts_1.income_boost).label('frequency_boost')
-    ).filter(
-        income_boosts_1.income_id == Income.id,
-        income_boosts_1.deleted_at == None,
-        income_boosts_1.closed_at == None,
-        cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
-    ).scalar_subquery()
+    session = db.session
+    try:
+        # Subquery for frequency_boost
+        frequency_boost_subquery = session.query(
+            func.sum(income_boosts_1.income_boost).label('frequency_boost')
+        ).filter(
+            income_boosts_1.income_id == Income.id,
+            income_boosts_1.deleted_at == None,
+            income_boosts_1.closed_at == None,
+            cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
+        ).scalar_subquery()
 
-    # Subquery for onetime_boost
-    onetime_boost_subquery = db.session.query(
-        func.sum(income_boosts_2.income_boost).label('onetime_boost')
-    ).filter(
-        income_boosts_2.income_id == Income.id,
-        income_boosts_2.deleted_at == None,
-        income_boosts_2.closed_at == None,
-        cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
-    ).scalar_subquery()
+        # Subquery for onetime_boost
+        onetime_boost_subquery = session.query(
+            func.sum(income_boosts_2.income_boost).label('onetime_boost')
+        ).filter(
+            income_boosts_2.income_id == Income.id,
+            income_boosts_2.deleted_at == None,
+            income_boosts_2.closed_at == None,
+            cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
+        ).scalar_subquery()
 
-    # Main query
-    row = db.session.query(
-        Income.id,
-        Income.earner,
-        Income.gross_income,
-        Income.net_income,
-        Income.total_gross_income,
-        Income.total_net_income,
-        Income.pay_date,
-        Income.next_pay_date,
-        Income.repeat,
-        func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
-        func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
-    ).filter(
-        Income.id == income_id,
-        Income.deleted_at == None,
-        Income.closed_at == None
-    ).first()    
-   
-    data= {
-        "id": row.id,
-        "earner":row.earner,
-        "gross_income": row.gross_income,
-        "net_income": row.net_income,
-        "total_gross_income": row.total_gross_income,
-        "total_net_income": row.total_net_income,
-        "pay_date": row.pay_date,
-        "next_pay_date": row.next_pay_date,
-        "repeat": row.repeat,
-        "frequency_boost": row.frequency_boost,
-        "onetime_boost": row.onetime_boost
-    }
-
-    projection_list = process_projections(data)[0]
-    result = get_projection_list(projection_list)
-
-    return jsonify({
-        "payLoads":{                        
-               'projection_list':result
-
-        }        
-    })
-
-
-@app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
-def income_transactions_next_pgu(user_id:int):
-
-    # Subquery for frequency_boost
-    frequency_boost_subquery = db.session.query(
-        func.sum(income_boosts_1.income_boost).label('frequency_boost')
-    ).filter(
-        income_boosts_1.user_id == user_id,
-        income_boosts_1.income_id == Income.id,
-        income_boosts_1.deleted_at == None,
-        income_boosts_1.closed_at == None,
-        cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
-    ).scalar_subquery()
-
-    # Subquery for onetime_boost
-    onetime_boost_subquery = db.session.query(
-        func.sum(income_boosts_2.income_boost).label('onetime_boost')
-    ).filter(
-        income_boosts_2.user_id == user_id,
-        income_boosts_2.income_id == Income.id,
-        income_boosts_2.deleted_at == None,
-        income_boosts_2.closed_at == None,
-        cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
-    ).scalar_subquery()
-
-    # Main query
-    query = db.session.query(
-        Income.id,
-        Income.earner,
-        Income.gross_income,
-        Income.net_income,
-        Income.total_gross_income,
-        Income.total_net_income,
-        Income.pay_date,
-        Income.next_pay_date,
-        Income.repeat,
-        Income.user_id,
-        func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
-        func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
-    ).filter(
-        Income.user_id == user_id,
-        Income.deleted_at == None,
-        Income.closed_at == None
-    )
+        # Main query
+        row = session.query(
+            Income.id,
+            Income.earner,
+            Income.gross_income,
+            Income.net_income,
+            Income.total_gross_income,
+            Income.total_net_income,
+            Income.pay_date,
+            Income.next_pay_date,
+            Income.repeat,
+            func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
+            func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
+        ).filter(
+            Income.id == income_id,
+            Income.deleted_at == None,
+            Income.closed_at == None
+        ).first()    
     
-
-    # # Get the raw SQL statement
-    # raw_sql = str(query.statement.compile(dialect=db.engine.dialect))
-
-    # # Print the raw SQL query
-    # print(raw_sql)
-
-    results = query.all()
-
-    projection_list = []
-    #initial_gross_input = 0
-    #initial_net_input = 0
-    for row in results:
         data= {
             "id": row.id,
             "earner":row.earner,
@@ -265,20 +185,128 @@ def income_transactions_next_pgu(user_id:int):
             "frequency_boost": row.frequency_boost,
             "onetime_boost": row.onetime_boost
         }
-        projections = process_projections(data)
-        projection = projections[0]
-        #initial_gross_input = projections[1]
-        #initial_net_input = projections[2]
-         
-        projection_list.append(projection)
+
+        projection_list = process_projections(data)[0]
+        result = get_projection_list(projection_list)
+
+        return jsonify({
+            "payLoads":{                        
+                'projection_list':result
+
+            }        
+        })
+    except Exception as e:
+        session.rollback()  # Rollback in case of error
+        return jsonify({
+            "payLoads":{                        
+                'projection_list':[]
+
+            }        
+        })
+
+    finally:
+        session.close()
+
+
+@app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
+def income_transactions_next_pgu(user_id:int):
+
+    session = db.session
+    try:
+        # Subquery for frequency_boost
+        frequency_boost_subquery = session.query(
+            func.sum(income_boosts_1.income_boost).label('frequency_boost')
+        ).filter(
+            income_boosts_1.user_id == user_id,
+            income_boosts_1.income_id == Income.id,
+            income_boosts_1.deleted_at == None,
+            income_boosts_1.closed_at == None,
+            cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
+        ).scalar_subquery()
+
+        # Subquery for onetime_boost
+        onetime_boost_subquery = session.query(
+            func.sum(income_boosts_2.income_boost).label('onetime_boost')
+        ).filter(
+            income_boosts_2.user_id == user_id,
+            income_boosts_2.income_id == Income.id,
+            income_boosts_2.deleted_at == None,
+            income_boosts_2.closed_at == None,
+            cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
+        ).scalar_subquery()
+
+        # Main query
+        query = session.query(
+            Income.id,
+            Income.earner,
+            Income.gross_income,
+            Income.net_income,
+            Income.total_gross_income,
+            Income.total_net_income,
+            Income.pay_date,
+            Income.next_pay_date,
+            Income.repeat,
+            Income.user_id,
+            func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
+            func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
+        ).filter(
+            Income.user_id == user_id,
+            Income.deleted_at == None,
+            Income.closed_at == None
+        )
+        
+
+        # # Get the raw SQL statement
+        # raw_sql = str(query.statement.compile(dialect=db.engine.dialect))
+
+        # # Print the raw SQL query
+        # print(raw_sql)
+
+        results = query.all()
+
+        projection_list = []
+        #initial_gross_input = 0
+        #initial_net_input = 0
+        for row in results:
+            data= {
+                "id": row.id,
+                "earner":row.earner,
+                "gross_income": row.gross_income,
+                "net_income": row.net_income,
+                "total_gross_income": row.total_gross_income,
+                "total_net_income": row.total_net_income,
+                "pay_date": row.pay_date,
+                "next_pay_date": row.next_pay_date,
+                "repeat": row.repeat,
+                "frequency_boost": row.frequency_boost,
+                "onetime_boost": row.onetime_boost
+            }
+            projections = process_projections(data)
+            projection = projections[0]
+            #initial_gross_input = projections[1]
+            #initial_net_input = projections[2]
+            
+            projection_list.append(projection)
+        
+
+        result = get_projection_list(projection_list,0) if len(projection_list) > 0 else []
+
+        return jsonify({
+            "payLoads":{                        
+                'projection_list':result
+
+            }        
+        })
     
+    except Exception as e:
+        session.rollback()  # Rollback in case of error
+        return jsonify({
+            "payLoads":{                        
+                'projection_list':[]
 
-    result = get_projection_list(projection_list,0) if len(projection_list) > 0 else []
+            }        
+        })
 
-    return jsonify({
-        "payLoads":{                        
-               'projection_list':result
-
-        }        
-    })
+    finally:
+        session.close()
     

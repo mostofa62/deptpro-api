@@ -1,11 +1,11 @@
 import re
 from flask import Flask,request,jsonify
-from incomeutil import generate_new_transaction_data_for_income
+from incomeutil import calculate_periods, generate_new_transaction_data_for_income
 from app import app
 from bson.json_util import dumps
 from util import *
 from datetime import datetime
-from models import AppData, CalendarData, Income, IncomeMonthlyLog, IncomeYearlyLog, IncomeTransaction, IncomeSourceType
+from models import AppData, CalendarData, Income, IncomeBoost, IncomeMonthlyLog, IncomeYearlyLog, IncomeTransaction, IncomeSourceType
 from dbpg import db
 from pgutils import *
 from sqlalchemy import insert, select, update
@@ -13,6 +13,8 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_, desc, asc
 
+from db import my_col
+income_accounts_logs = my_col('income_accounts_logs')
 
 @app.route('/api/delete-incomepg', methods=['POST'])
 def delete_income_pg():
@@ -27,10 +29,12 @@ def delete_income_pg():
     error = 0
     deleted_done = 0
 
+    session = db.session
+
     try:
                 
         # Update the Income record
-        income_update = db.session.query(Income).filter(Income.id == income_id).update(
+        income_update = session.query(Income).filter(Income.id == income_id).update(
             {
                 field: datetime.now(),
                 #Income.calender_at: None
@@ -38,22 +42,22 @@ def delete_income_pg():
         )        
 
         # Delete related CalendarData records
-        deleted_rows = db.session.query(CalendarData).filter(
+        deleted_rows = session.query(CalendarData).filter(
             CalendarData.module_id == "income",
             CalendarData.data_id == income_id
         ).delete(synchronize_session=False)
 
 
-        deleted_monthly_income = db.session.query(IncomeMonthlyLog).filter(            
+        deleted_monthly_income = session.query(IncomeMonthlyLog).filter(            
             IncomeMonthlyLog.income_id == income_id
         ).delete(synchronize_session=False)
 
-        deleted_yearly_income = db.session.query(IncomeYearlyLog).filter(            
+        deleted_yearly_income = session.query(IncomeYearlyLog).filter(            
             IncomeYearlyLog.income_id == income_id
         ).delete(synchronize_session=False)
 
 
-        app_update = db.session.query(AppData).filter(AppData.user_id == user_id).update(
+        app_update = session.query(AppData).filter(AppData.user_id == user_id).update(
             {
                 AppData.total_yearly_gross_income:0,
                 AppData.total_yearly_net_income:0,
@@ -65,21 +69,24 @@ def delete_income_pg():
         )       
 
         # Ensure the update was successful before committing
-        if income_update and deleted_rows:
-            db.session.commit()  # Commit only once
+        if income_update:
+            session.commit()  # Commit only once
             message = f'Income account {action} Successfully'
             deleted_done = 1
         else:
-            db.session.rollback()  # Rollback everything if update fails
+            session.rollback()  # Rollback everything if update fails
             message = f'Income account {action} Failed'
             error = 1
 
 
     except Exception as ex:
-        db.session.rollback()
+        session.rollback()
         print('Income account Delete Exception:', ex)
         message = f'Income account {action} Failed'
         error = 1
+
+    finally:
+        session.close()
 
     return jsonify({
         "income_account_id": income_id if deleted_done else None,
@@ -188,94 +195,114 @@ def list_income_pg(user_id: int):
     sort_by = data.get('sortBy', [])
     action = request.args.get('action', None)
 
-    query = db.session.query(Income).filter(
-        Income.user_id == user_id        
-    )
-
-    if action:
-        query = query.filter(
-            Income.deleted_at == None,
-            Income.closed_at != None
-        )  # No need for or_() with a single condition
-
-    else:
-        query = query.filter(
-            Income.deleted_at == None,
-            Income.closed_at == None
-        )  # No need for or_() with a single condition
-
-    # Handle global search filter
-    if global_filter:        
-
-        # Ensure the subquery is explicitly wrapped in select()
-        income_source_subquery_stmt = select(IncomeSourceType.id).where(
-            IncomeSourceType.name.ilike(f"%{global_filter}%")
+    session = db.session
+    try:
+        query = session.query(Income).filter(
+            Income.user_id == user_id        
         )
 
-        try:
-            pay_date = datetime.strptime(global_filter, "%Y-%m-%d")
-        except ValueError:
-            pay_date = None
+        if action:
+            query = query.filter(
+                Income.deleted_at == None,
+                Income.closed_at != None
+            )  # No need for or_() with a single condition
 
-        query = query.filter(
-            or_(
-                Income.earner.ilike(f"%{global_filter}%"),
-                Income.pay_date == pay_date,
-                Income.income_source_id.in_(income_source_subquery_stmt)
+        else:
+            query = query.filter(
+                Income.deleted_at == None,
+                Income.closed_at == None
+            )  # No need for or_() with a single condition
+
+        # Handle global search filter
+        if global_filter:        
+
+            # Ensure the subquery is explicitly wrapped in select()
+            income_source_subquery_stmt = select(IncomeSourceType.id).where(
+                IncomeSourceType.name.ilike(f"%{global_filter}%")
             )
+
+            try:
+                pay_date = datetime.strptime(global_filter, "%Y-%m-%d")
+            except ValueError:
+                pay_date = None
+
+            query = query.filter(
+                or_(
+                    Income.earner.ilike(f"%{global_filter}%"),
+                    Income.pay_date == pay_date,
+                    Income.income_source_id.in_(income_source_subquery_stmt)
+                )
+            )
+
+
+        # Handle sorting
+        sort_params = []
+        for sort in sort_by:
+            sort_field = getattr(Income, sort["id"], None)
+            if sort_field:
+                sort_params.append(sort_field.desc() if sort["desc"] else sort_field.asc())
+
+        if sort_params:
+            query = query.order_by(*sort_params)
+
+        # Apply pagination
+        total_count = query.count()
+        incomes = (
+            query.options(joinedload(Income.income_source))
+            .offset(page_index * page_size)
+            .limit(page_size)
+            .all()
         )
 
+        # Fetch app data in a single query
+        app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
-    # Handle sorting
-    sort_params = []
-    for sort in sort_by:
-        sort_field = getattr(Income, sort["id"], None)
-        if sort_field:
-            sort_params.append(sort_field.desc() if sort["desc"] else sort_field.asc())
+        # Convert results into response format
+        income_list = [
+            {
+                "id": income.id,
+                "earner": income.earner,
+                "income_source": income.income_source.name if income.income_source else None,
+                'gross_income':income.gross_income,
+                'net_income':income.net_income,
+                'repeat':income.repeat,
+                'total_gross_income':income.total_gross_income,
+                'total_net_income':income.total_net_income,            
+                "pay_date": convertDateTostring(income.pay_date),
+                "next_pay_date": convertDateTostring(income.next_pay_date),
+                "total_yearly_net_income": income.total_yearly_net_income,
+                
+            }
+            for income in incomes
+        ]
 
-    if sort_params:
-        query = query.order_by(*sort_params)
+        session.close()
 
-    # Apply pagination
-    total_count = query.count()
-    incomes = (
-        query.options(joinedload(Income.income_source))
-        .offset(page_index * page_size)
-        .limit(page_size)
-        .all()
-    )
+        return jsonify({
+            'rows': income_list,
+            'pageCount': (total_count + page_size - 1) // page_size,
+            'totalRows': total_count,
+            'extra_payload': {
+                'total_net_income': app_data.total_monthly_net_income if app_data else 0,
+                'total_gross_income': app_data.total_monthly_gross_income if app_data else 0
+            }
+        })
+    
+    except Exception as e:
+        #session.rollback()  # Rollback in case of error
+        return jsonify({
+            'rows': [],
+            'pageCount': 0,
+            'totalRows': 0,
+            'extra_payload': {
+                'total_net_income': 0,
+                'total_gross_income': 0
+            }
+        })
 
-    # Fetch app data in a single query
-    app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+    finally:
+        session.close()
 
-    # Convert results into response format
-    income_list = [
-        {
-            "id": income.id,
-            "earner": income.earner,
-            "income_source": income.income_source.name if income.income_source else None,
-            'gross_income':income.gross_income,
-            'net_income':income.net_income,
-            'repeat':income.repeat,
-            'total_gross_income':income.total_gross_income,
-            'total_net_income':income.total_net_income,            
-            "pay_date": convertDateTostring(income.pay_date),
-            "next_pay_date": convertDateTostring(income.next_pay_date),
-            "total_yearly_net_income": income.total_yearly_net_income,
-            
-        }
-        for income in incomes
-    ]
-
-    return jsonify({
-        'rows': income_list,
-        'pageCount': (total_count + page_size - 1) // page_size,
-        'totalRows': total_count,
-        'extra_payload': {
-            'total_net_income': app_data.total_monthly_net_income if app_data else 0,
-            'total_gross_income': app_data.total_monthly_gross_income if app_data else 0
-        }
-    })
 
 
 
@@ -441,12 +468,28 @@ def create_income():
             "message": message,
             "result": result
         })
-    
 
+
+def income_accounts_log_entry(
+                            income_id,          
+                            user_id,
+                            income_account_log_data
+                              ):
+    income_account_data = None    
+
+    income_acc_query = {
+                "income_id": income_id,                
+                "user_id":user_id,
+                
+    }
+    newvalues = { "$set":  income_account_log_data }
+    income_account_data = income_accounts_logs.update_one(income_acc_query,newvalues,upsert=True)
+    return income_account_data
 
 
 @app.route('/api/edit-income/<int:id>', methods=['POST'])
 async def edit_income(id: int):
+
     if request.method == 'POST':
         data = json.loads(request.data)
 
@@ -454,6 +497,7 @@ async def edit_income(id: int):
         income_id = id
         message = ''
         result = 0
+        session = db.session
         
         stmt = select(
             Income.id,                              
@@ -464,7 +508,7 @@ async def edit_income(id: int):
             Income.commit                     
         ).where(Income.id == income_id)
 
-        previous_income = db.session.execute(stmt).mappings().first()       
+        previous_income = session.execute(stmt).mappings().first()       
 
         net_income = float(data.get("net_income", 0))
         gross_income = float(data.get("gross_income", 0))
@@ -474,7 +518,7 @@ async def edit_income(id: int):
         previous_gross_income = float(previous_income['gross_income'])
         previous_net_income = float(previous_income['net_income'])
         previous_repeat = previous_income['repeat']['value'] if previous_income['repeat']['value'] > 0 else None
-        previous_commit = previous_income['commit']
+        #previous_commit = previous_income['commit']
         pay_date = previous_income['pay_date']
 
         change_found_gross = False if are_floats_equal(previous_gross_income, gross_income) else True
@@ -503,147 +547,139 @@ async def edit_income(id: int):
 
         del merge_data['income_source']
         del merge_data['pay_date']
-        
 
-        # If we found any changes on gross_income, net_income or repeat values
-        if any_change:        
-            # Get a database session from get_db
-            session = db.session
-            
-            try:
+        
+        
+        
+        # If no change is found, just update the income record
+        try:
+
+            stmt_update = update(Income).where(Income.id == income_id).values(merge_data)
+           
+            if any_change:
                 del merge_data['total_gross_income']
                 del merge_data['total_net_income']
-
+                print('merge_data',merge_data)                
                 # Get latest commit
-                commit = datetime.now() 
-                # Generate new transaction data and save them
-                income_transaction_generate = generate_new_transaction_data_for_income(
-                    gross_income,
-                    net_income,
-                    pay_date,
-                    repeat,
-                    commit,
-                    income_id,
-                    user_id
-                )                        
+                commit = datetime.now()
+                total_gross_income =0 
+                total_net_income = 0
+                total_balance = 0
+                total_monthly_gross_income = 0
+                total_monthly_net_income = 0
+                total_yearly_gross_income = 0
+                total_yearly_net_income = 0
+                stmt = select(
+                    IncomeBoost.id.label('income_boost_id'),
+                    IncomeBoost.total_balance,
+                    IncomeBoost.income_boost.label('contribution'),
+                    IncomeBoost.pay_date_boost.label('start_date'),
+                    IncomeBoost.repeat_boost.label('boost_frequency')
+                ).where(IncomeBoost.income_id == income_id,                         
+                        IncomeBoost.deleted_at == None,
+                        IncomeBoost.closed_at == None
 
-                income_transaction_list = income_transaction_generate['income_transaction']
-                total_gross_income = income_transaction_generate['total_gross_for_period']
-                total_net_income = income_transaction_generate['total_net_for_period']
-                next_pay_date = income_transaction_generate['next_pay_date']                        
-                is_single = income_transaction_generate['is_single']
-            
-                income_transaction_data = None
-                if len(income_transaction_list) > 0:
-                    # Insert transactions into the database
-                    if is_single > 0:
-                        income_transaction_data = IncomeTransaction(**income_transaction_list[0])
-                        session.add(income_transaction_data)
-                    else:
-                        income_transaction_data = [IncomeTransaction(**txn) for txn in income_transaction_list]
-                        session.add_all(income_transaction_data)
-
-                # Create the update statement for Income
-                stmt = update(Income).where(Income.id == income_id).values(
-                    total_gross_income=total_gross_income,
-                    total_net_income=total_net_income,
-                    next_pay_date=next_pay_date,                      
-                    commit=commit,  # Replace with the actual commit value
-                    **merge_data  # This unpacks additional fields to update
-                )
-
-                session.execute(stmt)
-
-                # Step 1: Delete Previous Commit Data from IncomeTransaction
-                stmt_delete = update(IncomeTransaction).where(
-                    IncomeTransaction.income_id == income_id,
-                    IncomeTransaction.commit == previous_commit
-                ).values(deleted_at=datetime.now())
-
-                session.execute(stmt_delete)
-
-                # Step 2: Upsert IncomeMonthlyLog
-                stmt_monthly_log = update(IncomeMonthlyLog).where(
-                    IncomeMonthlyLog.income_id == income_id,
-                    IncomeMonthlyLog.user_id == user_id
-                ).values(
-                    income_id=income_id,
-                    user_id=user_id,
-                    total_monthly_gross_income=0,
-                    total_monthly_net_income=0,
-                    updated_at=None
-                )
-
-                session.execute(stmt_monthly_log)
-
-                # Step 3: Upsert IncomeYearlyLog
-                stmt_yearly_log = update(IncomeYearlyLog).where(
-                    IncomeMonthlyLog.income_id == income_id,
-                    IncomeMonthlyLog.user_id == user_id
-                ).values(
-                    income_id=income_id,
-                    user_id=user_id,
-                    total_yearly_gross_income=0,
-                    total_yearly_net_income=0,
-                    updated_at=None
-                )
-
-                session.execute(stmt_yearly_log)
-
-
-                # Query to check if the user already exists
-                app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
-
-                if app_data:
-                    # Update the existing record
-                    app_data.total_yearly_gross_income = 0
-                    app_data.total_yearly_net_income = 0
-                    app_data.total_monthly_gross_income = 0
-                    app_data.total_monthly_net_income = 0
-                    app_data.income_updated_at = None
-                    
-                    
-                else:
-                    # Insert a new record if the user doesn't exist
-                    app_data = AppData(
-                        user_id=user_id,
-                        total_yearly_gross_income=0,
-                        total_yearly_net_income=0,
-                        total_monthly_gross_income=0,
-                        total_monthly_net_income=0,
-                        income_updated_at=None
                     )
-                    
-                session.add(app_data)
-                # Commit the transaction
-                session.commit()
-                message = 'Income account updated successfully'                        
-                result = 1
-            except Exception as ex:
-                print('Income Update Exception: ', ex)
-                result = 0
-                message = 'Income account update failed'
-                session.rollback()
-            finally:
-                session.close()
-        else:
-            # If no change is found, just update the income record
-            try:
-                stmt_update = update(Income).where(Income.id == income_id).values(merge_data)
-                session = db.session
+
+                results = session.execute(stmt).fetchall()
+
+                income_account_data = None
+
+                income_account_log_data = \
+                {                    
+                    "income":{
+                        "id":income_id,                        
+                        "total_gross_income":total_gross_income,
+                        "total_net_income":total_net_income,
+                        "gross_income":gross_income,
+                        "net_income":net_income,
+                        "pay_date":pay_date,
+                        "repeat":repeat,
+                        "completed_at":None,
+                    },
+                    "boost":{},
+                    "total_gross_income":0,
+                    "total_net_income":0,
+                    "commit":commit,
+                    "finished_at":None
+                }
+
+                
+
+                
+
+                for row in results:
+
+                    boost_frequency =  row.boost_frequency['value'] if row.boost_frequency['value'] < 1 else  repeat
+
+                    income_account_log_data["boost"][f"{row.income_boost_id}"]={
+                        "id":row.income_boost_id,
+                        "total_balance":total_balance,
+                        "contribution":row.contribution,
+                        "start_date":row.start_date,
+                        "repeat_boost":boost_frequency,
+                        "completed_at":None,
+                    }
+
+
+                #print('income_account_log_data',income_account_log_data)
+                   
+                income_account_data = income_accounts_log_entry(
+                    income_id,
+                    user_id,
+                    income_account_log_data
+                )
+                
+                if income_account_data!=None:
+                    # Create the update statement for Income
+                    stmt_update = update(Income).where(Income.id == income_id).values(
+                        total_gross_income=total_gross_income,
+                        total_net_income=total_net_income,
+                        total_monthly_gross_income=total_monthly_gross_income,
+                        total_monthly_net_income = total_monthly_net_income,
+                        total_yearly_gross_income=total_yearly_gross_income,
+                        total_yearly_net_income = total_yearly_net_income,
+                        next_pay_date=None,                      
+                        commit=commit,  # Replace with the actual commit value
+                        **merge_data  # This unpacks additional fields to update
+                    )
+                    session.execute(stmt_update)
+                    session.commit()
+                    message = 'Income account updated successfully'
+                    result = 1
+                else:
+                    result = 0
+                    message = 'Income account update failed'
+
+
+            else:
                 session.execute(stmt_update)
                 session.commit()
                 message = 'Income account updated successfully'
                 result = 1
-            except Exception as ex:
-                print('Income Update Exception: ', ex)
-                result = 0
-                message = 'Income account update failed'
-                session.rollback()
+               
+            
+                
+            
+           
+            
+            
+            
+        except Exception as ex:
+            print('Income Update Exception: ', ex)
+            result = 0
+            message = 'Income account update failed'
+            session.rollback()
+
+        finally:
+            session.close()
+
+        
 
         return jsonify({
             "income_id": income_id,
             "message": message,
             "result": result
         })
+
 

@@ -32,7 +32,31 @@ def calcuate_frequncey_wise_income(input, frequency):
     normalized_income = input * (30 / frequency)
     return normalized_income
 
+def calculate_periods(start_date,frequency=None, end_date=None):
+    if end_date is None:
+        end_date = datetime.now()
 
+    if start_date > end_date:
+        return 0  # If start date is in the future, return 0 periods
+
+    delta_days = (end_date - start_date).days
+
+    if frequency in [1, 7, 14]:  # Daily, Weekly, Bi-weekly
+        return delta_days // frequency
+
+    elif frequency == 30:  # Monthly Frequency
+        delta_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+        return max(0, delta_months)  # Ensure non-negative
+
+    elif frequency == 90:  # Quarterly (Every 3 months)
+        delta_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+        return max(0, delta_months // 3)
+
+    elif frequency == 365:  # Yearly Frequency
+        delta_years = end_date.year - start_date.year
+        return max(0, delta_years)
+
+    return 0  # If frequency is not recognized
 #here for each
 ## if we have fraction for daily-7, biweekly-14 then delete due day amount
 
@@ -427,6 +451,9 @@ def calculate_breakdown_future(
 
     current_date = pay_date
 
+    # print('current_date',current_date)
+    # print('delta',delta)
+    
     next_contribution_date = current_date + delta
 
     current_datetime_now = datetime.now() + timedelta(days=365)
