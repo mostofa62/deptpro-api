@@ -124,10 +124,10 @@ def get_income_all_pg(id:int):
     # Convert to dict and format dates
     income_data = {key: income[key] for key in income.keys()}
     
-    income_data['pay_date_word'] = income_data['pay_date'].strftime('%d %b, %Y')
+    income_data['pay_date_word'] = convertDateTostring(income_data['pay_date'])
     income_data['pay_date'] = convertDateTostring(income_data['pay_date'],"%Y-%m-%d")
 
-    income_data['next_pay_date_word'] = income_data['next_pay_date'].strftime('%d %b, %Y')
+    income_data['next_pay_date_word'] = convertDateTostring(income_data['next_pay_date'])
     income_data['next_pay_date'] = convertDateTostring(income_data['next_pay_date'],"%Y-%m-%d")
 
 
@@ -222,7 +222,7 @@ def list_income_pg(user_id: int):
             )
 
             try:
-                pay_date = datetime.strptime(global_filter, "%Y-%m-%d")
+                pay_date = convertStringTodate(global_filter, "%Y-%m-%d")
             except ValueError:
                 pay_date = None
 
