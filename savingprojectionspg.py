@@ -92,7 +92,7 @@ def get_projection_list(projection_list,single:int=1):
 
 @app.route('/api/saving-contributions-nextpgu/<int:user_id>', methods=['GET'])
 def saving_contributions_next_pgu(user_id:int):
-
+    '''
     # Subquery for frequency_boost with conditional subtraction
     frequency_boost_subquery = db.session.query(
         func.sum(
@@ -188,6 +188,9 @@ def saving_contributions_next_pgu(user_id:int):
         projection_list.append(projection)
 
     result = get_projection_list(projection_list,0) if len(projection_list) > 0 else []
+    '''
+    result = []
+
 
     return jsonify({
         "payLoads":{                                     
@@ -201,6 +204,7 @@ def saving_contributions_next_pgu(user_id:int):
 def saving_contributions_next_pg(saving_id:int):
 
     # Subquery for frequency_boost with conditional subtraction
+    '''
     frequency_boost_subquery = db.session.query(
         func.sum(
             case(
@@ -277,6 +281,9 @@ def saving_contributions_next_pg(saving_id:int):
     projection_list = process_projections(data)[0]
 
     result = get_projection_list(projection_list,total_balance, goal_amount)
+
+    '''
+    result =[]
 
     return jsonify({
         "payLoads":{                                     

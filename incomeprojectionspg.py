@@ -11,9 +11,9 @@ from datetime import datetime
 from dbpg import db
 from sqlalchemy.orm import aliased
 
+#from memory_profiler import profile
 
-
-
+#@profile
 def process_projections(todo, initial_gross_input:float=0, initial_net_input:float=0):
 
     frequency_boost = todo['frequency_boost']
@@ -50,7 +50,7 @@ def process_projections(todo, initial_gross_input:float=0, initial_net_input:flo
         gross_total,
         net_total
     )
-
+#@profile
 def get_projection_list(projection_list,single:int=1):
 
     # Optimized dictionary to store merged results
@@ -213,52 +213,37 @@ async def income_transactions_next_pg(income_id:int):
 
 
 @app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
-async def income_transactions_next_pgu(user_id:int):
+#@profile
+def income_transactions_next_pgu(user_id:int):
+
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     session = db.session
     try:
         # # Subquery for frequency_boost
-        # frequency_boost_subquery = session.query(
-        #     func.sum(income_boosts_1.income_boost).label('frequency_boost')
-        # ).filter(
-        #     income_boosts_1.user_id == user_id,
-        #     income_boosts_1.income_id == Income.id,
-        #     income_boosts_1.deleted_at == None,
-        #     income_boosts_1.closed_at == None,
-        #     cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
-        # ).scalar_subquery()
+        frequency_boost_subquery = session.query(
+            func.sum(income_boosts_1.income_boost).label('frequency_boost')
+        ).filter(
+            income_boosts_1.user_id == user_id,
+            income_boosts_1.income_id == Income.id,
+            income_boosts_1.deleted_at == None,
+            income_boosts_1.closed_at == None,
+            cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
+        ).scalar_subquery()
 
-        # # Subquery for onetime_boost
-        # onetime_boost_subquery = session.query(
-        #     func.sum(income_boosts_2.income_boost).label('onetime_boost')
-        # ).filter(
-        #     income_boosts_2.user_id == user_id,
-        #     income_boosts_2.income_id == Income.id,
-        #     income_boosts_2.deleted_at == None,
-        #     income_boosts_2.closed_at == None,
-        #     cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
-        # ).scalar_subquery()
+        # # # Subquery for onetime_boost
+        onetime_boost_subquery = session.query(
+            func.sum(income_boosts_2.income_boost).label('onetime_boost')
+        ).filter(
+            income_boosts_2.user_id == user_id,
+            income_boosts_2.income_id == Income.id,
+            income_boosts_2.deleted_at == None,
+            income_boosts_2.closed_at == None,
+            income_boosts_2.pay_date_boost >= today,
+            cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
+        ).scalar_subquery()
 
-        # # Main query
-        # query = session.query(
-        #     Income.id,
-        #     Income.earner,
-        #     Income.gross_income,
-        #     Income.net_income,
-        #     Income.total_gross_income,
-        #     Income.total_net_income,
-        #     Income.pay_date,
-        #     Income.next_pay_date,
-        #     Income.repeat,
-        #     Income.user_id,
-        #     func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
-        #     func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
-        # ).filter(
-        #     Income.user_id == user_id,
-        #     Income.deleted_at == None,
-        #     Income.closed_at == None
-        # )
-        '''
+        # # # Main query
         query = session.query(
             Income.id,
             Income.earner,
@@ -270,27 +255,15 @@ async def income_transactions_next_pgu(user_id:int):
             Income.next_pay_date,
             Income.repeat,
             Income.user_id,
-            func.coalesce(func.sum(income_boosts_1.income_boost), 0).label('frequency_boost'),
-            func.coalesce(func.sum(income_boosts_2.income_boost), 0).label('onetime_boost')
-        ).join(
-            income_boosts_1, income_boosts_1.income_id == Income.id, isouter=True
-        ).join(
-            income_boosts_2, income_boosts_2.income_id == Income.id, isouter=True
+            func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
+            func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
         ).filter(
             Income.user_id == user_id,
             Income.deleted_at == None,
-            Income.closed_at == None,
-            income_boosts_1.user_id == user_id,
-            income_boosts_2.user_id == user_id,
-            income_boosts_1.deleted_at == None,
-            income_boosts_2.deleted_at == None,
-            income_boosts_1.closed_at == None,
-            income_boosts_2.closed_at == None,
-            cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0,
-            cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
-        ).group_by(
-            Income.id
+            Income.closed_at == None
         )
+        
+        
         
 
         # # Get the raw SQL statement
@@ -300,6 +273,11 @@ async def income_transactions_next_pgu(user_id:int):
         # print(raw_sql)
 
         results = query.all()
+
+        for row in results:
+            print(row)
+
+        '''
 
         projection_list = []
         #initial_gross_input = 0
@@ -341,7 +319,8 @@ async def income_transactions_next_pgu(user_id:int):
         session.rollback()  # Rollback in case of error
         return jsonify({
             "payLoads":{                        
-                'projection_list':[]
+                'projection_list':[],
+                'exception':e
 
             }        
         })

@@ -554,7 +554,7 @@ async def edit_income(id: int):
         # If no change is found, just update the income record
         try:
 
-            stmt_update = update(Income).where(Income.id == income_id).values(merge_data)
+            
            
             if any_change:
                 del merge_data['total_gross_income']
@@ -653,6 +653,7 @@ async def edit_income(id: int):
 
 
             else:
+                stmt_update = update(Income).where(Income.id == income_id).values(merge_data)
                 session.execute(stmt_update)
                 session.commit()
                 message = 'Income account updated successfully'

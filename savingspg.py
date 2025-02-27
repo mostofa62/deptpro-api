@@ -1,5 +1,5 @@
 from flask import request,jsonify, json
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from savingutil import calculate_breakdown
 from app import app
 import re
@@ -9,7 +9,8 @@ from models import AppData, CalendarData, Saving,SavingBoost, SavingCategory, Sa
 from dbpg import db
 from pgutils import new_entry_option_data
 from sqlalchemy.orm import joinedload
-
+from db import my_col
+saving_accounts_logs = my_col('saving_accounts_logs')
 
 @app.route('/api/delete-savingpg', methods=['POST'])
 def delete_saving_pg():
@@ -179,6 +180,53 @@ def list_saving_pg(user_id: int):
         }
     })
 
+@app.route("/api/savingpg/<int:id>", methods=['GET'])
+def view_saving_pg(id: int):
+    # Fetch saving with a join to SavingSourceType
+    stmt = (
+        select(
+            Saving.id,
+            Saving.user_id,
+            Saving.nickname,
+            Saving.category_id,
+            Saving.saver,
+            Saving.contribution,
+            Saving.goal_amount,
+            Saving.increase_contribution_by,
+            Saving.starting_date,
+            Saving.repeat,
+            Saving.note,
+            Saving.starting_amount,
+            SavingCategory.name.label("category_name"),
+            Saving.savings_strategy,
+            Saving.interest_type,
+            Saving.interest,
+        )
+        .join(SavingCategory, Saving.category_id == SavingCategory.id, isouter=True)
+        .where(Saving.id == id)
+    )
+
+    saving = db.session.execute(stmt).mappings().first()
+
+    if not saving:
+        return jsonify({"error": "Saving record not found"}), 404
+
+    # Convert to dict and format dates
+    saving_data = {key: saving[key] for key in saving.keys()}
+    
+    if saving_data["starting_date"]:
+        saving_data["starting_date"] = convertDateTostring(saving_data["starting_date"], "%Y-%m-%d")
+
+    # Attach saving source with value/label structure
+    saving_data["category"] = {
+        "value": saving_data.pop("category_id"),
+        "label": saving_data.pop("category_name", None)  # Handle cases where it's None
+    }
+
+    return jsonify({"saving": saving_data})
+
+
+
 @app.route("/api/saving-allpg/<int:id>", methods=['GET'])
 def get_saving_all_pg(id:int):
     
@@ -274,6 +322,237 @@ def calculate_savings(savings):
     return total_savings, interest_earned, progress
 
 
+def saving_accounts_log_entry(
+                            saving_id,          
+                            user_id,
+                            saving_account_log_data
+                              ):
+    saving_account_data = None    
+
+    saving_acc_query = {
+                "saving_id": saving_id,                
+                "user_id":user_id,
+                
+    }
+
+    print('saving_account_log_data',saving_account_log_data)
+    newvalues = { "$set":  saving_account_log_data }
+    saving_account_data = saving_accounts_logs.update_one(saving_acc_query,newvalues,upsert=True)
+    return saving_account_data
+
+@app.route('/api/edit-saving-accountpg/<int:id>', methods=['POST'])
+async def edit_saving_pg(id:int):
+    if request.method == 'POST':
+        data = json.loads(request.data)
+        user_id = data['user_id']
+        saving_id = id
+        message = ''
+        result = 0
+
+        session = db.session
+
+        stmt = select(
+            Saving.id,
+            Saving.interest,
+            Saving.contribution,
+            Saving.increase_contribution_by,                                    
+            Saving.starting_amount,
+            Saving.starting_date,
+            Saving.goal_amount,
+            Saving.repeat,  
+            Saving.commit                     
+        ).where(Saving.id == id)
+
+        
+
+        
+        goal_amount = round(float(data.get("goal_amount", 0)),2)
+        interest = round(float(data.get("interest", 0)),2)
+        starting_amount = round(float(data.get("starting_amount", 0)),2)
+        contribution = round(float(data.get("contribution", 0)),2)
+        i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
+        repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+
+
+        previous_saving = session.execute(stmt).mappings().first()                              
+
+
+        previous_starting_amount = float(previous_saving['starting_amount'])
+        previous_goal_amount = float(previous_saving['goal_amount'])
+        previous_repeat = previous_saving['repeat']['value'] if previous_saving['repeat']['value'] > 0 else None
+        previous_interest = float(previous_saving['interest'])
+        previous_contribution = float(previous_saving['contribution'])
+        previous_i_contribution = float(previous_saving['increase_contribution_by'])
+        starting_date = previous_saving['starting_date']
+
+        change_found_goal_amount = False if are_floats_equal(previous_goal_amount, goal_amount) else True
+        change_found_interest = False if are_floats_equal(previous_interest, interest) else True
+        change_found_starting_amount = False if are_floats_equal(previous_starting_amount, starting_amount) else True
+        change_found_previous_contribution = False if are_floats_equal(previous_contribution, contribution) else True
+        change_found_previous_i_contribution = False if are_floats_equal(previous_i_contribution, i_contribution) else True
+        change_found_repeat = False if previous_repeat == repeat else True
+
+
+        any_change = change_found_goal_amount or change_found_interest or \
+        change_found_starting_amount or \
+        change_found_previous_contribution or \
+        change_found_repeat or \
+        change_found_previous_i_contribution
+
+        category_id = new_entry_option_data(data['category'], SavingCategory, user_id)
+
+        append_data = {
+            'category_id': category_id,
+            'user_id': user_id,
+            'goal_amount': goal_amount,
+            'starting_amount': starting_amount,
+            'contribution':contribution,
+            'increase_contribution_by':i_contribution,
+            'interest':interest,                                                       
+            "updated_at": datetime.now(),                                                                                   
+        }
+
+        merge_data = data | append_data
+
+        del merge_data['category']
+        del merge_data['starting_date']        
+
+                    
+        
+        
+        
+
+        try:
+
+            #print('merge_data',merge_data)
+
+            
+            if any_change:
+                                
+                commit = datetime.now()
+                total_balance = 0
+                total_balance_xyz = 0
+                total_monthly_balance = 0
+                progress = 0
+                period = 0
+
+                stmt = select(
+                    SavingBoost.id.label('saving_boost_id'),
+                    SavingBoost.total_balance,
+                    SavingBoost.saving_boost.label('contribution'),
+                    SavingBoost.pay_date_boost.label('start_date'),
+                    SavingBoost.repeat_boost.label('boost_frequency'),
+                    SavingBoost.boost_operation_type.label('op_type'),
+                ).where(SavingBoost.saving_id == saving_id,                         
+                        SavingBoost.deleted_at == None,
+                        SavingBoost.closed_at == None
+
+                    )
+                
+                results = session.execute(stmt).fetchall()
+                print('results',results)
+
+                saving_account_data = None
+
+                saving_account_log_data = \
+                {                    
+                    "saving":{
+                        "id":saving_id,  
+                        'goal_amount':goal_amount,
+                        'starting_amount':starting_amount, 
+                        'contribution':contribution,
+                        'increase_contribution_by':i_contribution,
+                        'interest':interest,                     
+                        "total_balance":total_balance,
+                        "total_balance_xyz":total_balance_xyz,                        
+                        "progress":progress,
+                        "period":period,
+                        "starting_date":starting_date,
+                        "repeat":repeat,
+                        "completed_at":None,
+                    },
+                    "boost":{},
+                    "total_balance":0,
+                    "total_balance_xyz":0,
+                    "commit":commit,
+                    "finished_at":None
+                }
+
+                if len(results) > 0:
+
+                    for row in results:
+
+                        boost_frequency =  row.boost_frequency['value'] if row.boost_frequency['value'] < 1 else  repeat
+
+                        saving_account_log_data["boost"][f"{row.saving_boost_id}"]={
+                            "id":row.saving_boost_id,
+                            "total_balance":total_balance,
+                            "contribution":row.contribution,
+                            "start_date":row.start_date,
+                            "repeat_boost":boost_frequency,
+                            "op_type":row.op_type,
+                            "completed_at":None,
+                        }
+
+                print('saving_account_log_data',saving_account_log_data)
+
+                   
+                saving_account_data = saving_accounts_log_entry(
+                        saving_id,
+                        user_id,
+                        saving_account_log_data
+                    )
+                    
+
+                if saving_account_data!=None:
+                    # Create the update statement for Saving
+                    stmt_update = update(Saving).where(Saving.id == saving_id).values(
+                        total_balance=total_balance,
+                        total_balance_xyz=total_balance_xyz,
+                        total_monthly_balance = total_monthly_balance,
+                        progress = progress,
+                        period = period,
+                        next_contribution_date=None,
+                        goal_reached=None,
+                        commit=commit,  # Replace with the actual commit value
+                        **merge_data  # This unpacks additional fields to update
+                    )
+                    session.execute(stmt_update)
+                    session.commit()
+                    message = 'Saving account updated successfully'
+                    result = 1
+                else:
+                    result = 0
+                    message = 'Saving account update failed'
+
+            else:
+                stmt_update = update(Saving).where(Saving.id == saving_id).values(merge_data)
+                session.execute(stmt_update)
+                session.commit()
+                message = 'Saving account updated successfully'
+                result = 1
+
+
+
+        except Exception as ex:
+            saving_id = None
+            print('Saving Save Exception: ',ex)
+            result = 0
+            message = 'Saving account addition Failed'
+            session.rollback()
+
+        finally:
+            print('here comes')
+            session.close()
+
+
+        return jsonify({
+            "saving_id": saving_id,
+            "message": message,
+            "result": result
+        })
+
+        
 
 @app.route('/api/save-saving-accountpg', methods=['POST'])
 async def save_saving_pg():
