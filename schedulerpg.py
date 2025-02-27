@@ -186,7 +186,7 @@ def monthly_log_update():
      with app.app_context():
         print('MONTHLY LOG UPDATE', datetime.now())
         #commented for safe issse now
-        #saving_calculate_yearly_and_monthly_data_pg()
+        saving_calculate_yearly_and_monthly_data_pg()
         time.sleep(1)
         income_calculate_monthly_data_pg()
         time.sleep(1)
