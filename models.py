@@ -190,6 +190,7 @@ class IncomeTransaction(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     month_word = Column(String, nullable=False)  # Example: "Dec, 2024"
     month = Column(String, nullable=False, index=True)  # Example: "2024-12"
+    month_number = Column(Integer, nullable=True)
     pay_date = Column(DateTime, nullable=False)
     next_pay_date = Column(DateTime, nullable=True)
     gross_income = Column(Float, nullable=False, default=0.0)

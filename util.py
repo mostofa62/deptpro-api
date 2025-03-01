@@ -99,6 +99,14 @@ def convertDateTostring(date_obj, format:str="%d %b, %Y"):
 
     return date_string
 
+
+def convertNumberToDate(num,format:str="%b, %Y"):
+    year = int(str(num)[:4])
+    month = int(str(num)[4:])
+    date_obj = datetime(year, month, 1)
+    return date_obj.strftime(format)  # "Feb 2025"
+
+
 #income modules related
 # Define a mapping from labels to the number of days per interval
 REPEAT_INTERVALS = {

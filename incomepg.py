@@ -8,7 +8,7 @@ from datetime import datetime
 from models import AppData, CalendarData, Income, IncomeBoost, IncomeMonthlyLog, IncomeYearlyLog, IncomeTransaction, IncomeSourceType
 from dbpg import db
 from pgutils import *
-from sqlalchemy import insert, select, update
+from sqlalchemy import func, insert, select, update
 #from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_, desc, asc
@@ -333,6 +333,28 @@ def create_income():
 
                 total_gross_income = 0
                 total_net_income = 0
+                total_monthly_gross_income = 0
+                total_monthly_net_income = 0
+                total_yearly_gross_income = 0
+                total_yearly_net_income = 0
+
+
+                #for app data total
+                total_m_gross_income, total_m_net_income = (result := session.query(
+                        func.sum(IncomeMonthlyLog.total_monthly_gross_income), 
+                    func.sum(IncomeMonthlyLog.total_monthly_net_income)
+                ).filter(IncomeMonthlyLog.user_id == user_id).first()) and tuple(map(lambda x: x or 0, result)) or (0, 0)
+
+
+                total_y_gross_income, total_y_net_income = (result := session.query(
+                    func.sum(IncomeYearlyLog.total_yearly_gross_income), 
+                    func.sum(IncomeYearlyLog.total_yearly_net_income)
+                ).filter(IncomeYearlyLog.user_id == user_id).first()) and tuple(map(lambda x: x or 0, result)) or (0, 0)
+
+                #end for app data total
+
+                #print('monthly total previous',total_m_gross_income, total_m_net_income)
+                #print('yearly total previous', total_y_gross_income, total_y_net_income)
 
                 commit = datetime.now()
 
@@ -380,53 +402,76 @@ def create_income():
                     gross_income, net_income, pay_date, repeat, commit, income_id, user_id
                 )
 
+                
+
                 income_transaction_list = income_transaction_generate['income_transaction']
                 total_gross_income = income_transaction_generate['total_gross_for_period']
                 total_net_income = income_transaction_generate['total_net_for_period']
                 next_pay_date = income_transaction_generate['next_pay_date']
                 is_single = income_transaction_generate['is_single']
+                total_monthly_gross_income = income_transaction_generate['total_monthly_gross_income']
+                total_monthly_net_income = income_transaction_generate['total_monthly_net_income']
+                total_yearly_gross_income = income_transaction_generate['total_yearly_gross_income']
+                total_yearly_net_income = income_transaction_generate['total_yearly_net_income']
+
+                #print('generate monthly',total_monthly_gross_income, total_monthly_net_income)
+                #print('generated yearly', total_yearly_gross_income, total_yearly_net_income)
 
                 income_transaction_data = None
                 if len(income_transaction_list) > 0:
                     # Insert transactions into the database
                     if is_single > 0:
-                        income_transaction_data = IncomeTransaction(**income_transaction_list[0])
+                        income_transaction_data = IncomeTransaction(**income_transaction_list)
                         session.add(income_transaction_data)
                     else:
                         income_transaction_data = [IncomeTransaction(**txn) for txn in income_transaction_list]
                         session.add_all(income_transaction_data)
 
+                
+
                 # Update income record with transaction totals
                 income_record.total_gross_income = total_gross_income
                 income_record.total_net_income = total_net_income
                 income_record.next_pay_date = next_pay_date
+                income_record.total_monthly_gross_income = total_monthly_gross_income
+                income_record.total_monthly_net_income = total_monthly_net_income
+                income_record.total_yearly_gross_income = total_yearly_gross_income
+                income_record.total_yearly_net_income = total_yearly_net_income
                 income_record.updated_at = datetime.now()
+
+                
+
 
                 # Update monthly and yearly logs
                 monthly_log = IncomeMonthlyLog(
                     income_id=income_id,
                     user_id=user_id,
-                    total_monthly_gross_income=0,
-                    total_monthly_net_income=0,
+                    total_monthly_gross_income=total_monthly_gross_income,
+                    total_monthly_net_income=total_monthly_net_income,
                     updated_at=None
                 )
 
                 yearly_log = IncomeYearlyLog(
                     income_id=income_id,
                     user_id=user_id,
-                    total_yearly_gross_income=0,
-                    total_yearly_net_income=0,
+                    total_yearly_gross_income=total_yearly_gross_income,
+                    total_yearly_net_income=total_yearly_net_income,
                     updated_at=None
                 )
+                #this done for app_data for all account
+                total_monthly_gross_income += total_m_gross_income
+                total_monthly_net_income += total_m_net_income
+                total_yearly_gross_income += total_y_gross_income
+                total_yearly_net_income += total_y_net_income
                 # Query to check if the user already exists
                 app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 if app_data:
                     # Update the existing record
-                    app_data.total_yearly_gross_income = 0
-                    app_data.total_yearly_net_income = 0
-                    app_data.total_monthly_gross_income = 0
-                    app_data.total_monthly_net_income = 0
+                    app_data.total_yearly_gross_income = total_yearly_gross_income
+                    app_data.total_yearly_net_income = total_yearly_net_income
+                    app_data.total_monthly_gross_income = total_monthly_gross_income
+                    app_data.total_monthly_net_income = total_monthly_net_income
                     app_data.income_updated_at = None
                     
                     
@@ -434,10 +479,10 @@ def create_income():
                     # Insert a new record if the user doesn't exist
                     app_data = AppData(
                         user_id=user_id,
-                        total_yearly_gross_income=0,
-                        total_yearly_net_income=0,
-                        total_monthly_gross_income=0,
-                        total_monthly_net_income=0,
+                        total_yearly_gross_income=total_yearly_gross_income,
+                        total_yearly_net_income=total_yearly_net_income,
+                        total_monthly_gross_income=total_monthly_gross_income,
+                        total_monthly_net_income=total_monthly_net_income,
                         income_updated_at=None
                     )
     
