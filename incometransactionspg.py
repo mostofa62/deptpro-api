@@ -23,10 +23,10 @@ def transaction_previous(id: int, column: str = 'income_id'):
         if column == 'user_id':
             # Get the max total_net_for_period for each income_id and month, and then sum those by month
             subquery = session.query(
-                IncomeTransaction.month_number,
+                IncomeTransaction.month,
                 IncomeTransaction.income_id,
                 func.max(IncomeTransaction.total_net_for_period).label('max_total_net_for_period'),
-                func.min(IncomeTransaction.month_number).label('month_min')
+                func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
@@ -38,23 +38,23 @@ def transaction_previous(id: int, column: str = 'income_id'):
                 Income.closed_at == None,
                 IncomeTransaction.user_id == id  # Here we filter by user_id
             ).group_by(
-                IncomeTransaction.month_number,
+                IncomeTransaction.month,
                 IncomeTransaction.income_id
             ).subquery()
 
             # Now sum those max_total_net_for_periods by month
             result = session.query(
-                subquery.c.month_number,
+                subquery.c.month,
                 func.sum(subquery.c.max_total_net_for_period).label('total_balance_net'),
-                #func.min(subquery.c.month_number).label('month_min')
-                func.to_char(  # Apply formatting to the minimum month_number
+                #func.min(subquery.c.month).label('month_min')
+                func.to_char(  # Apply formatting to the minimum month
                     func.to_date(cast(func.min(subquery.c.month_min), String), 'YYYYMM'),
                     'Mon, YYYY'
                 ).label('year_month_word')
             ).group_by(
-                subquery.c.month_number
+                subquery.c.month
             ).order_by(
-                subquery.c.month_number.asc()
+                subquery.c.month.asc()
             ).limit(12)
 
             
@@ -62,10 +62,10 @@ def transaction_previous(id: int, column: str = 'income_id'):
         else:
             # Get the max total_net_for_period for each month and income_id
             subquery = session.query(
-                IncomeTransaction.month_number,
+                IncomeTransaction.month,
                 IncomeTransaction.income_id,
                 func.max(IncomeTransaction.total_net_for_period).label('total_balance_net'),
-                func.min(IncomeTransaction.month_number).label('month_min')
+                func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
@@ -77,22 +77,22 @@ def transaction_previous(id: int, column: str = 'income_id'):
                 Income.closed_at == None,
                 IncomeTransaction.income_id == id  # Filter dynamically by income_id
             ).group_by(
-                IncomeTransaction.month_number,
+                IncomeTransaction.month,
                 IncomeTransaction.income_id
             ).subquery()
 
             # Now, we just return the results directly without summing
             result = session.query(
-                subquery.c.month_number,
+                subquery.c.month,
                 subquery.c.total_balance_net,
-                #subquery.c.month_number.label('month_min')
+                #subquery.c.month.label('month_min')
                 func.to_char(
-                    func.to_date(subquery.c.month_number.cast(String), 'YYYYMM'), 
+                    func.to_date(subquery.c.month.cast(String), 'YYYYMM'), 
                     'Mon, YYYY')
                     .label('year_month_word'),
 
             ).order_by(
-                subquery.c.month_number.asc()
+                subquery.c.month.asc()
             ).limit(12)
 
 
@@ -168,7 +168,7 @@ def list_income_transactions_pg(income_id: int):
             IncomeTransaction.id,
             IncomeTransaction.total_gross_for_period,
             IncomeTransaction.total_net_for_period,
-            IncomeTransaction.month_number,
+            IncomeTransaction.month,
             IncomeTransaction.pay_date,
             IncomeTransaction.next_pay_date            
         )\
@@ -206,7 +206,7 @@ def list_income_transactions_pg(income_id: int):
                 'id':todo.id,            
                 'total_gross_for_period':todo.total_gross_for_period,
                 'total_net_for_period':todo.total_net_for_period,
-                'month_word':convertNumberToDate(todo.month_number),
+                'month_word':convertNumberToDate(todo.month),
                 'pay_date_word': convertDateTostring(todo.pay_date),
                 #'pay_date': convertDateTostring(todo.pay_date, "%Y-%m-%d"),
                 'next_pay_date_word': convertDateTostring(todo.next_pay_date),
@@ -251,7 +251,7 @@ def list_income_boost_transactions_pg(income_id:int):
             IncomeTransaction.total_gross_for_period,
             IncomeTransaction.pay_date,
             IncomeTransaction.next_pay_date,
-            IncomeTransaction.month_number,
+            IncomeTransaction.month,
             IncomeBoost.earner.label('income_boost')
             ).join(Income, 
                 and_(
@@ -287,7 +287,7 @@ def list_income_boost_transactions_pg(income_id:int):
                 'income_boost':todo.income_boost if todo.income_boost else None,            
                 'contribution':todo.gross_income,
                 'total_balance':todo.total_gross_for_period,
-                'month_word':convertNumberToDate(todo.month_number),
+                'month_word':convertNumberToDate(todo.month),
                 'contribution_date_word': convertDateTostring(todo.pay_date),
                 'contribution_date': convertDateTostring(todo.pay_date, "%Y-%m-%d"),
                 'next_pay_date_word': convertDateTostring(todo.next_pay_date),
@@ -322,8 +322,8 @@ def get_typewise_income_info_pg(user_id:int):
 
     # Get current month in 'YYYY-MM' format
     #current_month_str = datetime.now().strftime("%Y-%m")
-    current_month_number = int(datetime.now().strftime('%Y%m'))
-    print('current_month_number',current_month_number)
+    current_month = int(datetime.now().strftime('%Y%m'))
+    print('current_month',current_month)
 
     session = db.session
     try:
@@ -343,7 +343,7 @@ def get_typewise_income_info_pg(user_id:int):
                 ) \
         .join(IncomeSourceType, Income.income_source_id == IncomeSourceType.id) \
         .filter(
-            IncomeTransaction.month_number == current_month_number,
+            IncomeTransaction.month == current_month,
             Income.user_id == user_id,  # Filter by user_id
             Income.deleted_at == None,
             Income.closed_at == None

@@ -301,13 +301,13 @@ def generate_new_transaction_data_for_income(
         total_net_for_period = round(total_net_for_period,3)
        
 
-        month = current_date.strftime("%Y-%m")
-        month_word = current_date.strftime("%b, %Y")
-        month_number = int(current_date.strftime("%Y%m"))
+        #month = current_date.strftime("%Y-%m")
+        #month_word = current_date.strftime("%b, %Y")
+        month = int(current_date.strftime("%Y%m"))
         income_transaction = {
-                'month_word':month_word,
+                #'month_word':month_word,
                 'month':month,
-                'month_number':month_number,
+                #'month_number':month_number,
                 'pay_date':current_date,
                 "next_pay_date":next_pay_date,
                 'gross_income':gross_input,                
@@ -318,16 +318,16 @@ def generate_new_transaction_data_for_income(
                 "income_boost_id":None,
                 'user_id':user_id,
                 'commit':commit,
-                "deleted_at":None,
-                "closed_at":None            
+                # "deleted_at":None,
+                # "closed_at":None            
                 
             }
         
-        if month_number == int(current_datetime_now.strftime('%Y%m')):
+        if month == int(current_datetime_now.strftime('%Y%m')):
             total_monthly_gross_income += gross_input
             total_monthly_net_income += net_input
 
-        if int(month_number/100) == current_datetime_now.year:
+        if int(month/100) == current_datetime_now.year:
             total_yearly_gross_income += gross_input
             total_yearly_net_income += net_input  
         
@@ -360,15 +360,15 @@ def generate_new_transaction_data_for_income(
             
             next_pay_date = current_date + delta
 
-            month = current_date.strftime("%Y-%m")
-            month_word = current_date.strftime("%b, %Y")
-            month_number = int(current_date.strftime("%Y%m"))
+            #month = current_date.strftime("%Y-%m")
+            #month_word = current_date.strftime("%b, %Y")
+            month = int(current_date.strftime("%Y%m"))
 
 
             income_transaction.append({
-                'month_word':month_word,
+                #'month_word':month_word,
                 'month':month,
-                'month_number':month_number,
+                #'month_number':month_number,
                 'pay_date':current_date,
                 "next_pay_date":next_pay_date,
                 'gross_income':gross_input,                
@@ -379,17 +379,17 @@ def generate_new_transaction_data_for_income(
                 "income_boost_id":None,
                 'user_id':user_id,
                 'commit':commit,
-                "deleted_at":None,
-                "closed_at":None            
+                # "deleted_at":None,
+                # "closed_at":None            
                 
             })
 
-            if month_number == int(current_datetime_now.strftime('%Y%m')):
+            if month == int(current_datetime_now.strftime('%Y%m')):
                 total_monthly_gross_income += gross_input
                 total_monthly_net_income += net_input
 
 
-            if int(month_number/100) == current_datetime_now.year:
+            if int(month/100) == current_datetime_now.year:
                 total_yearly_gross_income += gross_input
                 total_yearly_net_income += net_input  
 
@@ -632,10 +632,11 @@ def generate_new_transaction_data_for_income_boost(
         total_net_for_period = round(total_net_for_period,2)
        
 
-        month = current_date.strftime("%Y-%m")
-        month_word = current_date.strftime("%b, %Y")
+        #month = current_date.strftime("%Y-%m")
+        #month_word = current_date.strftime("%b, %Y")
+        month = int(current_date.strftime("%Y%m"))
         income_transaction = {
-                'month_word':month_word,
+                #'month_word':month_word,
                 'month':month,
                 'pay_date':current_date,
                 "next_pay_date":next_pay_date,
@@ -647,10 +648,19 @@ def generate_new_transaction_data_for_income_boost(
                 "income_boost_id":income_boost_id,
                 'user_id':user_id,
                 'commit':commit,
-                "deleted_at":None,
-                "closed_at":None            
+                #"deleted_at":None,
+                #"closed_at":None            
                 
             }
+        
+        return ({                       
+            'income_transaction':income_transaction,
+            'total_gross_for_period':total_gross_for_period,
+            'total_net_for_period':total_net_for_period,
+            'next_pay_date':next_pay_date,
+            'total_boost_for_period': balance,
+            'is_single':is_single       
+        })
 
 
     
@@ -673,13 +683,13 @@ def generate_new_transaction_data_for_income_boost(
 
             next_pay_date = current_date + delta
 
-            month = current_date.strftime("%Y-%m")
-            month_word = current_date.strftime("%b, %Y")
+            # month = current_date.strftime("%Y-%m")
+            # month_word = current_date.strftime("%b, %Y")
             
-
+            month = int(current_date.strftime("%Y%m"))
 
             income_transaction.append({
-                'month_word':month_word,
+                #'month_word':month_word,
                 'month':month,
                 'pay_date':current_date,
                 "next_pay_date":next_pay_date,
@@ -691,26 +701,26 @@ def generate_new_transaction_data_for_income_boost(
                 "income_boost_id":income_boost_id,
                 'user_id':user_id,
                 'commit':commit,
-                "deleted_at":None,
-                "closed_at":None            
+                #"deleted_at":None,
+                #"closed_at":None            
                 
             })
 
              # Move to the next period based on base income frequency
             current_date = next_pay_date
 
-
+        return ({                       
+            'income_transaction':income_transaction,
+            'total_gross_for_period':total_gross_for_period,
+            'total_net_for_period':total_net_for_period,
+            'next_pay_date':next_pay_date,
+            'total_boost_for_period': balance,
+            'is_single':is_single       
+        })
    
         
 
-    return ({                       
-        'income_transaction':income_transaction,
-        'total_gross_for_period':total_gross_for_period,
-        'total_net_for_period':total_net_for_period,
-        'next_pay_date':next_pay_date,
-        'total_boost_for_period': balance,
-        'is_single':is_single       
-    })
+    
 
 
 

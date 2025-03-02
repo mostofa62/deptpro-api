@@ -45,13 +45,6 @@ Index("idx_user_adminid", User.adminid)
 Index("idx_user_phone", User.phone)
 
 
-# Enum for Debt Payoff Methods
-class DebtPayOffMethod(enum.Enum):
-    DEBT_SNOWBALL = 1  # lowest balance first
-    DEBT_AVALANCHE = 2  # highest interest rate first
-    HIGH_CREDIT_UTILIZATION = 8  # highest credit utilization first
-    CUSTOM = 3  # custom method
-
 class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
@@ -96,7 +89,7 @@ class IncomeSourceType(db.Model):
     name = Column(String, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Foreign Key linking to User
     bysystem = Column(Boolean, default=False)
-    deleted_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
     # Relationship with User model
     user = relationship("User", backref="income_sources", lazy="joined")
@@ -113,7 +106,7 @@ class IncomeBoostType(db.Model):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Foreign Key linking to User
     # If you have additional fields like bysystem, add it similarly
     bysystem = Column(Boolean, default=False)
-    deleted_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
     # Relationship with User model
     user = relationship("User", backref="income_boosts_type", lazy="joined")
@@ -133,20 +126,20 @@ class Income(db.Model):
     net_income = Column(Float, nullable=False, default=0.0)
     pay_date = Column(DateTime, nullable=False)
     repeat = Column(JSON, nullable=False)  # Change this to JSON
-    note = Column(String, nullable=True, default="")
+    note = Column(String, nullable=True, default=None)
     total_net_income = Column(Float, nullable=True, default=0.0)
     total_gross_income = Column(Float, nullable=True, default=0.0)
-    created_at = Column(DateTime, nullable=False, default=datetime.now())
-    updated_at = Column(DateTime, nullable=False, default=datetime.now(), onupdate=datetime.now())
-    closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)    
     next_pay_date = Column(DateTime, nullable=True)
-    commit = Column(DateTime, nullable=False, default=datetime.now())
+    commit = Column(DateTime, nullable=True,index=True)
     total_monthly_gross_income = Column(Float, nullable=True, default=0.0)
     total_monthly_net_income = Column(Float, nullable=True, default=0.0)
     total_yearly_gross_income = Column(Float, nullable=True, default=0.0)
     total_yearly_net_income = Column(Float, nullable=True, default=0.0)
-    calender_at = Column(DateTime, nullable=True)
-    deleted_at = Column(DateTime, nullable=True)
+    calender_at = Column(DateTime, nullable=True,index=True)
+    deleted_at = Column(DateTime, nullable=True,index=True)
+    closed_at = Column(DateTime, nullable=True,index=True)
 
     # Relationships
     user = relationship("User", backref="incomes", lazy="joined")
@@ -168,10 +161,10 @@ class IncomeBoost(db.Model):
     pay_date_boost = Column(DateTime, nullable=False)
     repeat_boost = Column(JSON, nullable=False)  # Change this to JSON
     note = Column(String, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.now())
-    updated_at = Column(DateTime, nullable=False, default=datetime.now(), onupdate=datetime.now())
-    deleted_at = Column(DateTime, nullable=True)
-    closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)
+    closed_at = Column(DateTime, nullable=True, index=True)
     next_pay_date_boost = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=True, default=0.0)  # Total balance after applying boost
 
@@ -187,10 +180,8 @@ class IncomeBoost(db.Model):
 class IncomeTransaction(db.Model):
     __tablename__ = "income_transactions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    month_word = Column(String, nullable=False)  # Example: "Dec, 2024"
-    month = Column(String, nullable=False, index=True)  # Example: "2024-12"
-    month_number = Column(Integer, nullable=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)    
+    month = Column(Integer, nullable=False,index=True)
     pay_date = Column(DateTime, nullable=False)
     next_pay_date = Column(DateTime, nullable=True)
     gross_income = Column(Float, nullable=False, default=0.0)
@@ -200,9 +191,8 @@ class IncomeTransaction(db.Model):
     income_id = Column(Integer, ForeignKey("incomes.id", ondelete="SET NULL"), nullable=True)  # Relating to incomes table
     income_boost_id = Column(Integer, ForeignKey("income_boosts.id", ondelete="SET NULL"), nullable=True)  # Relating to income_boosts table (nullable)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Relating to users table
-    commit = Column(DateTime, nullable=False, default=datetime.now())
-    deleted_at = Column(DateTime, nullable=True)
-    closed_at = Column(DateTime, nullable=True)
+    commit = Column(DateTime, nullable=True,index=True)
+    
 
     # Relationships
     income = relationship("Income", backref="income_transactions", lazy="joined",foreign_keys=[income_id])
@@ -253,13 +243,13 @@ class IncomeYearlyLog(db.Model):
 class BillType(db.Model):
     __tablename__ = 'bill_types'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('bill_types.id'), nullable=True)
-    #parent_id = db.Column(db.Integer, nullable=True) # use this avoid conflict
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    ordering = db.Column(db.Integer, nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    parent_id = Column(Integer, ForeignKey('bill_types.id'), nullable=True)
+    #parent_id = Column(Integer, nullable=True) # use this avoid conflict
+    deleted_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    ordering = Column(Integer, nullable=True)
 
     parent = db.relationship('BillType', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='bill_types', lazy='joined')
@@ -271,33 +261,38 @@ class BillType(db.Model):
 class BillAccounts(db.Model):
     __tablename__ = 'bill_accounts'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    bill_type_id = db.Column(db.Integer, db.ForeignKey('bill_types.id', ondelete='SET NULL'), nullable=True)
-    payor = db.Column(db.String(100), nullable=True)
-    default_amount = db.Column(db.Float, nullable=True)
-    current_amount = db.Column(db.Float, nullable=True)
-    paid_total = db.Column(db.Float, nullable=True)
-    next_due_date = db.Column(DateTime, nullable=True)
-    repeat_frequency = db.Column(db.Integer, nullable=True)
-    reminder_days = db.Column(db.Integer, nullable=True)
-    note = db.Column(db.String(255), nullable=True)
-    created_at = db.Column(DateTime, default=db.func.now())
-    updated_at = db.Column(DateTime, default=db.func.now(), onupdate=db.func.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    latest_transaction_id = db.Column(db.Integer, db.ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
-    deleted_at = db.Column(DateTime, nullable=True)
-    closed_at = db.Column(DateTime, nullable=True)
-    calender_at = db.Column(DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    #bill_type_id = Column(Integer, ForeignKey('bill_types.id', ondelete='SET NULL'), nullable=True)
+    payor = Column(String(100), nullable=True)
+    default_amount = Column(Float, nullable=True)
+    current_amount = Column(Float, nullable=True)
+    paid_total = Column(Float, nullable=True)
+    next_due_date = Column(DateTime, nullable=True)
+    repeat_frequency = Column(Integer, nullable=True)
+    reminder_days = Column(Integer, nullable=True)
+    note = Column(String(255), nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    #latest_transaction_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)
+    closed_at = Column(DateTime, nullable=True, index=True)
+    calender_at = Column(DateTime, nullable=True, index=True)
 
-    bill_type = relationship('BillType', backref='bill_accounts', lazy='joined')
+    # bill_type = relationship(
+    #     'BillType', 
+    #     backref='bill_accounts', 
+    #     lazy='joined',
+    #     foreign_keys=[bill_type_id]
+    #     )
     user = relationship('User', backref='bill_accounts', lazy='joined')
-    latest_transaction = relationship(
-        'BillTransactions',
-        backref='bill_accounts',
-        lazy='joined',
-        foreign_keys=[latest_transaction_id]  # Explicitly specify the foreign key to use
-    )
+    # latest_transaction = relationship(
+    #     'BillTransactions',
+    #     backref='bill_accounts',
+    #     lazy='joined',
+    #     foreign_keys=[latest_transaction_id]  # Explicitly specify the foreign key to use
+    # )
     def __repr__(self):
         return f"<BillAccounts(name={self.name}, bill_type_id={self.bill_type_id}, payor={self.payor})>"
 
@@ -306,21 +301,21 @@ class BillAccounts(db.Model):
 class BillTransactions(db.Model):
     __tablename__ = 'bill_transactions'
 
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Float, nullable=False)
-    type = db.Column(db.Integer, nullable=False)
-    payor = db.Column(db.String(100), nullable=True)
-    note = db.Column(db.String(255), nullable=True)
-    current_amount = db.Column(db.Float, nullable=True)
-    due_date = db.Column(DateTime, nullable=True)
-    created_at = db.Column(DateTime, default=db.func.now())
-    updated_at = db.Column(DateTime, default=db.func.now(), onupdate=db.func.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    bill_acc_id = db.Column(db.Integer, db.ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)    
-    payment_status = db.Column(db.Integer, nullable=True)
-    deleted_at = db.Column(DateTime, nullable=True)
-    closed_at = db.Column(DateTime, nullable=True)
-    latest_payment_id = db.Column(db.Integer, db.ForeignKey('bill_payments.id', ondelete='SET NULL'), nullable=True)
+    id = Column(Integer, primary_key=True)
+    amount = Column(Float, nullable=False)
+    type = Column(Integer, nullable=False)
+    payor = Column(String(100), nullable=True)
+    note = Column(String(255), nullable=True)
+    current_amount = Column(Float, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    bill_acc_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)    
+    payment_status = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    #latest_payment_id = Column(Integer, ForeignKey('bill_payments.id', ondelete='SET NULL'), nullable=True)
     
 
     bill_account = relationship(
@@ -330,12 +325,12 @@ class BillTransactions(db.Model):
         foreign_keys=[bill_acc_id]  # Explicitly specify the foreign key to use
     )
     user = relationship('User', backref='bill_transactions', lazy='joined')
-    latest_payment = relationship(
-        'BillPayments', 
-        backref='bill_transactions', 
-        lazy='joined',
-        foreign_keys=[latest_payment_id]
-    )
+    # latest_payment = relationship(
+    #     'BillPayments', 
+    #     backref='bill_transactions', 
+    #     lazy='joined',
+    #     foreign_keys=[latest_payment_id]
+    # )
 
     def __repr__(self):
         return f"<BillTransactions(amount={self.amount}, bill_acc_id={self.bill_acc_id}, payment_status={self.payment_status})>"
@@ -346,22 +341,22 @@ class BillTransactions(db.Model):
 class BillPayments(db.Model):
     __tablename__ = 'bill_payments'
 
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Float, nullable=False)
-    pay_date = db.Column(DateTime, nullable=False)
-    created_at = db.Column(DateTime, default=db.func.now())
-    updated_at = db.Column(DateTime, default=db.func.now(), onupdate=db.func.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    bill_trans_id = db.Column(db.Integer, db.ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
-    bill_account_id = db.Column(db.Integer, db.ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)
-    deleted_at = db.Column(DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    amount = Column(Float, nullable=False)
+    pay_date = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    #bill_trans_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    bill_account_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
 
-    bill_transaction = relationship(
-        'BillTransactions', 
-        backref='bill_payments', 
-        lazy='joined',
-        foreign_keys=[bill_trans_id]
-    )
+    # bill_transaction = relationship(
+    #     'BillTransactions', 
+    #     backref='bill_payments', 
+    #     lazy='joined',
+    #     foreign_keys=[bill_trans_id]
+    # )
     user = relationship('User', backref='bill_payments', lazy='joined')
     bill_account = relationship(
         'BillAccounts', 
@@ -378,14 +373,14 @@ class BillPayments(db.Model):
 class DebtType(db.Model):
     __tablename__ = 'debt_types'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('debt_types.id'), nullable=True)
-    #parent_id = db.Column(db.Integer, nullable=True) # use this avoid conflict
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    ordering = db.Column(db.Integer, nullable=True)
-    in_calculation = db.Column(db.Integer, nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    parent_id = Column(Integer, ForeignKey('debt_types.id'), nullable=True)
+    #parent_id = Column(Integer, nullable=True) # use this avoid conflict
+    deleted_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    ordering = Column(Integer, nullable=True)
+    in_calculation = Column(Integer, nullable=True)
 
     parent = db.relationship('DebtType', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='debt_types', lazy='joined')
@@ -397,51 +392,51 @@ class DebtType(db.Model):
 class DebtAccounts(db.Model):
     __tablename__ = 'debt_accounts'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    debt_type_id = db.Column(db.Integer, db.ForeignKey('debt_types.id', ondelete='SET NULL'), nullable=True)
-    payor = db.Column(db.String(100), nullable=True)
-    balance = db.Column(db.Float, nullable=True)
-    highest_balance = db.Column(db.Float, nullable=True)
-    monthly_payment = db.Column(db.Float, nullable=True)
-    credit_limit = db.Column(db.Float, nullable=True)
-    interest_rate = db.Column(db.Float, nullable=True)
-    start_date = db.Column(db.DateTime, nullable=True)
-    due_date = db.Column(db.DateTime, nullable=True)
-    monthly_interest = db.Column(db.Float, nullable=True)
-    note = db.Column(db.Text, nullable=True)
-    promo_rate = db.Column(db.Float, nullable=True)
-    deffered_interest = db.Column(db.Float, nullable=True)
-    promo_interest_rate = db.Column(db.Float, nullable=True)
-    promo_good_through_month = db.Column(db.Integer, nullable=True)
-    promo_good_through_year = db.Column(db.Integer, nullable=True)
-    promo_monthly_interest = db.Column(db.Float, nullable=True)
-    autopay = db.Column(db.Boolean, default=False)
-    inlclude_payoff = db.Column(db.Boolean, default=False)
-    payoff_order = db.Column(db.Integer, nullable=True)
-    custom_payoff_order = db.Column(db.Integer, nullable=True)
-    reminder_days = db.Column(db.Integer, nullable=True)
-    monthly_payment_option = db.Column(db.Float, nullable=True)
-    percentage = db.Column(db.Float, nullable=True)
-    lowest_payment = db.Column(db.Float, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now())
-    updated_at = db.Column(db.DateTime, onupdate=datetime.now())
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    closed_at = db.Column(db.DateTime, nullable=True)
-    months_to_payoff = db.Column(db.Integer, nullable=True)
-    month_debt_free = db.Column(db.DateTime, nullable=True)
-    total_payment_sum = db.Column(db.Float, nullable=True)
-    total_interest_sum = db.Column(db.Float, nullable=True)
-    calender_at = db.Column(db.DateTime, nullable=True)
-    ammortization_at = db.Column(db.DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    #debt_type_id = Column(Integer, ForeignKey('debt_types.id', ondelete='SET NULL'), nullable=True)
+    payor = Column(String(100), nullable=True)
+    balance = Column(Float, nullable=True)
+    highest_balance = Column(Float, nullable=True)
+    monthly_payment = Column(Float, nullable=True)
+    credit_limit = Column(Float, nullable=True)
+    interest_rate = Column(Float, nullable=True)
+    start_date = Column(DateTime, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    monthly_interest = Column(Float, nullable=True)
+    note = Column(db.Text, nullable=True)
+    promo_rate = Column(Float, nullable=True)
+    deffered_interest = Column(Float, nullable=True)
+    promo_interest_rate = Column(Float, nullable=True)
+    promo_good_through_month = Column(Integer, nullable=True)
+    promo_good_through_year = Column(Integer, nullable=True)
+    promo_monthly_interest = Column(Float, nullable=True)
+    autopay = Column(db.Boolean, default=False)
+    inlclude_payoff = Column(db.Boolean, default=False)
+    payoff_order = Column(Integer, nullable=True)
+    custom_payoff_order = Column(Integer, nullable=True)
+    reminder_days = Column(Integer, nullable=True)
+    monthly_payment_option = Column(Float, nullable=True)
+    percentage = Column(Float, nullable=True)
+    lowest_payment = Column(Float, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    months_to_payoff = Column(Integer, nullable=True)
+    month_debt_free = Column(DateTime, nullable=True)
+    total_payment_sum = Column(Float, nullable=True)
+    total_interest_sum = Column(Float, nullable=True)
+    calender_at = Column(DateTime, nullable=True)
+    ammortization_at = Column(DateTime, nullable=True)
 
-    debt_type = db.relationship(
-        'DebtType', 
-        backref='debt_account', 
-        lazy='joined',
-        foreign_keys=[debt_type_id]
-        )
+    # debt_type = db.relationship(
+    #     'DebtType', 
+    #     backref='debt_account', 
+    #     lazy='joined',
+    #     foreign_keys=[debt_type_id]
+    #     )
     user = db.relationship('User', backref='debt_account', lazy='joined')
     #transactions = db.relationship('DebtTransactions', backref='debt_account', lazy=True)
 
@@ -449,21 +444,21 @@ class DebtAccounts(db.Model):
 class DebtTransactions(db.Model):
     __tablename__ = 'debt_transactions'
 
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Float, nullable=False)
-    previous_balance = db.Column(db.Float, nullable=True)
-    new_balance = db.Column(db.Float, nullable=True)
-    trans_date = db.Column(db.DateTime, nullable=True)
-    type = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.Integer, nullable=True)
-    year = db.Column(db.Integer, nullable=True)
-    autopay = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.now())
-    updated_at = db.Column(db.DateTime, onupdate=datetime.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    debt_acc_id = db.Column(db.Integer, db.ForeignKey('debt_accounts.id'), nullable=True)
-    payment_status = db.Column(db.Integer, nullable=True)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    amount = Column(Float, nullable=False)
+    previous_balance = Column(Float, nullable=True)
+    new_balance = Column(Float, nullable=True)
+    trans_date = Column(DateTime, nullable=True)
+    type = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=True)
+    year = Column(Integer, nullable=True)
+    autopay = Column(db.Boolean, default=False)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    debt_acc_id = Column(Integer, ForeignKey('debt_accounts.id'), nullable=True)
+    payment_status = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
 
 
     user = db.relationship('User', backref='debt_transaction', lazy='joined')
@@ -480,15 +475,15 @@ class DebtTransactions(db.Model):
 class PaymentBoost(db.Model):
     __tablename__ = 'payment_boosts'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
-    amount = db.Column(db.Float, nullable=False)  # The payment boost amount
-    pay_date_boost = db.Column(db.DateTime, nullable=False)  # The date for the boost
-    comment = db.Column(db.String(255), nullable=True)  # Optional comment field
-    month = db.Column(db.String(50), nullable=False)  # Month in string format
-    created_at = db.Column(db.DateTime, default=datetime.now())  # Automatically sets the creation date
-    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())  # Automatically updates on modification
-    deleted_at = db.Column(db.DateTime, nullable=True)  # Can be used for soft delete functionality
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
+    amount = Column(Float, nullable=False)  # The payment boost amount
+    pay_date_boost = Column(DateTime, nullable=False)  # The date for the boost
+    comment = Column(String(255), nullable=True)  # Optional comment field
+    month = Column(String(50), nullable=False)  # Month in string format
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)  # Can be used for soft delete functionality
 
     # Relationship with User
     user = db.relationship('User', backref='payment_boosts', lazy='select')
@@ -501,11 +496,11 @@ class PaymentBoost(db.Model):
 class PayoffStrategy(db.Model):
     __tablename__ = 'payoff_strategies'
     
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
-    debt_payoff_method = db.Column(JSON, nullable=False)  # Storing method as JSON (value, label)
-    selected_month = db.Column(JSON, nullable=False)  # Storing selected month as JSON (value, label)
-    monthly_budget = db.Column(db.Integer, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
+    debt_payoff_method = Column(JSON, nullable=False)  # Storing method as JSON (value, label)
+    selected_month = Column(JSON, nullable=False)  # Storing selected month as JSON (value, label)
+    monthly_budget = Column(Integer, nullable=False)
 
     # Relationship to Users with lazy loading
     user = db.relationship('User', backref='payoff_strategies', lazy='select')
@@ -520,14 +515,14 @@ class PayoffStrategy(db.Model):
 class SavingCategory(db.Model):
     __tablename__ = 'saving_categories'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('saving_categories.id'), nullable=True)
-    #parent_id = db.Column(db.Integer, nullable=True) # use this avoid conflict
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    ordering = db.Column(db.Integer, nullable=True)
-    in_dashboard_cal = db.Column(db.Integer, nullable=True,default= 0)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    parent_id = Column(Integer, ForeignKey('saving_categories.id'), nullable=True)
+    #parent_id = Column(Integer, nullable=True) # use this avoid conflict
+    deleted_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    ordering = Column(Integer, nullable=True)
+    in_dashboard_cal = Column(Integer, nullable=True,default= 0)
 
     parent = db.relationship('SavingCategory', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='saving_categories', lazy='joined')
@@ -540,36 +535,41 @@ class SavingCategory(db.Model):
 class Saving(db.Model):
     __tablename__ = 'savings'
 
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('saving_categories.id'), nullable=False)
-    savings_strategy = db.Column(JSON, nullable=False)
-    saver = db.Column(db.String(10), nullable=False)
-    nickname = db.Column(db.String(100), nullable=True)
-    goal_amount = db.Column(db.Float, nullable=False)
-    interest = db.Column(db.Float, nullable=False)
-    interest_type = db.Column(JSON, nullable=False)
-    starting_date = db.Column(db.DateTime, nullable=False)
-    starting_amount = db.Column(db.Float, nullable=False)
-    contribution = db.Column(db.Float, nullable=False)
-    increase_contribution_by = db.Column(db.Float, nullable=True, default=0)
-    repeat = db.Column(JSON, nullable=False)
-    note = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now(), nullable=False)
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    closed_at = db.Column(db.DateTime, nullable=True)
-    goal_reached = db.Column(db.Boolean, nullable=True)
-    next_contribution_date = db.Column(db.DateTime, nullable=True)
-    total_balance = db.Column(db.Float, nullable=False, default=0)
-    total_balance_xyz = db.Column(db.Float, nullable=False, default=0)
-    progress = db.Column(db.Float, nullable=False, default=0)
-    period = db.Column(db.Integer, nullable=False, default=0)
-    commit = db.Column(db.DateTime, nullable=False, default=datetime.now())
-    calender_at = db.Column(db.DateTime, nullable=True)
-    total_monthly_balance = db.Column(db.Float, nullable=False, default=0)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    #category_id = Column(Integer, ForeignKey('saving_categories.id'), nullable=False)
+    savings_strategy = Column(JSON, nullable=False)
+    saver = Column(String(10), nullable=False)
+    nickname = Column(String(100), nullable=True)
+    goal_amount = Column(Float, nullable=False)
+    interest = Column(Float, nullable=False)
+    interest_type = Column(JSON, nullable=False)
+    starting_date = Column(DateTime, nullable=False)
+    starting_amount = Column(Float, nullable=False)
+    contribution = Column(Float, nullable=False)
+    increase_contribution_by = Column(Float, nullable=True, default=0)
+    repeat = Column(JSON, nullable=False)
+    note = Column(db.Text, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    goal_reached = Column(db.Boolean, nullable=True)
+    next_contribution_date = Column(DateTime, nullable=True)
+    total_balance = Column(Float, nullable=False, default=0)
+    total_balance_xyz = Column(Float, nullable=False, default=0)
+    progress = Column(Float, nullable=False, default=0)
+    period = Column(Integer, nullable=False, default=0)
+    commit = Column(DateTime, nullable=False, default=datetime.now())
+    calender_at = Column(DateTime, nullable=True)
+    total_monthly_balance = Column(Float, nullable=False, default=0)
 
-    category = db.relationship('SavingCategory', backref='savings', lazy='joined')
+    # category = db.relationship(
+    #     'SavingCategory', 
+    #     backref='savings', 
+    #     lazy='joined',
+    #     foreign_keys=[category_id]
+    #     )
     user = db.relationship('User', backref='savings', lazy='joined')
 
     def __repr__(self):
@@ -580,10 +580,10 @@ class Saving(db.Model):
 class SavingBoostType(db.Model):
     __tablename__ = 'saving_boost_types'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
 
     user = db.relationship('User', backref='saving_boost_types', lazy='joined')
 
@@ -594,22 +594,22 @@ class SavingBoostType(db.Model):
 class SavingBoost(db.Model):
     __tablename__ = 'saving_boosts'
 
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    saving_id = db.Column(db.Integer, db.ForeignKey('savings.id'), nullable=False)
-    saver = db.Column(db.String(10), nullable=False)
-    saving_boost = db.Column(db.Float, nullable=False)
-    saving_boost_source_id = db.Column(db.Integer, db.ForeignKey('saving_boost_types.id'), nullable=False)
-    pay_date_boost = db.Column(db.DateTime, nullable=False)
-    repeat_boost = db.Column(JSON, nullable=False)
-    boost_operation_type = db.Column(JSON, nullable=False)
-    note = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now(), nullable=False)
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    closed_at = db.Column(db.DateTime, nullable=True)
-    next_contribution_date = db.Column(db.DateTime, nullable=True)
-    total_balance = db.Column(db.Float, nullable=False, default=0)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    saving_id = Column(Integer, ForeignKey('savings.id'), nullable=False)
+    saver = Column(String(10), nullable=False)
+    saving_boost = Column(Float, nullable=False)
+    saving_boost_source_id = Column(Integer, ForeignKey('saving_boost_types.id'), nullable=False)
+    pay_date_boost = Column(DateTime, nullable=False)
+    repeat_boost = Column(JSON, nullable=False)
+    boost_operation_type = Column(JSON, nullable=False)
+    note = Column(db.Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.now(), onupdate=datetime.now(), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    next_contribution_date = Column(DateTime, nullable=True)
+    total_balance = Column(Float, nullable=False, default=0)
 
     saving = db.relationship('Saving', backref='saving_boosts', lazy='select')
     saving_boost_source = db.relationship('SavingBoostType', backref='saving_boosts', lazy='select')
@@ -623,30 +623,30 @@ class SavingBoost(db.Model):
 class SavingContribution(db.Model):
     __tablename__ = 'saving_contributions'
 
-    id = db.Column(db.Integer, primary_key=True)
-    saving_id = db.Column(db.Integer, db.ForeignKey('savings.id'), nullable=False)
-    saving_boost_id = db.Column(db.Integer, db.ForeignKey('saving_boosts.id'), nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    period = db.Column(db.Integer, nullable=False)
+    id = Column(Integer, primary_key=True)
+    saving_id = Column(Integer, ForeignKey('savings.id'), nullable=False)
+    saving_boost_id = Column(Integer, ForeignKey('saving_boosts.id'), nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    period = Column(Integer, nullable=False)
     month = Column(String, nullable=False, index=True)
-    month_word = db.Column(db.String(20), nullable=False)
-    interest = db.Column(db.Float, nullable=False)
-    interest_xyz = db.Column(db.Float, nullable=False)
-    contribution = db.Column(db.Float, nullable=False)
-    contribution_i = db.Column(db.Float, nullable=False)
-    contribution_i_intrs = db.Column(db.Float, nullable=False)
-    contribution_i_intrs_xyz = db.Column(db.Float, nullable=False)
-    increase_contribution = db.Column(db.Float, nullable=False)
-    increase_contribution_prd = db.Column(db.Float, nullable=False)
-    total_balance = db.Column(db.Float, nullable=False)
-    total_balance_xyz = db.Column(db.Float, nullable=False)
-    progress = db.Column(db.Float, nullable=False)
-    progress_xyz = db.Column(db.Float, nullable=False)
-    contribution_date = db.Column(db.DateTime, nullable=False)
-    next_contribution_date = db.Column(db.DateTime, nullable=False)
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    closed_at = db.Column(db.DateTime, nullable=True)
-    commit = db.Column(db.DateTime, nullable=False, default=datetime.now())
+    month_word = Column(String(20), nullable=False)
+    interest = Column(Float, nullable=False)
+    interest_xyz = Column(Float, nullable=False)
+    contribution = Column(Float, nullable=False)
+    contribution_i = Column(Float, nullable=False)
+    contribution_i_intrs = Column(Float, nullable=False)
+    contribution_i_intrs_xyz = Column(Float, nullable=False)
+    increase_contribution = Column(Float, nullable=False)
+    increase_contribution_prd = Column(Float, nullable=False)
+    total_balance = Column(Float, nullable=False)
+    total_balance_xyz = Column(Float, nullable=False)
+    progress = Column(Float, nullable=False)
+    progress_xyz = Column(Float, nullable=False)
+    contribution_date = Column(DateTime, nullable=False)
+    next_contribution_date = Column(DateTime, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    commit = Column(DateTime, nullable=False, default=datetime.now())
 
     saving = db.relationship('Saving', backref='saving_contributions', lazy='joined')
     saving_boost = db.relationship('SavingBoost', backref='saving_contributions', lazy='joined')
@@ -660,11 +660,11 @@ class SavingContribution(db.Model):
 class SavingMonthlyLog(db.Model):
     __tablename__ = 'saving_monthly_logs'
 
-    id = db.Column(db.Integer, primary_key=True)
-    saving_id = db.Column(db.Integer, db.ForeignKey('savings.id'), nullable=False, unique=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    total_monthly_balance = db.Column(db.Float, nullable=False)
-    updated_at = db.Column(db.DateTime, nullable=True)
+    id = Column(Integer, primary_key=True)
+    saving_id = Column(Integer, ForeignKey('savings.id'), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    total_monthly_balance = Column(Float, nullable=False)
+    updated_at = Column(DateTime, nullable=True)
 
     saving = db.relationship('Saving', backref='saving_monthly_logs', lazy='joined')
     user = db.relationship('User', backref='saving_monthly_logs', lazy='joined')
@@ -677,15 +677,15 @@ class SavingMonthlyLog(db.Model):
 class CalendarData(db.Model):
     __tablename__ = 'calendar_data'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    module_name = db.Column(db.String(255), nullable=False)
-    module_id = db.Column(db.String(255), nullable=False)
-    month = db.Column(db.String(7), nullable=False)  # Format: YYYY-MM
-    month_word = db.Column(db.String(50), nullable=False)
-    event_date = db.Column(db.Date, nullable=False)
-    data_id = db.Column(db.Integer, nullable=False)  # Simple integer, no foreign key relation
-    data = db.Column(JSON, nullable=True)  # JSON column to store additional data
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    module_name = Column(String(255), nullable=False)
+    module_id = Column(String(255), nullable=False)
+    month = Column(String(7), nullable=False)  # Format: YYYY-MM
+    month_word = Column(String(50), nullable=False)
+    event_date = Column(db.Date, nullable=False)
+    data_id = Column(Integer, nullable=False)  # Simple integer, no foreign key relation
+    data = Column(JSON, nullable=True)  # JSON column to store additional data
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
 
     def to_dict(self):
         """Serialize the model to a dictionary."""
