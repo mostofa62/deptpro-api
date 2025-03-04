@@ -134,12 +134,17 @@ def get_single_boost(initial_amount,
                      start_date,
                      frequency, 
                      initial_gross_input,
-                     initial_net_input
+                     initial_net_input,                   
                      ):
   
     balance = initial_amount
     total_gross_for_period = initial_gross_input
     total_net_for_period = initial_net_input
+
+    total_monthly_gross_income = 0
+    total_monthly_net_income = 0
+    total_yearly_gross_income = 0
+    total_yearly_net_income = 0
 
     
     
@@ -160,14 +165,14 @@ def get_single_boost(initial_amount,
     total_gross_for_period = round(total_gross_for_period,2)
     total_net_for_period = round(total_net_for_period,2)
 
+    current_datetime_now = datetime.now()
 
-
-    month = current_date.strftime("%Y-%m")
-    month_word = current_date.strftime("%b, %Y")
+    # month = current_date.strftime("%Y-%m")
+    # month_word = current_date.strftime("%b, %Y")
     
-
+    month = int(current_date.strftime("%Y%m"))
     income_transaction = {                
-                'month_word':month_word,
+                #'month_word':month_word,
                 'month':month,
                 'pay_date':current_date,
                 "next_pay_date":next_pay_date,
@@ -175,10 +180,18 @@ def get_single_boost(initial_amount,
                 'net_income':contribution,   
                 "total_gross_for_period": total_gross_for_period,
                 'total_net_for_period':total_net_for_period,
-                "deleted_at":None,
-                "closed_at":None            
+                # "deleted_at":None,
+                # "closed_at":None            
                       
     }
+
+    if month == int(current_datetime_now.strftime('%Y%m')):
+        total_monthly_gross_income += contribution
+        total_monthly_net_income += contribution
+
+    if int(month/100) == current_datetime_now.year:
+        total_yearly_gross_income += contribution
+        total_yearly_net_income += contribution
     
 
     return ({
@@ -188,7 +201,11 @@ def get_single_boost(initial_amount,
         'total_gross_for_period':total_gross_for_period,
         'total_net_for_period':total_net_for_period,
         'next_pay_date':next_pay_date,
-        'total_boost_for_period': balance       
+        'total_boost_for_period': balance,
+        'total_monthly_gross_income':total_monthly_gross_income,
+        'total_monthly_net_income':total_monthly_net_income,
+        'total_yearly_gross_income':total_yearly_gross_income,
+        'total_yearly_net_income':total_yearly_net_income,         
     })
 
 def get_single_income(
@@ -601,6 +618,7 @@ def generate_new_transaction_data_for_income_boost(
         user_id,
         initial_gross_input,
         initial_net_input        
+
 ):
 
     delta = get_delta(frequency)
@@ -612,6 +630,11 @@ def generate_new_transaction_data_for_income_boost(
     balance = initial_amount
     total_gross_for_period = initial_gross_input
     total_net_for_period = initial_net_input
+
+    total_monthly_gross_income = 0
+    total_monthly_net_income = 0
+    total_yearly_gross_income = 0
+    total_yearly_net_income = 0
 
     next_pay_date = current_date + delta
 
@@ -653,13 +676,25 @@ def generate_new_transaction_data_for_income_boost(
                 
             }
         
+        if month == int(current_datetime_now.strftime('%Y%m')):
+            total_monthly_gross_income += contribution
+            total_monthly_net_income += contribution
+
+        if int(month/100) == current_datetime_now.year:
+            total_yearly_gross_income += contribution
+            total_yearly_net_income += contribution 
+        
         return ({                       
             'income_transaction':income_transaction,
             'total_gross_for_period':total_gross_for_period,
             'total_net_for_period':total_net_for_period,
             'next_pay_date':next_pay_date,
             'total_boost_for_period': balance,
-            'is_single':is_single       
+            'is_single':is_single,
+            'total_monthly_gross_income':total_monthly_gross_income,
+            'total_monthly_net_income':total_monthly_net_income,
+            'total_yearly_gross_income':total_yearly_gross_income,
+            'total_yearly_net_income':total_yearly_net_income,       
         })
 
 
@@ -706,6 +741,14 @@ def generate_new_transaction_data_for_income_boost(
                 
             })
 
+            if month == int(current_datetime_now.strftime('%Y%m')):
+                total_monthly_gross_income += contribution
+                total_monthly_net_income += contribution
+
+            if int(month/100) == current_datetime_now.year:
+                total_yearly_gross_income += contribution
+                total_yearly_net_income += contribution
+
              # Move to the next period based on base income frequency
             current_date = next_pay_date
 
@@ -715,7 +758,11 @@ def generate_new_transaction_data_for_income_boost(
             'total_net_for_period':total_net_for_period,
             'next_pay_date':next_pay_date,
             'total_boost_for_period': balance,
-            'is_single':is_single       
+            'is_single':is_single,
+            'total_monthly_gross_income':total_monthly_gross_income,
+            'total_monthly_net_income':total_monthly_net_income,
+            'total_yearly_gross_income':total_yearly_gross_income,
+            'total_yearly_net_income':total_yearly_net_income,       
         })
    
         

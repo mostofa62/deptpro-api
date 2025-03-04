@@ -11,7 +11,7 @@ from pgutils import *
 
 @app.route("/api/incomesourceboostpg-dropdown/<int:user_id>/<string:boost>", methods=['GET'])
 @app.route("/api/incomesourceboostpg-dropdown/<int:user_id>", methods=['GET'])
-def incomesourceboostpg_dropdown(user_id: int, boost:str=None):
+async def incomesourceboostpg_dropdown(user_id: int, boost:str=None):
     
     income_source_types_list = []
     income_boost_types_list = []

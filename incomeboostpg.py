@@ -2,7 +2,7 @@ from flask import request,jsonify, json
 from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
 from pgutils import new_entry_option_data
-from models import Income, IncomeBoost, IncomeBoostType, IncomeMonthlyLog, IncomeTransaction, IncomeYearlyLog
+from models import AppData, Income, IncomeBoost, IncomeBoostType, IncomeMonthlyLog, IncomeTransaction, IncomeYearlyLog
 from incomeutil import generate_new_transaction_data_for_income_boost, get_single_boost
 from app import app
 import re
@@ -17,18 +17,71 @@ def delete_income_boost_pg():
         income_boost_id = data['id']
         key = data.get('key')
         action = 'Deleted' if key < 2 else 'Closed'
-        field = IncomeBoost.deleted_at if key < 2 else IncomeBoost.closed_at
+        #field = IncomeBoost.deleted_at if key < 2 else IncomeBoost.closed_at
+        field = "deleted_at" if key < 2 else "closed_at"
         
         message = None
         error = 0
         deleted_done = 0
+
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
         try:
 
+            
+
+            income_boost = db.session.query(IncomeBoost).filter(IncomeBoost.id == income_boost_id).first()
+
+            if income_boost:
+                if income_boost.pay_date_boost <= today:
+                    
+                    app_data = db.session.query(AppData).filter(AppData.user_id == income_boost.user_id).first()
+                    income  = db.session.query(Income).filter(Income.id == income_boost.income_id).first()
+
+                    if income:
+                        income.total_gross_income -= income_boost.total_balance
+                        income.total_net_income -= income_boost.total_balance
+                        income.total_monthly_gross_income -= income_boost.total_monthly_gross_income
+                        income.total_monthly_net_income -= income_boost.total_monthly_net_income
+                        income.total_yearly_gross_income -= income_boost.total_yearly_gross_income
+                        income.total_yearly_net_income -= income_boost.total_yearly_net_income
+
+                        db.session.add(income)
+
+                    if app_data:
+
+                        app_data.total_yearly_gross_income -= income_boost.total_monthly_gross_income
+                        app_data.total_yearly_net_income -= income_boost.total_monthly_net_income
+                        app_data.total_monthly_gross_income -= income_boost.total_yearly_gross_income
+                        app_data.total_monthly_net_income -= income_boost.total_yearly_net_income
+
+                        db.session.add(app_data)
+
+                    
+                  
+                    db.session.query(IncomeTransaction).filter(            
+                        IncomeTransaction.income_boost_id == income_boost_id
+                    ).delete(synchronize_session=False)
+
+                setattr(income_boost, field, datetime.now())
+
+                message = f'Income boost {action} Successfully'
+                deleted_done = 1
+                db.session.commit()
+
+
+
             # Update the Income record
+            '''
             income_boost_update = db.session.query(IncomeBoost).filter(IncomeBoost.id == income_boost_id).update(
                 {field: datetime.now()}, synchronize_session=False
             )
+            '''
 
+            
+
+            
+            '''
             if income_boost_update:
                 message = f'Income boost {action} Successfully'
                 deleted_done = 1
@@ -37,6 +90,8 @@ def delete_income_boost_pg():
                 message = f'Income boost {action} Failed'
                 db.session.rollback()
                 error = 1
+
+            '''
 
         except Exception as ex:
             db.session.rollback()
@@ -149,18 +204,29 @@ async def save_income_boost_pg():
         income_boost_id = None
         message = ''
         result = 0
+
+        total_gross_income= \
+        total_net_income=\
+        total_monthly_gross_income=\
+        total_monthly_net_income=\
+        total_yearly_gross_income=\
+        total_yearly_net_income = 0.0
         
 
         # Retrieve the Income record using SQLAlchemy query
         income_entry = db.session.query(
             Income.total_gross_income, 
             Income.total_net_income, 
+            Income.total_monthly_gross_income,
+            Income.total_monthly_net_income,
+            Income.total_yearly_gross_income,
+            Income.total_yearly_net_income,          
             Income.commit, 
             Income.user_id
         ).filter_by(id=income_id).first()
        
 
-        total_gross_income, total_net_income, commit, user_id = income_entry
+        total_gross_income, total_net_income,total_monthly_gross_income,total_monthly_net_income,total_yearly_gross_income,total_yearly_net_income,commit,user_id= income_entry
 
         pay_date_boost = convertStringTodate(data['pay_date_boost'])
         repeat = data['repeat_boost']['value']
@@ -183,14 +249,16 @@ async def save_income_boost_pg():
             'next_pay_date_boost': None, 
             'total_balance': 0,                                      
         }
+
+        session = db.session
         
 
         if pay_date_boost <= today:
             total_balance = 0
             
             income_boost_entry = IncomeBoost(**merge_data)
-            db.session.add(income_boost_entry)
-            db.session.flush()  # To get the ID of the inserted record
+            session.add(income_boost_entry)
+            session.flush()  # To get the ID of the inserted record
             income_boost_id = income_boost_entry.id
            
 
@@ -206,7 +274,7 @@ async def save_income_boost_pg():
                     income_boost_id,
                     user_id,
                     total_gross_income,
-                    total_net_income
+                    total_net_income                 
                 )
                 income_transaction_list = contribution_data['income_transaction']
                 total_balance_b = contribution_data['total_boost_for_period']
@@ -214,19 +282,36 @@ async def save_income_boost_pg():
                 total_net_income = contribution_data['total_net_for_period']
                 next_contribution_date_b = contribution_data['next_pay_date']
                 is_single = contribution_data['is_single']
+                total_monthly_gross_income_b = contribution_data['total_monthly_gross_income']
+                total_monthly_net_income_b = contribution_data['total_monthly_net_income']
+                total_yearly_gross_income_b = contribution_data['total_yearly_gross_income']
+                total_yearly_net_income_b = contribution_data['total_yearly_net_income']
 
                 # Update the boost status
                 boost_status = {
                     'id': income_boost_id,
                     'next_pay_date_boost': next_contribution_date_b,
                     'total_balance': total_balance_b,
+                    'total_monthly_gross_income':total_monthly_gross_income_b,
+                    'total_monthly_net_income':total_monthly_net_income_b,
+                    'total_yearly_gross_income':total_yearly_gross_income_b,
+                    'total_yearly_net_income':total_yearly_net_income_b,
                     'closed_at': None
                 }
+
+                total_monthly_gross_income = total_monthly_gross_income + total_monthly_gross_income_b
+                total_monthly_net_income = total_monthly_net_income + total_monthly_net_income_b
+                total_yearly_gross_income = total_yearly_gross_income + total_yearly_gross_income_b
+                total_yearly_net_income = total_yearly_net_income + total_yearly_net_income_b
 
                 # Update the income record
                 update_data = {
                     "total_net_income": total_net_income,            
-                    'total_gross_income': total_gross_income,       
+                    'total_gross_income': total_gross_income, 
+                    'total_monthly_gross_income' :total_monthly_gross_income,
+                    'total_monthly_net_income':total_monthly_net_income,
+                    'total_yearly_gross_income':total_yearly_gross_income,
+                    'total_yearly_net_income':total_yearly_net_income,
                     'updated_at': datetime.now()              
                 }
 
@@ -234,28 +319,42 @@ async def save_income_boost_pg():
 
                     if len(income_transaction_list)> 0:
                         if is_single:
-                            db.session.add(IncomeTransaction(**income_transaction_list))
+                            session.add(IncomeTransaction(**income_transaction_list))
                         else:
-                            db.session.add_all([IncomeTransaction(**entry) for entry in income_transaction_list])
+                            session.add_all([IncomeTransaction(**entry) for entry in income_transaction_list])
 
                     # Update the status of income boost in the IncomeBoost model
-                    db.session.query(IncomeBoost).filter_by(id=boost_status['id']).update({
+                    session.query(IncomeBoost).filter_by(id=boost_status['id']).update({
                         'next_pay_date_boost': boost_status['next_pay_date_boost'],
                         'total_balance': boost_status['total_balance'],
+                        'total_monthly_gross_income': boost_status['total_monthly_gross_income'],
+                        'total_monthly_net_income': boost_status['total_monthly_net_income'],
+                        'total_yearly_gross_income': boost_status['total_yearly_gross_income'],
+                        'total_yearly_net_income': boost_status['total_yearly_net_income'],                        
                         'closed_at': boost_status['closed_at']
                     })
 
-                    db.session.query(Income).filter_by(id=income_id).update(update_data)
+                    session.query(Income).filter_by(id=income_id).update(update_data)
 
-                    # Log the monthly and yearly logs (if needed)
-                    db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).update({
-                        'updated_at': None
-                    })
-                    db.session.query(IncomeYearlyLog).filter_by(income_id=income_id).update({
-                        'updated_at': None
-                    })
+                    app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
-                    db.session.commit()
+                    app_data.total_yearly_gross_income += total_yearly_gross_income_b
+                    app_data.total_yearly_net_income += total_yearly_net_income_b
+                    app_data.total_monthly_gross_income += total_monthly_gross_income_b
+                    app_data.total_monthly_net_income += total_monthly_net_income_b
+                    app_data.income_updated_at = None
+
+                    # # Log the monthly and yearly logs (if needed)
+                    # db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).update({
+                    #     'updated_at': None
+                    # })
+                    # db.session.query(IncomeYearlyLog).filter_by(income_id=income_id).update({
+                    #     'updated_at': None
+                    # })
+
+                   
+                    session.add(app_data)
+                    session.commit()
 
                     result = 1
                     message = 'Income boost added Succefull'
@@ -267,7 +366,7 @@ async def save_income_boost_pg():
                     print('Income Boost Save Exception: ',ex)
                     result = 0
                     message = 'Income boost addition Failed'
-                    db.session.rollback()
+                    session.rollback()
             else:
 
                 contribution_breakdown_b = get_single_boost(
@@ -276,13 +375,17 @@ async def save_income_boost_pg():
                                 pay_date_boost,
                                 repeat_boost,
                                 total_gross_income,
-                                total_net_income
+                                total_net_income                               
                                 )
                 breakdown_b = contribution_breakdown_b['income_transaction']
                 total_balance_b = contribution_breakdown_b['total_boost_for_period']
                 total_gross_income = contribution_breakdown_b['total_gross_for_period']
                 total_net_income = contribution_breakdown_b['total_net_for_period']
                 next_contribution_date_b = contribution_breakdown_b['next_pay_date']
+                total_monthly_gross_income_b = contribution_breakdown_b['total_monthly_gross_income']
+                total_monthly_net_income_b = contribution_breakdown_b['total_monthly_net_income']
+                total_yearly_gross_income_b = contribution_breakdown_b['total_yearly_gross_income']
+                total_yearly_net_income_b = contribution_breakdown_b['total_yearly_net_income']
 
                             
 
@@ -299,37 +402,64 @@ async def save_income_boost_pg():
                     'id': income_boost_id,
                     'next_pay_date_boost': next_contribution_date_b,
                     'total_balance': total_balance_b,
+                    'total_monthly_gross_income' :total_monthly_gross_income_b,
+                    'total_monthly_net_income':total_monthly_net_income_b,
+                    'total_yearly_gross_income':total_yearly_gross_income_b,
+                    'total_yearly_net_income':total_yearly_net_income_b,
                     'closed_at': None
                 }
+
+                total_monthly_gross_income = total_monthly_gross_income + total_monthly_gross_income_b
+                total_monthly_net_income = total_monthly_net_income + total_monthly_net_income_b
+                total_yearly_gross_income = total_yearly_gross_income + total_yearly_gross_income_b
+                total_yearly_net_income = total_yearly_net_income + total_yearly_net_income_b
 
                 # Update the income record
                 update_data = {
                     "total_net_income": total_net_income,            
-                    'total_gross_income': total_gross_income,       
+                    'total_gross_income': total_gross_income,
+                    'total_monthly_gross_income' :total_monthly_gross_income,
+                    'total_monthly_net_income':total_monthly_net_income,
+                    'total_yearly_gross_income':total_yearly_gross_income,
+                    'total_yearly_net_income':total_yearly_net_income,       
                     'updated_at': datetime.now()              
                 }
 
                 try:
 
-                    db.session.add(IncomeTransaction(**income_transaction_list))
+                    session.add(IncomeTransaction(**income_transaction_list))
                     # Update the status of income boost in the IncomeBoost model
-                    db.session.query(IncomeBoost).filter_by(id=boost_status['id']).update({
+                    session.query(IncomeBoost).filter_by(id=boost_status['id']).update({
                         'next_pay_date_boost': boost_status['next_pay_date_boost'],
                         'total_balance': boost_status['total_balance'],
+                        'total_monthly_gross_income': boost_status['total_monthly_gross_income'],
+                        'total_monthly_net_income': boost_status['total_monthly_net_income'],
+                        'total_yearly_gross_income': boost_status['total_yearly_gross_income'],
+                        'total_yearly_net_income': boost_status['total_yearly_net_income'],                        
                         'closed_at': boost_status['closed_at']
                     })
 
-                    db.session.query(Income).filter_by(id=income_id).update(update_data)
+                    session.query(Income).filter_by(id=income_id).update(update_data)
+
+                    app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
+
+                    app_data.total_yearly_gross_income += total_yearly_gross_income_b
+                    app_data.total_yearly_net_income += total_yearly_net_income_b
+                    app_data.total_monthly_gross_income += total_monthly_gross_income_b
+                    app_data.total_monthly_net_income += total_monthly_net_income_b
+                    app_data.income_updated_at = None
 
                     # Log the monthly and yearly logs (if needed)
-                    db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).update({
-                        'updated_at': None
-                    })
-                    db.session.query(IncomeYearlyLog).filter_by(income_id=income_id).update({
-                        'updated_at': None
-                    })
+                    # db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).update({
+                    #     'updated_at': None
+                    # })
+                    # db.session.query(IncomeYearlyLog).filter_by(income_id=income_id).update({
+                    #     'updated_at': None
+                    # })
 
-                    db.session.commit()
+                    session.add(app_data)
+
+                    session.commit()
 
                     result = 1
                     message = 'Income boost added Succefull'
@@ -340,7 +470,7 @@ async def save_income_boost_pg():
                     print('Income Boost Save Exception: ',ex)
                     result = 0
                     message = 'Income boost addition Failed'
-                    db.session.rollback()                     
+                    session.rollback()                     
 
                         
 
@@ -348,17 +478,19 @@ async def save_income_boost_pg():
                 
             try:
                 income_boost_entry = IncomeBoost(**merge_data)
-                db.session.add(income_boost_entry)
-                db.session.commit()
+                session.add(income_boost_entry)
+                session.commit()
                 income_boost_id = income_boost_entry.id
                 message = 'Income boost added Succefull'
                 result = 1
             except Exception as ex:
                 income_boost_id = None
-                db.session.rollback()
+                session.rollback()
                 print('Income Save Exception: ', ex)
                 message = 'Income boost addition Failed'
                 result = 0
+        
+        session.close()
 
         return jsonify({
             "income_id": income_boost_id,

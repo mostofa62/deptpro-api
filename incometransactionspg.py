@@ -25,8 +25,8 @@ def transaction_previous(id: int, column: str = 'income_id'):
             subquery = session.query(
                 IncomeTransaction.month,
                 IncomeTransaction.income_id,
-                func.max(IncomeTransaction.total_net_for_period).label('max_total_net_for_period'),
-                func.min(IncomeTransaction.month).label('month_min')
+                func.sum(IncomeTransaction.net_income).label('max_total_net_for_period'),
+                #func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
@@ -48,7 +48,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
                 func.sum(subquery.c.max_total_net_for_period).label('total_balance_net'),
                 #func.min(subquery.c.month).label('month_min')
                 func.to_char(  # Apply formatting to the minimum month
-                    func.to_date(cast(func.min(subquery.c.month_min), String), 'YYYYMM'),
+                    func.to_date(cast(func.min(subquery.c.month), String), 'YYYYMM'),
                     'Mon, YYYY'
                 ).label('year_month_word')
             ).group_by(
@@ -64,8 +64,8 @@ def transaction_previous(id: int, column: str = 'income_id'):
             subquery = session.query(
                 IncomeTransaction.month,
                 IncomeTransaction.income_id,
-                func.max(IncomeTransaction.total_net_for_period).label('total_balance_net'),
-                func.min(IncomeTransaction.month).label('month_min')
+                func.sum(IncomeTransaction.net_income).label('total_balance_net'),
+                #func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
@@ -138,17 +138,17 @@ def income_transactions_previous_pg(income_id:int):
     year_month_wise_counts = transaction_previous(income_id)
 
     # 7. Get the total monthly balance
-    total_monthly_balance = 0
+    total_monthly_net_income = 0
     if income_id is not None:
-        income_monthly_log_data = db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).first()
+        income_monthly_log_data = db.session.query(Income.total_monthly_net_income).filter_by(id=income_id).first()
         if income_monthly_log_data is not None:
-            total_monthly_balance = income_monthly_log_data.total_monthly_net_income
+            total_monthly_net_income, = income_monthly_log_data
    
 
     return jsonify({
         "payLoads":{                        
             "year_month_wise_counts":year_month_wise_counts,            
-            "total_monthly_balance":total_monthly_balance
+            "total_monthly_balance":total_monthly_net_income
 
         }        
     })

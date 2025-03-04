@@ -143,7 +143,12 @@ class Income(db.Model):
 
     # Relationships
     user = relationship("User", backref="incomes", lazy="joined")
-    income_source = relationship("IncomeSourceType", backref="incomes", lazy="joined")
+    income_source = relationship(
+        "IncomeSourceType", 
+        backref="incomes", 
+        lazy="joined",
+        foreign_keys=[income_source_id]
+        )
 
     def __repr__(self):
         return f"<Income id={self.id} user_id={self.user_id} income_source_id={self.income_source_id} gross_income={self.gross_income}>"
@@ -167,10 +172,19 @@ class IncomeBoost(db.Model):
     closed_at = Column(DateTime, nullable=True, index=True)
     next_pay_date_boost = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=True, default=0.0)  # Total balance after applying boost
+    total_monthly_gross_income = Column(Float, nullable=True, default=0.0)
+    total_monthly_net_income = Column(Float, nullable=True, default=0.0)
+    total_yearly_gross_income = Column(Float, nullable=True, default=0.0)
+    total_yearly_net_income = Column(Float, nullable=True, default=0.0)
 
     # Relationships
     user = relationship("User", backref="income_boosts", lazy="joined")
-    income = relationship("Income", backref="income_boosts", lazy="joined")
+    income = relationship(
+        "Income", 
+        backref="income_boosts", 
+        lazy="joined",
+        foreign_keys=[income_id]
+    )
     income_boost_source = relationship("IncomeBoostType", backref="income_boosts", lazy="joined")
 
     def __repr__(self):

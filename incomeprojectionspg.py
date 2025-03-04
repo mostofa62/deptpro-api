@@ -214,12 +214,14 @@ async def income_transactions_next_pg(income_id:int):
 
 @app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
 #@profile
-def income_transactions_next_pgu(user_id:int):
+async def income_transactions_next_pgu(user_id:int):
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     session = db.session
     try:
+
+        '''
         # # Subquery for frequency_boost
         frequency_boost_subquery = session.query(
             func.sum(income_boosts_1.income_boost).label('frequency_boost')
@@ -228,6 +230,7 @@ def income_transactions_next_pgu(user_id:int):
             income_boosts_1.income_id == Income.id,
             income_boosts_1.deleted_at == None,
             income_boosts_1.closed_at == None,
+            income_boosts_1.pay_date_boost >= today,
             cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
         ).scalar_subquery()
 
@@ -262,6 +265,8 @@ def income_transactions_next_pgu(user_id:int):
             Income.deleted_at == None,
             Income.closed_at == None
         )
+
+        '''
         
         
         
@@ -272,10 +277,82 @@ def income_transactions_next_pgu(user_id:int):
         # # Print the raw SQL query
         # print(raw_sql)
 
+        query = session.query(
+    Income.id,
+    Income.earner,
+    Income.gross_income,
+    Income.net_income,
+    Income.total_gross_income,
+    Income.total_net_income,
+    Income.pay_date,
+    Income.next_pay_date,
+    Income.repeat,
+    Income.user_id,
+    IncomeBoost.income_boost,
+    IncomeBoost.pay_date_boost,
+    IncomeBoost.repeat_boost
+).outerjoin(
+    IncomeBoost, 
+    (IncomeBoost.income_id == Income.id) &
+    (IncomeBoost.user_id == user_id) &
+    (IncomeBoost.deleted_at.is_(None)) &
+    (IncomeBoost.closed_at.is_(None)) &
+    (IncomeBoost.pay_date_boost >= today) &
+    (IncomeBoost.pay_date_boost >= Income.next_pay_date)  # Condition to ensure boost date is >= income pay date
+).filter(
+    Income.user_id == user_id,
+    Income.deleted_at.is_(None),
+    Income.closed_at.is_(None)
+).order_by(
+    Income.id,  # Order by income ID
+    IncomeBoost.pay_date_boost.asc()  # Order boosts by pay_date in ascending order
+)
+
+
+
+
         results = query.all()
 
+        projection_list = []
+
         for row in results:
-            print(row)
+            projection_list.append({
+                "id": row.id,
+                "earner": row.earner,
+                "gross_income": row.gross_income,
+                "net_income": row.net_income,
+                "total_gross_income": row.total_gross_income,
+                "total_net_income": row.total_net_income,
+                "pay_date": row.pay_date,
+                "next_pay_date": row.next_pay_date,
+                "repeat": row.repeat,
+                "user_id": row.user_id,
+                "income_boost": row.income_boost,
+                "pay_date_boost": row.pay_date_boost,
+                "repeat_boost": row.repeat_boost
+            })
+
+
+
+        '''
+
+        for row in results:
+            #print(row)
+            data= {
+                "id": row.id,
+                "earner":row.earner,
+                "gross_income": row.gross_income,
+                "net_income": row.net_income,
+                "total_gross_income": row.total_gross_income,
+                "total_net_income": row.total_net_income,
+                "pay_date": row.pay_date,
+                "next_pay_date": row.next_pay_date,
+                "repeat": row.repeat,
+                "frequency_boost": row.frequency_boost,
+                "onetime_boost": row.onetime_boost
+            }
+            projection_list.append(data)
+        '''    
 
         '''
 
@@ -307,10 +384,10 @@ def income_transactions_next_pgu(user_id:int):
         result = get_projection_list(projection_list,0) if len(projection_list) > 0 else []
         '''
         #commented due to load by pass
-        result = []
+        
         return jsonify({
             "payLoads":{                        
-                'projection_list':result
+                'projection_list':projection_list
 
             }        
         })

@@ -25,7 +25,7 @@ db.init_app(app)
 #tzset()  # Apply the environment time zone change
 
 # Setup Flask-Migrate
-#migrate = Migrate(app, db)
+migrate = Migrate(app, db)
 #from models import *
 '''
 cors = CORS(app, resource={
