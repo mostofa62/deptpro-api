@@ -15,6 +15,7 @@ from sqlalchemy import or_, desc, asc
 
 from db import my_col
 income_accounts_logs = my_col('income_accounts_logs')
+calender_data = my_col('calender_data')
 
 @app.route('/api/delete-incomepg', methods=['POST'])
 async def delete_income_pg():
@@ -45,10 +46,12 @@ async def delete_income_pg():
 
         app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
-        app_data_total_yearly_gross_income = app_data.total_yearly_gross_income - previous_income['total_yearly_gross_income'] if app_data.total_yearly_gross_income >= previous_income['total_yearly_gross_income'] else 0
-        app_data_total_yearly_net_income = app_data.total_yearly_net_income - previous_income['total_yearly_net_income'] if app_data.total_yearly_net_income >= previous_income['total_yearly_net_income']  else 0
-        app_data_total_monthly_net_income = app_data.total_monthly_net_income - previous_income['total_monthly_net_income'] if app_data.total_monthly_net_income >= previous_income['total_monthly_net_income'] else 0
-        app_data_total_monthly_gross_income = app_data.total_monthly_gross_income - previous_income['total_monthly_gross_income'] if app_data.total_monthly_gross_income >= previous_income['total_monthly_gross_income'] else 0
+        app_data.total_yearly_gross_income -= previous_income['total_yearly_gross_income'] if app_data.total_yearly_gross_income >= previous_income['total_yearly_gross_income'] else 0
+        app_data.total_yearly_net_income -= previous_income['total_yearly_net_income'] if app_data.total_yearly_net_income >= previous_income['total_yearly_net_income']  else 0
+        app_data.total_monthly_net_income -= previous_income['total_monthly_net_income'] if app_data.total_monthly_net_income >= previous_income['total_monthly_net_income'] else 0
+        app_data.total_monthly_gross_income -= previous_income['total_monthly_gross_income'] if app_data.total_monthly_gross_income >= previous_income['total_monthly_gross_income'] else 0
+        app_data.income_updated_at = None
+        session.add(app_data)
 
 
                 
@@ -58,37 +61,11 @@ async def delete_income_pg():
                 field: datetime.now(),
                 #Income.calender_at: None
             }, synchronize_session=False
-        )        
+        )
 
-        # Delete related CalendarData records
-        deleted_rows = session.query(CalendarData).filter(
-            CalendarData.module_id == "income",
-            CalendarData.data_id == income_id
-        ).delete(synchronize_session=False)
+        result = calender_data.delete_one({'module_id': 'income', 'data.data_id': income_id} )  
 
-        '''
-        deleted_monthly_income = session.query(IncomeMonthlyLog).filter(            
-            IncomeMonthlyLog.income_id == income_id
-        ).delete(synchronize_session=False)
-
-        deleted_yearly_income = session.query(IncomeYearlyLog).filter(            
-            IncomeYearlyLog.income_id == income_id
-        ).delete(synchronize_session=False)
-        '''
-
-
-
-
-        app_update = session.query(AppData).filter(AppData.user_id == user_id).update(
-            {
-                AppData.total_yearly_gross_income:app_data_total_yearly_gross_income,
-                AppData.total_yearly_net_income:app_data_total_yearly_net_income,
-                AppData.total_monthly_gross_income: app_data_total_monthly_gross_income,
-                AppData.total_monthly_net_income: app_data_total_monthly_net_income,
-                AppData.income_updated_at:None
-
-            }, synchronize_session=False
-        )       
+                             
 
         # Ensure the update was successful before committing
         if income_update:
@@ -118,7 +95,9 @@ async def delete_income_pg():
     })
 
 @app.route("/api/income-allpg/<int:id>", methods=['GET'])
-async def get_income_all_pg(id:int):    
+async def get_income_all_pg(id:int):
+
+    session = db.session    
     
     stmt = (
         select(
@@ -138,10 +117,11 @@ async def get_income_all_pg(id:int):
         .where(Income.id == id)
     )
 
-    income = db.session.execute(stmt).mappings().first()
+    income = session.execute(stmt).mappings().first()
 
     if not income:
-        return jsonify({"error": "Income record not found"}), 404
+        session.close()
+        return jsonify({"income":None,"error": "Income record not found"})
 
     # Convert to dict and format dates
     income_data = {key: income[key] for key in income.keys()}
@@ -158,7 +138,8 @@ async def get_income_all_pg(id:int):
 
     income_data['repeat'] = income_data['repeat']['label']
     
-    
+    if session:
+        session.close()
 
     return jsonify({
         "payLoads":{
@@ -170,6 +151,8 @@ async def get_income_all_pg(id:int):
 @app.route("/api/incomepg/<int:id>", methods=['GET'])
 async def view_income_pg(id: int):
     # Fetch income with a join to IncomeSourceType
+
+    session =  db.session
     stmt = (
         select(
             Income.id,
@@ -187,10 +170,11 @@ async def view_income_pg(id: int):
         .where(Income.id == id)
     )
 
-    income = db.session.execute(stmt).mappings().first()
+    income = session.execute(stmt).mappings().first()
 
     if not income:
-        return jsonify({"error": "Income record not found"}), 404
+        session.close()
+        return jsonify({"income":None,"error": "Income record not found"})
 
     # Convert to dict and format dates
     income_data = {key: income[key] for key in income.keys()}
@@ -203,6 +187,9 @@ async def view_income_pg(id: int):
         "value": income_data.pop("income_source_id"),
         "label": income_data.pop("income_source_name", None)  # Handle cases where it's None
     }
+
+    if session:
+        session.close()
 
     return jsonify({"income": income_data})
 
@@ -330,7 +317,7 @@ async def list_income_pg(user_id: int):
 
 
 @app.route('/api/create-income', methods=['POST'])
-async def create_income():
+def create_income():
     if request.method == 'POST':
         data = request.get_json()
 
@@ -359,27 +346,7 @@ async def create_income():
                 total_monthly_net_income = 0
                 total_yearly_gross_income = 0
                 total_yearly_net_income = 0
-
-
-                #for app data total
-                '''
-                total_m_gross_income, total_m_net_income = (result := session.query(
-                        func.sum(IncomeMonthlyLog.total_monthly_gross_income), 
-                    func.sum(IncomeMonthlyLog.total_monthly_net_income)
-                ).filter(IncomeMonthlyLog.user_id == user_id).first()) and tuple(map(lambda x: x or 0, result)) or (0, 0)
-
-
-                total_y_gross_income, total_y_net_income = (result := session.query(
-                    func.sum(IncomeYearlyLog.total_yearly_gross_income), 
-                    func.sum(IncomeYearlyLog.total_yearly_net_income)
-                ).filter(IncomeYearlyLog.user_id == user_id).first()) and tuple(map(lambda x: x or 0, result)) or (0, 0)
-                '''
-
-                #end for app data total
-
-                #print('monthly total previous',total_m_gross_income, total_m_net_income)
-                #print('yearly total previous', total_y_gross_income, total_y_net_income)
-
+                
                 commit = datetime.now()
 
                 del data['income_source']
@@ -425,7 +392,6 @@ async def create_income():
                 income_transaction_generate = generate_new_transaction_data_for_income(
                     gross_income, net_income, pay_date, repeat, commit, income_id, user_id
                 )
-
                 
 
                 income_transaction_list = income_transaction_generate['income_transaction']
@@ -463,33 +429,7 @@ async def create_income():
                 income_record.total_yearly_net_income = total_yearly_net_income
                 income_record.updated_at = datetime.now()
 
-                
-
-
-                # Update monthly and yearly logs
-                '''
-                monthly_log = IncomeMonthlyLog(
-                    income_id=income_id,
-                    user_id=user_id,
-                    total_monthly_gross_income=total_monthly_gross_income,
-                    total_monthly_net_income=total_monthly_net_income,
-                    updated_at=None
-                )
-
-                yearly_log = IncomeYearlyLog(
-                    income_id=income_id,
-                    user_id=user_id,
-                    total_yearly_gross_income=total_yearly_gross_income,
-                    total_yearly_net_income=total_yearly_net_income,
-                    updated_at=None
-                )
-                '''
-                #this done for app_data for all account
-                # total_monthly_gross_income += total_m_gross_income
-                # total_monthly_net_income += total_m_net_income
-                # total_yearly_gross_income += total_y_gross_income
-                # total_yearly_net_income += total_y_net_income
-                # Query to check if the user already exists
+                               
                 app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 if app_data:
@@ -511,20 +451,14 @@ async def create_income():
                         total_monthly_net_income=total_monthly_net_income,
                         income_updated_at=None
                     )
-    
 
-
-                #session.add(monthly_log)
-                #session.add(yearly_log)
                 session.add(app_data)
                 print('income_id', income_id)
-
                 
                 message = 'Income account added successfully'
                 session.commit()  # Commit the transaction
                 result = 1
                 
-
             except Exception as e:
                 income_id = None
                 message = 'Income account addition failed'
@@ -559,7 +493,7 @@ def income_accounts_log_entry(
 
 
 @app.route('/api/edit-income/<int:id>', methods=['POST'])
-async def edit_income(id: int):
+def edit_income(id: int):
 
     if request.method == 'POST':
         data = json.loads(request.data)
@@ -623,14 +557,10 @@ async def edit_income(id: int):
         del merge_data['income_source']
         del merge_data['pay_date']
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        
-        
+                        
         # If no change is found, just update the income record
         try:
 
-            
-           
             if any_change:
                 del merge_data['total_gross_income']
                 del merge_data['total_net_income']
@@ -639,11 +569,7 @@ async def edit_income(id: int):
                 commit = datetime.now()
                 total_gross_income =0 
                 total_net_income = 0
-                total_balance = 0
-                # total_monthly_gross_income = 0
-                # total_monthly_net_income = 0
-                # total_yearly_gross_income = 0
-                # total_yearly_net_income = 0
+                total_balance = 0                
                 stmt = select(
                     IncomeBoost.id.label('income_boost_id'),
                     IncomeBoost.total_balance,
@@ -660,21 +586,11 @@ async def edit_income(id: int):
                         IncomeBoost.pay_date_boost <= today
 
                     )
-                
-                
-
+                                
                 results = session.execute(stmt).fetchall()
 
                 app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
-
-                # app_data_total_yearly_gross_income = app_data.total_yearly_gross_income - previous_income['total_yearly_gross_income'] if app_data.total_yearly_gross_income >= previous_income['total_yearly_gross_income'] else 0
-                # app_data_total_yearly_net_income = app_data.total_yearly_net_income - previous_income['total_yearly_net_income'] if app_data.total_yearly_net_income >= previous_income['total_yearly_net_income']  else 0
-                # app_data_total_monthly_net_income = app_data.total_monthly_net_income - previous_income['total_monthly_net_income'] if app_data.total_monthly_net_income >= previous_income['total_monthly_net_income'] else 0
-                # app_data_total_monthly_gross_income = app_data.total_monthly_gross_income - previous_income['total_monthly_gross_income'] if app_data.total_monthly_gross_income >= previous_income['total_monthly_gross_income'] else 0
-
-
-                
-
+          
                 income_account_data = None
 
                 income_account_log_data = \
@@ -712,12 +628,7 @@ async def edit_income(id: int):
                     "finished_at":None
                 }
 
-                
-
-                
-
                 for row in results:
-
                     #boost_frequency =  row.boost_frequency['value'] if row.boost_frequency['value'] < 1 else  repeat
                     boost_frequency =  row.boost_frequency['value']
 
@@ -738,7 +649,6 @@ async def edit_income(id: int):
                         "completed_at":None,
                     }
 
-
                 #print('income_account_log_data',income_account_log_data)
                    
                 income_account_data = income_accounts_log_entry(
@@ -752,46 +662,11 @@ async def edit_income(id: int):
                     stmt_update = update(Income)\
                     .where(Income.id == income_id)\
                     .values(
-                        # total_gross_income=total_gross_income,
-                        # total_net_income=total_net_income,
-                        # total_monthly_gross_income=total_monthly_gross_income,
-                        # total_monthly_net_income = total_monthly_net_income,
-                        # total_yearly_gross_income=total_yearly_gross_income,
-                        # total_yearly_net_income = total_yearly_net_income,
-                        # next_pay_date=None,                      
+                        calender_at=None,                                     
                         commit=commit,  # Replace with the actual commit value
                         **merge_data  # This unpacks additional fields to update
                     )
                     session.execute(stmt_update)
-
-                    # stmt_app_update = update(AppData)\
-                    # .where(AppData.user_id == user_id)\
-                    # .values(
-                    #     total_monthly_gross_income = app_data_total_monthly_gross_income,
-                    #     total_monthly_net_income = app_data_total_monthly_net_income,
-                    #     total_yearly_gross_income = app_data_total_yearly_gross_income,
-                    #     total_yearly_net_income = app_data_total_yearly_net_income,
-                    #     income_updated_at = datetime.now()
-                    # )
-                    # session.execute(stmt_app_update)
-
-                    # stmt_iml_update = update(IncomeMonthlyLog)\
-                    # .where(IncomeMonthlyLog.income_id == income_id)\
-                    # .values(
-                    #     total_monthly_gross_income = total_monthly_gross_income,
-                    #     total_monthly_net_income = total_monthly_net_income                        
-                    # )
-                    # session.execute(stmt_iml_update)
-
-
-                    # stmt_iyl_update = update(IncomeYearlyLog)\
-                    # .where(IncomeYearlyLog.income_id == income_id)\
-                    # .values(
-                    #     total_yearly_gross_income = total_yearly_gross_income,
-                    #     total_yearly_net_income = total_yearly_net_income                        
-                    # )
-                    # session.execute(stmt_iyl_update)
-
 
                     session.commit()
                     message = 'Income account updateded successfully,\nplease reload few mintues later'
@@ -809,12 +684,6 @@ async def edit_income(id: int):
                 result = 1
                
             
-                
-            
-           
-            
-            
-            
         except Exception as ex:
             print('Income Update Exception: ', ex)
             result = 0
@@ -823,8 +692,6 @@ async def edit_income(id: int):
 
         finally:
             session.close()
-
-        
 
         return jsonify({
             "income_id": income_id,

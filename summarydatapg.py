@@ -8,10 +8,10 @@ from datetime import datetime
 from models import AppData, BillAccounts, BillTransactions, DebtAccounts, DebtTransactions, DebtType, Saving, SavingCategory, SavingContribution, UserSettings
 from dbpg import db
 
-
+from sqlalchemy.exc import SQLAlchemyError
 
 @app.route('/api/header-summary-datapg/<int:user_id>', methods=['GET'])
-def header_summary_data_pg(user_id:int):
+async def header_summary_data_pg(user_id:int):
 
     session = db.session
     try:
@@ -108,7 +108,8 @@ def header_summary_data_pg(user_id:int):
         })
     
     except Exception as e:
-        #session.rollback()  # Rollback in case of error
+        session.rollback()  # Rollback in case of error
+        print('header data error: {e}')
         return jsonify({
             "saving_progress":0,
             "debt_total_balance":0,
@@ -130,38 +131,50 @@ def header_summary_data_pg(user_id:int):
 
 
 @app.route('/api/dashboard-datapg/<int:user_id>', methods=['GET'])
-def get_dashboard_data_pg(user_id:int):
+async def get_dashboard_data_pg(user_id: int):
 
-    session = db.session
+    total_allocation_data = [
+        ["Modules", "Data"],
+        ['Bills', 0],
+        ['Debts',0],
+        ['Total Net Income', 0],
+        ['Total Savings', 0],
+        ['Emergency Saving', 0]
+    ]
+
+    debt_total_balance = 0
+    total_net_income = 0
+    total_saving = 0
+    total_wealth = 0
+    debt_to_wealth = 0
+    credit_ratio = 0
+    bill_paid_total = 0
+    debt_list = []
+
+    session = None
     try:
+        session = db.session
 
         app_datas = session.query(AppData).filter(
-            AppData.user_id == user_id           
+            AppData.user_id == user_id
         ).first()
 
         page_size = 5
-        
+
         debts = session.query(DebtAccounts).filter(
             DebtAccounts.user_id == user_id,
             DebtAccounts.deleted_at.is_(None)
         ).order_by(desc(DebtAccounts.updated_at)).limit(page_size).all()
 
-        debt_list = []
-        
         for debt in debts:
             paid_off_percentage = calculate_paid_off_percentage(debt.highest_balance, debt.balance)
             left_to_go = round(100 - float(paid_off_percentage), 1)
-            
             debt_list.append({
                 "id": str(debt.id),
                 "title": debt.name,
                 "progress": left_to_go,
                 "amount": debt.balance
             })
-
-    
-
-        #summary data debt 
 
         debt_total_balance = session.query(
             func.coalesce(func.sum(DebtAccounts.balance), 0).label("debt_total_balance")
@@ -170,48 +183,36 @@ def get_dashboard_data_pg(user_id:int):
             DebtAccounts.deleted_at.is_(None)
         ).scalar()
 
-
         bill_paid_total = session.query(
-            func.coalesce(func.sum(BillAccounts.paid_total), 0).label("debt_total_balance")
+            func.coalesce(func.sum(BillAccounts.paid_total), 0).label("bill_paid_total")
         ).filter(
             BillAccounts.user_id == user_id,
             BillAccounts.deleted_at.is_(None)
         ).scalar()
-    
 
-        total_net_income = app_datas.total_monthly_net_income if app_datas != None else 0    
-        total_saving = app_datas.total_monthly_saving if app_datas != None  else 0
-        total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total),2)
+        total_net_income = app_datas.total_monthly_net_income if app_datas else 0
+        total_saving = app_datas.total_monthly_saving if app_datas else 0
+        total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total), 2)
 
-
-        ##debt to wealth actual calculation
-        remaining_income = total_net_income - ( debt_total_balance + bill_paid_total + total_saving )
+        remaining_income = total_net_income - (debt_total_balance + bill_paid_total + total_saving)
         saving_ratio = 0
         remaining_income_ratio = 0
         debt_to_wealth = 0
-        if total_net_income > 0: 
-            saving_ratio = (total_saving / total_net_income ) * 100
-            remaining_income_ratio = ( remaining_income / total_net_income ) * 100
-            ##end debt to wealth actual collectin
-            debt_to_wealth = round(( saving_ratio * 0.5) + ( remaining_income_ratio * 0.5 ),0)
-
-        
+        if total_net_income > 0:
+            saving_ratio = (total_saving / total_net_income) * 100
+            remaining_income_ratio = (remaining_income / total_net_income) * 100
+            debt_to_wealth = round((saving_ratio * 0.5) + (remaining_income_ratio * 0.5), 0)
 
         debttype_id_list = session.query(DebtType.id).filter(
             DebtType.deleted_at.is_(None),
             DebtType.in_calculation == 1
         ).all()
 
-        # Extract the IDs from the result
         debttype_id_list = [id_tuple[0] for id_tuple in debttype_id_list]
-        
 
         credit_total_balance = 0
         credit_total_limit = 0
-        credit_ratio = 0
-    
         if debttype_id_list:
-            # Aggregate query on DebtAccounts
             result = session.query(
                 func.coalesce(func.sum(DebtAccounts.balance), 0).label("credit_total_balance"),
                 func.coalesce(func.sum(DebtAccounts.credit_limit), 0).label("credit_total_limit")
@@ -224,20 +225,15 @@ def get_dashboard_data_pg(user_id:int):
             credit_total_balance = result.credit_total_balance or 0
             credit_total_limit = result.credit_total_limit or 0
 
-        # Calculate credit utilization ratio
         if credit_total_balance > 0 and credit_total_limit > 0:
-            credit_ratio = round((credit_total_balance * 100) / credit_total_limit, 2) if credit_total_balance > 0 and credit_total_limit > 0 else 0
+            credit_ratio = round((credit_total_balance * 100) / credit_total_limit, 2)
 
-
-        
-        #total allocation calculation
         total_emergency_saving = 0
         emergency_saving = session.query(SavingCategory.id).filter(
             SavingCategory.in_dashboard_cal == 1
         ).first()
 
         if emergency_saving:
-            # Aggregate query to calculate total emergency savings
             total_emergency_saving = session.query(
                 func.coalesce(func.sum(Saving.total_balance), 0).label("total_saving")
             ).filter(
@@ -245,55 +241,58 @@ def get_dashboard_data_pg(user_id:int):
                 Saving.deleted_at.is_(None),
                 Saving.category_id == emergency_saving.id
             ).scalar()
-        
-
-        
-
-            
-            
-
-        total_allocation_data = [
-                ["Modules", "Data"],
-
-        ]     
 
         total_allocation = total_net_income + total_saving + debt_total_balance + bill_paid_total + total_emergency_saving
         if total_allocation > 0:
             total_allocation_data = [
                 ["Modules", "Data"],
-                ['Bills',round(bill_paid_total * 100 / total_allocation,0) ],
-                ['Debts',round(debt_total_balance * 100 / total_allocation,0) ],
-                ['Total Net Income',round(total_net_income * 100 / total_allocation,0) ],
-                ['Total Savings',round(total_saving * 100 / total_allocation,0) ],
-                ['Emergency Saving', round(total_emergency_saving * 100 / total_allocation,0)]
+                ['Bills', round(bill_paid_total * 100 / total_allocation, 0)],
+                ['Debts', round(debt_total_balance * 100 / total_allocation, 0)],
+                ['Total Net Income', round(total_net_income * 100 / total_allocation, 0)],
+                ['Total Savings', round(total_saving * 100 / total_allocation, 0)],
+                ['Emergency Saving', round(total_emergency_saving * 100 / total_allocation, 0)]
             ]
 
+        return jsonify({
+            'debt_total_balance': debt_total_balance,
+            'total_net_income': total_net_income,
+            'bill_paid_total': bill_paid_total,
+            "debt_list": debt_list,
+            'total_wealth': total_wealth,
+            'debt_to_wealth': debt_to_wealth,
+            'credit_ratio': credit_ratio,
+            'total_saving': total_saving,
+            'total_allocation_data': total_allocation_data
+        })
 
-        return jsonify({        
-            'debt_total_balance':debt_total_balance,
-            'total_net_income':total_net_income ,
-            'bill_paid_total':bill_paid_total ,                   
-            "debt_list":debt_list,           
-            'total_wealth':total_wealth,
-            'debt_to_wealth':debt_to_wealth,
-            'credit_ratio':credit_ratio,
-            'total_saving':total_saving,
-            'total_allocation_data':total_allocation_data             
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        return jsonify({
+            'debt_total_balance': 0,
+            'total_net_income': 0,
+            'bill_paid_total': 0,
+            'debt_list': [],
+            'total_wealth': 0,
+            'debt_to_wealth': 0,
+            'credit_ratio': 0,
+            'total_saving': 0,
+            'total_allocation_data': total_allocation_data
         })
 
     except Exception as e:
-        #session.rollback()  # Rollback in case of error
-        return jsonify({        
-            'debt_total_balance':debt_total_balance,
-            'total_net_income':total_net_income ,
-            'bill_paid_total':bill_paid_total ,                   
-            "debt_list":debt_list,           
-            'total_wealth':total_wealth,
-            'debt_to_wealth':debt_to_wealth,
-            'credit_ratio':credit_ratio,
-            'total_saving':total_saving,
-            'total_allocation_data':total_allocation_data             
+        print(f"Unexpected error: {e}")
+        return jsonify({
+            'debt_total_balance': 0,
+            'total_net_income': 0,
+            'bill_paid_total': 0,
+            'debt_list': [],
+            'total_wealth': 0,
+            'debt_to_wealth': 0,
+            'credit_ratio': 0,
+            'total_saving': 0,
+            'total_allocation_data': total_allocation_data
         })
 
     finally:
-        session.close()
+        if session:
+            session.close()

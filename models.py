@@ -185,7 +185,12 @@ class IncomeBoost(db.Model):
         lazy="joined",
         foreign_keys=[income_id]
     )
-    income_boost_source = relationship("IncomeBoostType", backref="income_boosts", lazy="joined")
+    income_boost_source = relationship(
+        "IncomeBoostType", 
+        backref="income_boosts", 
+        lazy="joined",
+        foreign_keys=[income_boost_source_id]
+    )
 
     def __repr__(self):
         return f"<IncomeBoost id={self.id} user_id={self.user_id} income_id={self.income_id} income_boost={self.income_boost} total_balance={self.total_balance}>"
@@ -209,8 +214,18 @@ class IncomeTransaction(db.Model):
     
 
     # Relationships
-    income = relationship("Income", backref="income_transactions", lazy="joined",foreign_keys=[income_id])
-    income_boost = relationship("IncomeBoost", backref="income_transactions", lazy="joined")
+    income = relationship(
+        "Income", 
+        backref="income_transactions", 
+        lazy="joined",
+        foreign_keys=[income_id]
+    )
+    income_boost = relationship(
+        "IncomeBoost", 
+        backref="income_transactions", 
+        lazy="joined",
+        foreign_keys=[income_boost_id]
+    )
     user = relationship("User", backref="income_transactions", lazy="joined")
 
     def __repr__(self):
@@ -277,7 +292,7 @@ class BillAccounts(db.Model):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
-    #bill_type_id = Column(Integer, ForeignKey('bill_types.id', ondelete='SET NULL'), nullable=True)
+    bill_type_id = Column(Integer, ForeignKey('bill_types.id', ondelete='SET NULL'), nullable=True)
     payor = Column(String(100), nullable=True)
     default_amount = Column(Float, nullable=True)
     current_amount = Column(Float, nullable=True)
@@ -289,24 +304,24 @@ class BillAccounts(db.Model):
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    #latest_transaction_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    latest_transaction_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
     deleted_at = Column(DateTime, nullable=True, index=True)
     closed_at = Column(DateTime, nullable=True, index=True)
     calender_at = Column(DateTime, nullable=True, index=True)
 
-    # bill_type = relationship(
-    #     'BillType', 
-    #     backref='bill_accounts', 
-    #     lazy='joined',
-    #     foreign_keys=[bill_type_id]
-    #     )
+    bill_type = relationship(
+        'BillType', 
+        backref='bill_accounts', 
+        lazy='joined',
+        foreign_keys=[bill_type_id]
+        )
     user = relationship('User', backref='bill_accounts', lazy='joined')
-    # latest_transaction = relationship(
-    #     'BillTransactions',
-    #     backref='bill_accounts',
-    #     lazy='joined',
-    #     foreign_keys=[latest_transaction_id]  # Explicitly specify the foreign key to use
-    # )
+    latest_transaction = relationship(
+        'BillTransactions',
+        backref='bill_accounts',
+        lazy='joined',
+        foreign_keys=[latest_transaction_id]  # Explicitly specify the foreign key to use
+    )
     def __repr__(self):
         return f"<BillAccounts(name={self.name}, bill_type_id={self.bill_type_id}, payor={self.payor})>"
 
@@ -329,7 +344,7 @@ class BillTransactions(db.Model):
     payment_status = Column(Integer, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
-    #latest_payment_id = Column(Integer, ForeignKey('bill_payments.id', ondelete='SET NULL'), nullable=True)
+    latest_payment_id = Column(Integer, ForeignKey('bill_payments.id', ondelete='SET NULL'), nullable=True)
     
 
     bill_account = relationship(
@@ -339,12 +354,12 @@ class BillTransactions(db.Model):
         foreign_keys=[bill_acc_id]  # Explicitly specify the foreign key to use
     )
     user = relationship('User', backref='bill_transactions', lazy='joined')
-    # latest_payment = relationship(
-    #     'BillPayments', 
-    #     backref='bill_transactions', 
-    #     lazy='joined',
-    #     foreign_keys=[latest_payment_id]
-    # )
+    latest_payment = relationship(
+        'BillPayments', 
+        backref='bill_transactions', 
+        lazy='joined',
+        foreign_keys=[latest_payment_id]
+    )
 
     def __repr__(self):
         return f"<BillTransactions(amount={self.amount}, bill_acc_id={self.bill_acc_id}, payment_status={self.payment_status})>"
@@ -361,16 +376,16 @@ class BillPayments(db.Model):
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    #bill_trans_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    bill_trans_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
     bill_account_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)
     deleted_at = Column(DateTime, nullable=True)
 
-    # bill_transaction = relationship(
-    #     'BillTransactions', 
-    #     backref='bill_payments', 
-    #     lazy='joined',
-    #     foreign_keys=[bill_trans_id]
-    # )
+    bill_transaction = relationship(
+        'BillTransactions', 
+        backref='bill_payments', 
+        lazy='joined',
+        foreign_keys=[bill_trans_id]
+    )
     user = relationship('User', backref='bill_payments', lazy='joined')
     bill_account = relationship(
         'BillAccounts', 
@@ -408,7 +423,7 @@ class DebtAccounts(db.Model):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
-    #debt_type_id = Column(Integer, ForeignKey('debt_types.id', ondelete='SET NULL'), nullable=True)
+    debt_type_id = Column(Integer, ForeignKey('debt_types.id', ondelete='SET NULL'), nullable=True)
     payor = Column(String(100), nullable=True)
     balance = Column(Float, nullable=True)
     highest_balance = Column(Float, nullable=True)
@@ -445,14 +460,15 @@ class DebtAccounts(db.Model):
     calender_at = Column(DateTime, nullable=True)
     ammortization_at = Column(DateTime, nullable=True)
 
-    # debt_type = db.relationship(
-    #     'DebtType', 
-    #     backref='debt_account', 
-    #     lazy='joined',
-    #     foreign_keys=[debt_type_id]
-    #     )
+    debt_type = db.relationship(
+        'DebtType', 
+        backref='debt_account', 
+        lazy='joined',
+        foreign_keys=[debt_type_id]
+        )
     user = db.relationship('User', backref='debt_account', lazy='joined')
     #transactions = db.relationship('DebtTransactions', backref='debt_account', lazy=True)
+    transactions = db.relationship('DebtTransactions', back_populates='debt_account', lazy=True)
 
 
 class DebtTransactions(db.Model):
@@ -477,12 +493,19 @@ class DebtTransactions(db.Model):
 
     user = db.relationship('User', backref='debt_transaction', lazy='joined')
 
-    debtAccount = db.relationship(
+    # debtAccount = db.relationship(
+    #     'DebtAccounts', 
+    #     backref='debt_transaction', 
+    #     lazy=True,
+    #     foreign_keys=[debt_acc_id]
+    #     )
+
+    debt_account = db.relationship(
         'DebtAccounts', 
-        backref='debt_transaction', 
-        lazy=True,
+        back_populates='transactions', 
+        lazy=True, 
         foreign_keys=[debt_acc_id]
-        )
+    )
 
 
 
@@ -551,7 +574,7 @@ class Saving(db.Model):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    #category_id = Column(Integer, ForeignKey('saving_categories.id'), nullable=False)
+    category_id = Column(Integer, ForeignKey('saving_categories.id'), nullable=False)
     savings_strategy = Column(JSON, nullable=False)
     saver = Column(String(10), nullable=False)
     nickname = Column(String(100), nullable=True)
@@ -578,12 +601,12 @@ class Saving(db.Model):
     calender_at = Column(DateTime, nullable=True)
     total_monthly_balance = Column(Float, nullable=False, default=0)
 
-    # category = db.relationship(
-    #     'SavingCategory', 
-    #     backref='savings', 
-    #     lazy='joined',
-    #     foreign_keys=[category_id]
-    #     )
+    category = db.relationship(
+        'SavingCategory', 
+        backref='savings', 
+        lazy='joined',
+        foreign_keys=[category_id]
+        )
     user = db.relationship('User', backref='savings', lazy='joined')
 
     def __repr__(self):
@@ -625,8 +648,18 @@ class SavingBoost(db.Model):
     next_contribution_date = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=False, default=0)
 
-    saving = db.relationship('Saving', backref='saving_boosts', lazy='select')
-    saving_boost_source = db.relationship('SavingBoostType', backref='saving_boosts', lazy='select')
+    saving = db.relationship(
+        'Saving',
+         backref='saving_boosts', 
+         lazy='select',
+         foreign_keys=[saving_id]
+    )
+    saving_boost_source = db.relationship(
+        'SavingBoostType', 
+        backref='saving_boosts', 
+        lazy='select',
+        foreign_keys=[saving_boost_source_id]
+    )
     user = db.relationship('User', backref='saving_boosts', lazy=True)
 
     def __repr__(self):
@@ -662,8 +695,18 @@ class SavingContribution(db.Model):
     closed_at = Column(DateTime, nullable=True)
     commit = Column(DateTime, nullable=False, default=datetime.now())
 
-    saving = db.relationship('Saving', backref='saving_contributions', lazy='joined')
-    saving_boost = db.relationship('SavingBoost', backref='saving_contributions', lazy='joined')
+    saving = db.relationship(
+        'Saving', 
+        backref='saving_contributions', 
+        lazy='joined',
+        foreign_keys=[saving_id]
+    )
+    saving_boost = db.relationship(
+        'SavingBoost', 
+        backref='saving_contributions', 
+        lazy='joined',
+        foreign_keys=[saving_boost_id]
+    )
     user = db.relationship('User', backref='saving_contributions', lazy='joined')
 
     def __repr__(self):

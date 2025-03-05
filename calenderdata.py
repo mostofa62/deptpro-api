@@ -8,12 +8,12 @@ from datetime import datetime
 calender_data = my_col('calender_data')
 
 
-@app.route('/api/calender-data/<string:userid>/<string:month>', methods=['GET'])
-@app.route('/api/calender-data/<string:userid>', methods=['GET'])
-def calender_data_list(userid:str,month:str=None):
+@app.route('/api/calender-data/<int:userid>/<string:month>', methods=['GET'])
+@app.route('/api/calender-data/<int:userid>', methods=['GET'])
+def calender_data_list(userid:int,month:str=None):
 
     query = {
-        'user_id':ObjectId(userid)
+        'user_id':userid
     }
 
     if month == None:

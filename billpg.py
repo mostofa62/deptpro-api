@@ -11,9 +11,10 @@ from pgutils import ReminderDays, RepeatFrequency, new_entry_option_data, ExtraT
 from dbpg import db
 from models import *
 from sqlalchemy.orm import joinedload
-
+from db import my_col
+calender_data = my_col('calender_data')
 @app.route('/api/billspg/<int:user_id>', methods=['POST'])
-def list_bills_pg(user_id: int):
+async def list_bills_pg(user_id: int):
     action = request.args.get('action', None)
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
@@ -192,6 +193,9 @@ def save_bill_account_pg():
             result = 0
             message = 'Bill account addition failed!'
 
+        finally:
+            db.session.close()
+
         return jsonify({
             "bill_account_id": bill_account_id,
             "bill_trans_id": bill_trans_id,
@@ -240,6 +244,9 @@ def update_bill_pg(accntid:int):
             result = 0
             message = 'Bill account update Failed!'
             db.session.rollback()
+
+        finally:
+            db.session.close()
 
 
         return jsonify({
@@ -418,12 +425,7 @@ def delete_bill_pg():
                 # Update the appropriate field based on the 'key'
                 setattr(bill_account, field, datetime.now())               
                 #bill_account.calender_at = None
-
-                # Delete related CalendarData records
-                deleted_rows = db.session.query(CalendarData).filter(
-                    CalendarData.module_id == "bill",
-                    CalendarData.data_id == bill_account_id
-                ).delete(synchronize_session=False)
+                result = calender_data.delete_one({'module_id': 'bill', 'data.data_id': bill_account_id} )                  
                
                 db.session.commit()  # Commit the changes to the database
                 message = f'Bill account {action} Successfully'

@@ -19,7 +19,7 @@ from sqlalchemy.orm import joinedload
 
 from db import my_col
 debt_accounts_log = my_col('debt_accounts_log')
-
+calender_data = my_col('calender_data')
 @app.route('/api/delete-debtpg', methods=['POST'])
 def delete_dept_pg():
     if request.method == 'POST':
@@ -45,13 +45,9 @@ def delete_dept_pg():
             else:
                 # Update the appropriate field based on the 'key'
                 setattr(dept_account, field, datetime.now())
-                #dept_account.calender_at = None
+                #dept_account.calender_at = None                
 
-                # Delete related CalendarData records
-                deleted_rows = db.session.query(CalendarData).filter(
-                    CalendarData.module_id == "debt",
-                    CalendarData.data_id == dept_account_id
-                ).delete(synchronize_session=False)
+                result = calender_data.delete_one({'module_id': 'debt', 'data.data_id': dept_account_id} )  
                 
                 db.session.commit()  # Commit the changes to the database
 
@@ -489,6 +485,9 @@ def save_debt_account_pg():
             result = 0
             message = 'Debt account addition failed'
 
+        finally:
+            db.session.close()
+
         return jsonify({
             "debt_id": debt_id,            
             "message": message,
@@ -597,6 +596,9 @@ def update_debt_account_pg(accntid:int):
             debt_id = None
             result = 0
             message = 'Debt account addition failed'
+
+        finally:
+            db.session.close()
 
         return jsonify({
             "debt_id": debt_id,            

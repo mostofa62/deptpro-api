@@ -2,7 +2,7 @@
 #from db import create_index_for_all
 from app import app
 import os
-from home import *
+from home import home_page
 from userspg import *
 from billpg import *
 from billtypepg import bill_type_dropdown_pg
@@ -32,10 +32,10 @@ from payoffstratagrypg import *
 #from savingfunctions import *
 ## removing scheduler from this sytem
 ##from scheduler import *
-from schedulerpg import *
+#from schedulerpg import *
 #import logging
-from calenderdatapg import *
-
+#from calenderdatapg import *
+from calenderdata import calender_data_list
 from incometransactionspg import *
 from incomesourceboostpg import *
 from incomepg import *

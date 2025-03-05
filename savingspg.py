@@ -11,6 +11,7 @@ from pgutils import new_entry_option_data
 from sqlalchemy.orm import joinedload
 from db import my_col
 saving_accounts_logs = my_col('saving_accounts_logs')
+calender_data = my_col('calender_data')
 
 @app.route('/api/delete-savingpg', methods=['POST'])
 def delete_saving_pg():
@@ -35,11 +36,9 @@ def delete_saving_pg():
             }, synchronize_session=False
         )        
 
-        # Delete related CalendarData records
-        deleted_rows = db.session.query(CalendarData).filter(
-            CalendarData.module_id == "saving",
-            CalendarData.data_id == saving_id
-        ).delete(synchronize_session=False)
+        
+
+        result = calender_data.delete_one({'module_id': 'saving', 'data.data_id': saving_id} )  
 
 
         deleted_monthly_saving = db.session.query(SavingMonthlyLog).filter(            
@@ -57,7 +56,7 @@ def delete_saving_pg():
         )       
 
         # Ensure the update was successful before committing
-        if saving_update and deleted_rows:
+        if saving_update:
             db.session.commit()  # Commit only once
             message = f'Saving account {action} Successfully'
             deleted_done = 1
@@ -514,6 +513,7 @@ async def edit_saving_pg(id:int):
                         period = period,
                         next_contribution_date=None,
                         goal_reached=None,
+                        calender_at=None,
                         commit=commit,  # Replace with the actual commit value
                         **merge_data  # This unpacks additional fields to update
                     )
@@ -625,7 +625,8 @@ async def save_saving_pg():
                     total_balance_xyz=total_balance_xyz,
                     progress=progress,
                     period=period,
-                    commit=commit
+                    commit=commit,
+                    calender_at=None
                 )
             db.session.add(saving_data)
             db.session.commit()
@@ -670,7 +671,8 @@ async def save_saving_pg():
                     total_balance_xyz=total_balance_xyz,
                     progress=progress,
                     period=period,
-                    commit=commit
+                    commit=commit,
+                    calender_at=None
                 )
 
                 db.session.add(saving_data)

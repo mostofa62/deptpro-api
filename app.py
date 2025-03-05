@@ -5,7 +5,7 @@ from flask_cors import CORS, cross_origin
 # from flask_migrate import Migrate
 # from flask_sqlalchemy import SQLAlchemy
 from dbpg import DATABASE_URL,db  # Import SQLAlchemy Base and engine from dbpg.py
-from models import *
+#from models import *
 
 app = Flask(__name__)
 CORS(app)

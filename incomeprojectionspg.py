@@ -230,7 +230,8 @@ async def income_transactions_next_pgu(user_id:int):
             income_boosts_1.income_id == Income.id,
             income_boosts_1.deleted_at == None,
             income_boosts_1.closed_at == None,
-            income_boosts_1.pay_date_boost >= today,
+            income_boosts_1.next_pay_date_boost >= today,
+            #(func.coalesce(income_boosts_1.next_pay_date_boost, income_boosts_1.pay_date_boost) >= today),
             cast(income_boosts_1.repeat_boost['value'].astext, Integer) > 0
         ).scalar_subquery()
 
@@ -241,8 +242,9 @@ async def income_transactions_next_pgu(user_id:int):
             income_boosts_2.user_id == user_id,
             income_boosts_2.income_id == Income.id,
             income_boosts_2.deleted_at == None,
-            income_boosts_2.closed_at == None,
+            income_boosts_2.closed_at == None,            
             income_boosts_2.pay_date_boost >= today,
+            #(func.coalesce(income_boosts_2.next_pay_date_boost, income_boosts_2.pay_date_boost) >= today),
             cast(income_boosts_2.repeat_boost['value'].astext, Integer) < 1
         ).scalar_subquery()
 
@@ -264,10 +266,15 @@ async def income_transactions_next_pgu(user_id:int):
             Income.user_id == user_id,
             Income.deleted_at == None,
             Income.closed_at == None
+        ).order_by(
+            #Income.id,  # Order by income ID
+            Income.next_pay_date.asc(),
+            Income.next_pay_date >= today
+
         )
 
-        '''
         
+        '''
         
         
 
@@ -277,44 +284,51 @@ async def income_transactions_next_pgu(user_id:int):
         # # Print the raw SQL query
         # print(raw_sql)
 
+        
+        
         query = session.query(
-    Income.id,
-    Income.earner,
-    Income.gross_income,
-    Income.net_income,
-    Income.total_gross_income,
-    Income.total_net_income,
-    Income.pay_date,
-    Income.next_pay_date,
-    Income.repeat,
-    Income.user_id,
-    IncomeBoost.income_boost,
-    IncomeBoost.pay_date_boost,
-    IncomeBoost.repeat_boost
-).outerjoin(
-    IncomeBoost, 
-    (IncomeBoost.income_id == Income.id) &
-    (IncomeBoost.user_id == user_id) &
-    (IncomeBoost.deleted_at.is_(None)) &
-    (IncomeBoost.closed_at.is_(None)) &
-    (IncomeBoost.pay_date_boost >= today) &
-    (IncomeBoost.pay_date_boost >= Income.next_pay_date)  # Condition to ensure boost date is >= income pay date
-).filter(
-    Income.user_id == user_id,
-    Income.deleted_at.is_(None),
-    Income.closed_at.is_(None)
-).order_by(
-    Income.id,  # Order by income ID
-    IncomeBoost.pay_date_boost.asc()  # Order boosts by pay_date in ascending order
-)
+            Income.id,
+            Income.earner,
+            Income.gross_income,
+            Income.net_income,
+            Income.total_gross_income,
+            Income.total_net_income,
+            Income.pay_date,
+            Income.next_pay_date,
+            Income.repeat,
+            Income.user_id,
+            IncomeBoost.income_boost,
+            IncomeBoost.pay_date_boost,
+            IncomeBoost.repeat_boost,
+            IncomeBoost.next_pay_date_boost
+        ).outerjoin(
+            IncomeBoost, 
+            (IncomeBoost.income_id == Income.id) &
+            (IncomeBoost.user_id == user_id) &
+            (IncomeBoost.deleted_at.is_(None)) &
+            (IncomeBoost.closed_at.is_(None)) &
+            #(IncomeBoost.pay_date_boost >= today) &
+            (func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost) >= today) #&  # Use pay_date_boost if next_pay_date_boost is None
+            #(func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost) >= Income.next_pay_date)  # Check if pay_date_boost or next_pay_date_boost is >= income's next pay date
+        ).filter(
+            Income.user_id == user_id,
+            Income.deleted_at.is_(None),
+            Income.closed_at.is_(None),
+             Income.next_pay_date >=today
+        ).order_by(
+            Income.id,  # Order by income ID
+            Income.next_pay_date.asc(),
+            func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost).asc()  # Order boosts by pay_date in ascending order
+        )
 
+        
 
 
 
         results = query.all()
 
         projection_list = []
-
+        
         for row in results:
             projection_list.append({
                 "id": row.id,
@@ -329,11 +343,12 @@ async def income_transactions_next_pgu(user_id:int):
                 "user_id": row.user_id,
                 "income_boost": row.income_boost,
                 "pay_date_boost": row.pay_date_boost,
-                "repeat_boost": row.repeat_boost
+                "repeat_boost": row.repeat_boost,
+                "next_pay_date_boost":row.next_pay_date_boost
             })
 
 
-
+        
         '''
 
         for row in results:
@@ -352,8 +367,8 @@ async def income_transactions_next_pgu(user_id:int):
                 "onetime_boost": row.onetime_boost
             }
             projection_list.append(data)
-        '''    
-
+           
+        '''
         '''
 
         projection_list = []

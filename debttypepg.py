@@ -7,7 +7,7 @@ from models import DebtType
 from dbpg import db
 
 @app.route("/api/debttype-dropdownpg/<int:user_id>", methods=['GET'])
-def debt_type_dropdown_pg(user_id:int, value_return:int=0):
+async def debt_type_dropdown_pg(user_id:int, value_return:int=0):
 
     # Query BillType with filtering for deleted records, user_id, and sorting by ordering
     query = db.session.query(DebtType.id, DebtType.name, DebtType.parent_id, DebtType.ordering).filter(
