@@ -52,9 +52,9 @@ async def header_summary_data_pg(user_id:int):
         active_debt_account = session.query(func.count()).filter(
             DebtAccounts.user_id == user_id,
             DebtAccounts.deleted_at.is_(None)
-        ).scalar()
+        ).scalar() or 0
 
-        latest_month_debt_free = latest_month_debt_free.strftime('%b %Y') if latest_month_debt_free else ''
+        latest_month_debt_free = convertDateTostring(latest_month_debt_free,'%b %Y') if latest_month_debt_free else ''
 
         #income and incomeboost      
         total_monthly_net_income = app_datas.total_monthly_net_income if  app_datas!=None else 0
@@ -71,9 +71,12 @@ async def header_summary_data_pg(user_id:int):
             Saving.user_id == user_id,
             Saving.deleted_at.is_(None),
             Saving.closed_at.is_(None)
-        ).scalar()
+        ).scalar() or 0
 
-       
+        # Extract the average progress, defaulting to 0 if result is None
+        #saving_average_progress = round(result.average_progress, 2) if result and result.average_progress else 0
+
+
 
 
         monthly_bill_totals = session.query(
@@ -82,9 +85,10 @@ async def header_summary_data_pg(user_id:int):
             BillTransactions.user_id == user_id,
             extract('year', BillTransactions.due_date) == target_year,
             extract('month', BillTransactions.due_date) == target_month
-        ).scalar()
+        ).scalar() or 0
 
-        
+        # Get the total amount or default to 0 if no result
+        #monthly_bill_totals = round(result.total_amount, 2) if result and result.total_amount else 0
 
         financial_frdom_date = convertDateTostring(datetime.now()+relativedelta(years=1),"%b %Y")
 
