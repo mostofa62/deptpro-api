@@ -52,17 +52,18 @@ def get_debt_trans_pg(accntid:int):
     session = db.session
     try:
         query = session.query( 
-            DebtTransactions.id,
-            DebtTransactions.amount, 
-            DebtTransactions.trans_date,
-            DebtTransactions.type,
-            DebtTransactions.previous_balance,
-            DebtTransactions.new_balance,
-            DebtTransactions.month,
-            DebtTransactions.year
-            ).filter(
+        DebtTransactions.id,
+        DebtTransactions.amount, 
+        DebtTransactions.trans_date,
+        DebtTransactions.type,
+        DebtTransactions.previous_balance,
+        DebtTransactions.new_balance,
+        DebtTransactions.month,
+        DebtTransactions.year
+        ).join(DebtAccounts, DebtTransactions.debt_acc_id == DebtAccounts.id) \
+        .filter(
             DebtTransactions.debt_acc_id == accntid,
-            DebtAccounts.deleted_at == None 
+            DebtAccounts.deleted_at == None  # Now DebtAccounts is explicitly included
         )
 
         
