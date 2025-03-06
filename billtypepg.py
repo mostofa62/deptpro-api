@@ -7,7 +7,7 @@ from models import BillType
 from pgutils import RepeatFrequency, ReminderDays
 
 @app.route("/api/billtype-dropdownpg/<int:user_id>", methods=['GET'])
-async def bill_type_dropdown_pg(user_id: int, value_return: int = 0):
+def bill_type_dropdown_pg(user_id: int, value_return: int = 0):
     # Query BillType with filtering for deleted records, user_id, and sorting by ordering
     query = db.session.query(BillType.id, BillType.name, BillType.parent_id, BillType.ordering).filter(
         BillType.deleted_at.is_(None),

@@ -327,14 +327,13 @@ def get_bill_all_pg(accntid: int):
 def get_bill_pg(accntid:int):
 
     # Load the BillAccount along with related BillType and Parent BillType in one query
-    bill_account = (
-        db.session.query(BillAccounts)
+    bill_account = db.session.query(BillAccounts)\
         .options(
             joinedload(BillAccounts.bill_type).joinedload(BillType.parent)
-        )
-        .filter(BillAccounts.id == accntid, BillAccounts.deleted_at.is_(None))
+        )\
+        .filter(BillAccounts.id == accntid, BillAccounts.deleted_at.is_(None))\
         .first()
-    )
+    
 
     user_id = bill_account.user_id
 
