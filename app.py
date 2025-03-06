@@ -23,13 +23,14 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 
 db.init_app(app)
 
+from sqlalchemy import text
+
 with app.app_context():
     try:
-        db.session.execute("SELECT 1")
-        print("POSTGRESQL - Database connection successful!")
+        db.session.execute(text("SELECT 1"))  # Wrap SQL query with `text()`
+        print("Database connection successful!")
     except Exception as e:
-        print(f"POSTGRESQL -  Database connection failed: {e}")
-        #exit(1)  # Exit the app if DB is unreachable
+        print(f"Database connection failed: {e}")
 
 
 @app.route("/api/health", methods=["GET"])
