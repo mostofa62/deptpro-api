@@ -36,7 +36,7 @@ with app.app_context():
 @app.route("/api/health", methods=["GET"])
 def health_check():
     try:
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
         return {"status": "ok"}, 200
     except Exception:
         return {"status": "db_error"}, 500
