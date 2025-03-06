@@ -63,30 +63,28 @@ async def header_summary_data_pg(user_id:int):
         target_month = current_date.month
         
 
-        result = session.query(
+        saving_average_progress = session.query(
             (func.sum(Saving.progress) / 
             case((func.count(Saving.id) != 0, cast(func.count(Saving.id), Float)), else_=1)
-            ).label("average_progress")
+            ).label("saving_average_progress")
         ).filter(
+            Saving.user_id == user_id,
             Saving.deleted_at.is_(None),
             Saving.closed_at.is_(None)
-        ).first()
+        ).scalar()
 
-        # Extract the average progress, defaulting to 0 if result is None
-        saving_average_progress = round(result.average_progress, 2) if result and result.average_progress else 0
-
+       
 
 
-
-        result = session.query(
-            func.sum(BillTransactions.amount).label('total_amount')
+        monthly_bill_totals = session.query(
+            func.sum(BillTransactions.amount).label('monthly_bill_totals')
         ).filter(
+            BillTransactions.user_id == user_id,
             extract('year', BillTransactions.due_date) == target_year,
             extract('month', BillTransactions.due_date) == target_month
-        ).first()
+        ).scalar()
 
-        # Get the total amount or default to 0 if no result
-        monthly_bill_totals = round(result.total_amount, 2) if result and result.total_amount else 0
+        
 
         financial_frdom_date = convertDateTostring(datetime.now()+relativedelta(years=1),"%b %Y")
 
