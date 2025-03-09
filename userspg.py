@@ -201,6 +201,7 @@ def member_login_pg():
     # Update user with new token and expiration time
     user.token = token
     user.token_expired_at = token_expired_at
+    user.is_online = True
     db.session.commit()
 
     return jsonify({
@@ -238,6 +239,7 @@ def member_logout_pg():
         if user:
             user.token = None
             user.token_expired_at = None
+            user.is_online = False
             db.session.commit()
             return jsonify({"logout": 1, "message": "Successfully logged out"}), 200
 
@@ -294,6 +296,7 @@ def admin_login_pg():
     # Update user with new token and expiration time
     user.token = token
     user.token_expired_at = token_expired_at
+    user.is_online = True
     db.session.commit()
 
     return jsonify({
@@ -329,6 +332,7 @@ def admin_logout_pg():
         if user:
             user.token = None
             user.token_expired_at = None
+            user.is_online = False
             db.session.commit()
             return jsonify({"logout": 1, "message": "Successfully logged out"}), 200
 

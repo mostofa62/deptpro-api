@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Date, Float, Integer, String, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Date, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from dbpg import db
@@ -30,6 +30,8 @@ class User(db.Model):
     updated_at = Column(DateTime, default=datetime.now(), onupdate=datetime.now())
     suspended_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
+
+    is_online = Column(Boolean, nullable=True)
 
     # Self-referential relationship
     referrer = relationship("User", remote_side=[id], backref="referrals")
@@ -433,7 +435,7 @@ class DebtAccounts(db.Model):
     start_date = Column(DateTime, nullable=True)
     due_date = Column(DateTime, nullable=True)
     monthly_interest = Column(Float, nullable=True)
-    note = Column(db.Text, nullable=True)
+    note = Column(Text, nullable=True)
     promo_rate = Column(Float, nullable=True)
     deffered_interest = Column(Float, nullable=True)
     promo_interest_rate = Column(Float, nullable=True)
@@ -586,12 +588,12 @@ class Saving(db.Model):
     contribution = Column(Float, nullable=False)
     increase_contribution_by = Column(Float, nullable=True, default=0)
     repeat = Column(JSON, nullable=False)
-    note = Column(db.Text, nullable=True)
+    note = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
-    goal_reached = Column(db.Boolean, nullable=True)
+    goal_reached = Column(Boolean, nullable=True)
     next_contribution_date = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=False, default=0)
     total_balance_xyz = Column(Float, nullable=False, default=0)
@@ -640,7 +642,7 @@ class SavingBoost(db.Model):
     pay_date_boost = Column(DateTime, nullable=False)
     repeat_boost = Column(JSON, nullable=False)
     boost_operation_type = Column(JSON, nullable=False)
-    note = Column(db.Text, nullable=True)
+    note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now(), nullable=False)
     updated_at = Column(DateTime, default=datetime.now(), onupdate=datetime.now(), nullable=False)
     deleted_at = Column(DateTime, nullable=True)
