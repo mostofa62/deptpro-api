@@ -21,6 +21,7 @@ calender_data = my_col('calender_data')
 async def delete_income_pg():
     data = request.get_json()
     user_id = data.get('user_id')
+    admin_id = data.get('admin_id')
     income_id = data.get('id')
     key = data.get('key')
     action = 'Deleted' if key < 2 else 'Closed'
@@ -59,6 +60,7 @@ async def delete_income_pg():
         income_update = session.query(Income).filter(Income.id == income_id).update(
             {
                 field: datetime.now(),
+                Income.admin_id:admin_id
                 #Income.calender_at: None
             }, synchronize_session=False
         )
@@ -322,6 +324,7 @@ def create_income():
         data = request.get_json()
 
         user_id = data['user_id']
+        admin_id = data['admin_id']
 
         income_id = None
         message = ''
@@ -354,6 +357,7 @@ def create_income():
                 append_data = {
                         'income_source_id':income_source_id,                        
                         'user_id':user_id,
+                        'admin_id':admin_id,
                         'net_income':net_income,
                         'gross_income':gross_income,
                         'total_net_income':total_net_income,
@@ -499,6 +503,8 @@ def edit_income(id: int):
         data = json.loads(request.data)
 
         user_id = data['user_id']
+        admin_id = data['admin_id']
+        print('admin id',admin_id)
         income_id = id
         message = ''
         result = 0
@@ -547,6 +553,7 @@ def edit_income(id: int):
         append_data = {
             'income_source_id': income_source_id,
             'user_id': user_id,
+            'admin_id':admin_id,
             'net_income': net_income,
             'gross_income': gross_income,                                                       
             "updated_at": datetime.now(),                                                                                   

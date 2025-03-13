@@ -15,6 +15,7 @@ def delete_income_boost_pg():
         data = json.loads(request.data)
 
         income_boost_id = data['id']
+        admin_id = data.get('admin_id')
         key = data.get('key')
         action = 'Deleted' if key < 2 else 'Closed'
         #field = IncomeBoost.deleted_at if key < 2 else IncomeBoost.closed_at
@@ -64,6 +65,7 @@ def delete_income_boost_pg():
                     ).delete(synchronize_session=False)
 
                 setattr(income_boost, field, datetime.now())
+                setattr(income_boost, 'admin_id', admin_id)
 
                 message = f'Income boost {action} Successfully'
                 deleted_done = 1
@@ -200,6 +202,7 @@ async def save_income_boost_pg():
         data = json.loads(request.data)
 
         user_id = data['user_id']
+        admin_id = data['admin_id']
         income_id = data['income']['value']
         income_boost_id = None
         message = ''
@@ -238,6 +241,7 @@ async def save_income_boost_pg():
             'income_id': income_id,            
             'income_boost_source_id': new_entry_option_data(data['income_boost_source'], IncomeBoostType, user_id),                
             'user_id': user_id,
+            'admin_id':admin_id,
             'earner':data['earner'],
             'repeat_boost':data['repeat_boost'],    
             'income_boost': income_boost,         

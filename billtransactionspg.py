@@ -73,6 +73,7 @@ def save_bill_transactions_pg():
         data = json.loads(request.data)
         bill_account_id = data['bill']['value']
         user_id = data["user_id"]
+        admin_id = data["admin_id"]
         bill_trans_id = None
         message = ''
         result = 0
@@ -106,6 +107,7 @@ def save_bill_transactions_pg():
                     created_at=datetime.now(),
                     updated_at=datetime.now(),                        
                     user_id=user_id,
+                    admin_id=admin_id,
                     bill_acc_id=bill_account_id,
                     payment_status=0,
                     deleted_at=None,
@@ -135,6 +137,7 @@ def save_bill_transactions_pg():
                             updated_at=datetime.now(),
                             bill_trans_id=af_id['trans_id'],
                             user_id=user_id,
+                            admin_id=admin_id,
                             bill_account_id=bill_account_id,
                             deleted_at=None
                         )
@@ -153,6 +156,7 @@ def save_bill_transactions_pg():
                         created_at=datetime.now(),
                         updated_at=datetime.now(),
                         user_id=user_id,
+                        admin_id=admin_id,
                         bill_acc_id=bill_account_id,
                         payment_status=0,
                         deleted_at=None,

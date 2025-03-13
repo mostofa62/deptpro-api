@@ -122,6 +122,7 @@ class Income(db.Model):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    admin_id = Column(Integer,nullable=True)
     income_source_id = Column(Integer, ForeignKey("income_source_types.id", ondelete="SET NULL"), nullable=True)
     earner = Column(String, nullable=False)
     gross_income = Column(Float, nullable=False, default=0.0)
@@ -161,6 +162,7 @@ class IncomeBoost(db.Model):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Optional
+    admin_id = Column(Integer,nullable=True)
     income_id = Column(Integer, ForeignKey("incomes.id", ondelete="SET NULL"), nullable=True)  # Optional
     income_boost_source_id = Column(Integer, ForeignKey("income_boost_types.id", ondelete="SET NULL"), nullable=True)  # Relating to income_boost_types table
     earner = Column(String, nullable=False)
@@ -306,6 +308,7 @@ class BillAccounts(db.Model):
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    admin_id = Column(Integer,nullable=True)
     latest_transaction_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
     deleted_at = Column(DateTime, nullable=True, index=True)
     closed_at = Column(DateTime, nullable=True, index=True)
@@ -342,6 +345,7 @@ class BillTransactions(db.Model):
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    admin_id = Column(Integer,nullable=True)
     bill_acc_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)    
     payment_status = Column(Integer, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
@@ -378,6 +382,7 @@ class BillPayments(db.Model):
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    admin_id = Column(Integer,nullable=True)
     bill_trans_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
     bill_account_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)
     deleted_at = Column(DateTime, nullable=True)
@@ -451,6 +456,7 @@ class DebtAccounts(db.Model):
     percentage = Column(Float, nullable=True)
     lowest_payment = Column(Float, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    admin_id = Column(Integer,nullable=True)
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
@@ -516,6 +522,7 @@ class PaymentBoost(db.Model):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)  # Relating to the users table
+    admin_id = Column(Integer,nullable=True)
     amount = Column(Float, nullable=False)  # The payment boost amount
     pay_date_boost = Column(DateTime, nullable=False)  # The date for the boost
     comment = Column(String(255), nullable=True)  # Optional comment field
@@ -576,6 +583,7 @@ class Saving(db.Model):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    admin_id = Column(Integer,nullable=True)
     category_id = Column(Integer, ForeignKey('saving_categories.id'), nullable=False)
     savings_strategy = Column(JSON, nullable=False)
     saver = Column(String(10), nullable=False)
@@ -635,6 +643,7 @@ class SavingBoost(db.Model):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    admin_id = Column(Integer,nullable=True)
     saving_id = Column(Integer, ForeignKey('savings.id'), nullable=False)
     saver = Column(String(10), nullable=False)
     saving_boost = Column(Float, nullable=False)

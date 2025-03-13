@@ -134,6 +134,7 @@ def save_bill_account_pg():
             
             # Get user and bill type
             user_id = data['user_id']
+            admin_id = data['admin_id']
             bill_type_id = data['bill_type']['value']            
 
             # Create BillAccount record
@@ -151,6 +152,7 @@ def save_bill_account_pg():
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
                 user_id=user_id,
+                admin_id=admin_id,
                 latest_transaction_id=None,  # Set later
                 deleted_at=None,
                 closed_at=None
@@ -170,6 +172,7 @@ def save_bill_account_pg():
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
                 user_id=user_id,
+                admin_id=admin_id,
                 bill_acc_id=bill_account.id,
                 payment_status=0,
                 deleted_at=None,
@@ -213,6 +216,8 @@ def update_bill_pg(accntid:int):
         message = ''
         result = 0
 
+        admin_id = data['admin_id']
+
         try:
 
             amount  = float(data['default_amount'])
@@ -228,7 +233,8 @@ def update_bill_pg(accntid:int):
                     repeat_frequency=repeat_frequency,
                     reminder_days = reminder_days,
                     note=data['note'] if 'note' in data and data['note']!=None else None,
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
+                    admin_id=admin_id
                 )
             
             db.session.execute(stmt)
@@ -408,6 +414,8 @@ def delete_bill_pg():
         action = 'Deleted' if key < 2 else 'Closed'
         field = 'deleted_at' if key < 2 else 'closed_at'
 
+        admin_id = data['admin_id']
+
         message = None
         error = 0
         deleted_done = 0
@@ -423,6 +431,7 @@ def delete_bill_pg():
             else:
                 # Update the appropriate field based on the 'key'
                 setattr(bill_account, field, datetime.now())               
+                setattr(bill_account,'admin_id',admin_id)
                 #bill_account.calender_at = None
                 result = calender_data.delete_one({'module_id': 'bill', 'data.data_id': bill_account_id} )                  
                

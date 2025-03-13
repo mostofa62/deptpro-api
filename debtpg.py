@@ -25,6 +25,8 @@ def delete_dept_pg():
     if request.method == 'POST':
         data = json.loads(request.data)
 
+        admin_id = data.get('admin_id')
+
         dept_account_id = data['id']
         key = data['key']
         action = 'Deleted' if key < 2 else 'Closed'
@@ -45,6 +47,7 @@ def delete_dept_pg():
             else:
                 # Update the appropriate field based on the 'key'
                 setattr(dept_account, field, datetime.now())
+                setattr(dept_account, 'admin_id',admin_id )
                 #dept_account.calender_at = None                
 
                 result = calender_data.delete_one({'module_id': 'debt', 'data.data_id': dept_account_id} )  
@@ -392,6 +395,7 @@ def save_debt_account_pg():
         
         try:
             user_id =int(data["user_id"])
+            admin_id = data.get('admin_id')
 
             usersetting = (
                 db.session.query(UserSettings.monthly_budget)
@@ -440,6 +444,7 @@ def save_debt_account_pg():
                 percentage=0,
                 lowest_payment=0,
                 user_id=user_id,
+                admin_id=admin_id,
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
                 deleted_at=None,
@@ -508,6 +513,7 @@ def update_debt_account_pg(accntid:int):
         try:
 
             user_id = int(data["user_id"])
+            admin_id = data.get('admin_id')
 
             usersetting = (
                 db.session.query(UserSettings.monthly_budget)
@@ -548,14 +554,15 @@ def update_debt_account_pg(accntid:int):
                                 'current_date': due_date,
                                 'monthly_budget': monthly_payment,
                                 'user_monthly_budget':usersetting.monthly_budget,
-                                'ammortization_at':None
+                                'ammortization_at':None,
+                                'admin_id':admin_id
                             } }
                 debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
             #end check changes
 
             autopay = True if 'autopay' in data else False
             inlclude_payoff=True if 'inlclude_payoff' in data  else False
-            print(autopay, inlclude_payoff)
+            #print(autopay, inlclude_payoff)
             payoff_order = int(data['payoff_order']['value'])            
             reminder_days = int(data['reminder_days']['value'])
             
@@ -581,6 +588,7 @@ def update_debt_account_pg(accntid:int):
             debtaccounts.autopay=autopay
             debtaccounts.note=data['note'] if 'note' in data and data['note']!=""  else None                                     
             debtaccounts.updated_at=datetime.now()
+            debtaccounts.admin_id = admin_id
             
 
             db.session.add(debtaccounts)

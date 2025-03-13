@@ -78,6 +78,7 @@ def save_boost_pg():
         data = request.get_json()
 
         user_id = data.get('user_id')
+        admin_id = data.get('admin_id')
         boost_id = None
         message = ''
         result = 0
@@ -92,6 +93,7 @@ def save_boost_pg():
             # Create new PaymentBoost instance
             new_boost = PaymentBoost(
                 user_id=user_id,
+                admin_id=admin_id,
                 amount=amount,
                 pay_date_boost=pay_date_boost,
                 month=month,
@@ -129,6 +131,7 @@ def update_boost_pg():
         data = request.get_json()
 
         user_id = data.get('user_id')
+        admin_id = data.get('admin_id')
         boost_id = data.get('id')
         message = ''
         result = 0
@@ -146,6 +149,7 @@ def update_boost_pg():
             if boost:
                 # Update the fields
                 boost.user_id = user_id
+                boost.admin_id = admin_id
                 boost.pay_date_boost = pay_date_boost
                 boost.updated_at = datetime.now()
                 boost.amount = amount
@@ -183,6 +187,7 @@ def delete_boost_pg():
         message = None
         error = 0
         deleted_done = 0
+        admin_id = data.get('admin_id')
 
         try:
             # Extract the boost ID from the request data
@@ -194,6 +199,7 @@ def delete_boost_pg():
             if boost:
                 # Mark the record as deleted by setting 'deleted_at' field
                 boost.deleted_at = datetime.now()
+                boost.admin_id = admin_id
 
                 # Commit the changes to the database
                 db.session.commit()
