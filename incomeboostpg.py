@@ -2,7 +2,7 @@ from flask import request,jsonify, json
 from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
 from pgutils import new_entry_option_data
-from models import AppData, Income, IncomeBoost, IncomeBoostType, IncomeMonthlyLog, IncomeTransaction, IncomeYearlyLog
+from models import AppData, Income, IncomeBoost, IncomeBoostType, IncomeTransaction
 from incomeutil import generate_new_transaction_data_for_income_boost, get_single_boost
 from app import app
 import re

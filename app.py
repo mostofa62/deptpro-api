@@ -2,7 +2,7 @@ import os
 from flask import Flask,request,jsonify
 from flask_cors import CORS, cross_origin
 
-# from flask_migrate import Migrate
+from flask_migrate import Migrate
 # from flask_sqlalchemy import SQLAlchemy
 from dbpg import DATABASE_URL,db  # Import SQLAlchemy Base and engine from dbpg.py
 #from models import *
@@ -57,8 +57,8 @@ def shutdown_session(exception=None):
 #tzset()  # Apply the environment time zone change
 
 # Setup Flask-Migrate
-#migrate = Migrate(app, db)
-#from models import *
+migrate = Migrate(app, db)
+from models import *
 '''
 cors = CORS(app, resource={
     r"/*":{

@@ -6,7 +6,7 @@ import re
 from util import *
 from datetime import datetime,timedelta
 
-from models import CalendarData, DebtAccounts, DebtType, UserSettings
+from models import DebtAccounts, DebtType, UserSettings
 from dbpg import db
 from pgutils import PayoffOrder, ReminderDays, RepeatFrequency, new_entry_option_data, TransactionType, TransactionMonth, TransactionYear
 

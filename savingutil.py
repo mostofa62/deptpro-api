@@ -118,11 +118,12 @@ def get_single_breakdown(initial_amount, contribution, annual_interest_rate, goa
         # Calculate progress towards the goal
         progress = (balance / goal_amount) * 100
         progress_xyz = (balance_xyz / goal_amount) * 100
+
+        month = int(current_date.strftime("%Y%m"))
         
         months_breakdown = {
                 "period": period,
-                "month": current_date.strftime('%Y-%m'),
-                "month_word": current_date.strftime('%b, %Y'),
+                "month": month,                
                 "interest": round(interest, 2),
                 'interest_xyz':round(interest_xyz,2),
                 "contribution": contribution,
@@ -167,7 +168,8 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     total_balance = 0
     total_balance_xyz = 0
     goal_reached = None
-
+    
+    total_monthly_balance_xyz = 0
     
     
     delta = get_delta(frequency)
@@ -196,7 +198,7 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     current_datetime_now = datetime.now()
     is_single = 0
 
-    if current_datetime_now < next_contribution_date:
+    if current_datetime_now <= next_contribution_date:
         is_single = 1
 
         # Calculate next contribution date
@@ -223,11 +225,12 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
         # Calculate progress towards the goal
         progress = (balance / goal_amount) * 100
 
+        month = int(current_date.strftime("%Y%m"))
+
         # Append the current breakdown data
         months_breakdown = {
             "period": period,
-            "month": current_date.strftime('%Y-%m'),
-            "month_word": current_date.strftime('%b, %Y'),
+            "month": month,            
             "interest": round(interest, 2),
             'interest_xyz':round(interest, 2),
             "contribution": contribution,
@@ -243,6 +246,10 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
             "contribution_date":current_date,
             "next_contribution_date": next_contribution_date           
         }
+
+        if month == int(current_datetime_now.strftime('%Y%m')):
+            total_monthly_balance_xyz += (interest + contribution + (period * i_contribution) )
+            
         
 
 
@@ -279,12 +286,13 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
             if balance < 0:
                 break
+
+            month = int(current_date.strftime("%Y%m"))
             
             # Append the current breakdown data
             months_breakdown.append({
                 "period": period,
-                "month": current_date.strftime('%Y-%m'),
-                "month_word": current_date.strftime('%b, %Y'),
+                "month": month,                
                 "interest": round(interest, 2),
                 'interest_xyz':round(interest, 2),
                 "contribution": contribution,
@@ -300,6 +308,8 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
                 "contribution_date":current_date,
                 "next_contribution_date": next_contribution_date           
             })
+            if month == int(current_datetime_now.strftime('%Y%m')):
+                total_monthly_balance_xyz += (interest + contribution + (period * i_contribution) )
 
             # Stop if the next contribution date exceeds the current date
             if next_contribution_date > current_datetime_now:
@@ -328,7 +338,8 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
         'total_balance_xyz':round(total_balance_xyz,2),
         'goal_reached':goal_reached,
         'period':period,
-        'is_single':is_single
+        'is_single':is_single,
+        'total_monthly_balance_xyz':round(total_monthly_balance_xyz,2)
     })
 
 

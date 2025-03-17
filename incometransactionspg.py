@@ -3,8 +3,7 @@ import os
 from flask import Flask,request,jsonify, json
 from sqlalchemy import String, and_, cast, func
 #from flask_cors import CORS, cross_origin
-from models import Income, IncomeBoost, IncomeMonthlyLog, IncomeSourceType, IncomeTransaction
-from incomeutil import calculate_breakdown_future,generate_new_transaction_data_for_future_income_boost, generate_new_transaction_data_for_future_income_v1, generate_new_transaction_data_for_income, generate_unique_id
+from models import Income, IncomeBoost, IncomeSourceType, IncomeTransaction
 from app import app
 
 import re
@@ -25,7 +24,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             subquery = session.query(
                 IncomeTransaction.month,
                 IncomeTransaction.income_id,
-                func.sum(IncomeTransaction.net_income).label('max_total_net_for_period'),
+                func.max(IncomeTransaction.net_income).label('max_total_net_for_period'),
                 #func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
@@ -45,7 +44,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             # Now sum those max_total_net_for_periods by month
             result = session.query(
                 subquery.c.month,
-                func.sum(subquery.c.max_total_net_for_period).label('total_balance_net'),
+                func.max(subquery.c.max_total_net_for_period).label('total_balance_net'),
                 #func.min(subquery.c.month).label('month_min')
                 func.to_char(  # Apply formatting to the minimum month
                     func.to_date(cast(func.min(subquery.c.month), String), 'YYYYMM'),
@@ -64,7 +63,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             subquery = session.query(
                 IncomeTransaction.month,
                 IncomeTransaction.income_id,
-                func.sum(IncomeTransaction.net_income).label('total_balance_net'),
+                func.max(IncomeTransaction.net_income).label('total_balance_net'),
                 #func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
@@ -323,7 +322,7 @@ def get_typewise_income_info_pg(user_id:int):
     # Get current month in 'YYYY-MM' format
     #current_month_str = datetime.now().strftime("%Y-%m")
     current_month = int(datetime.now().strftime('%Y%m'))
-    print('current_month',current_month)
+    #print('current_month',current_month)
 
     session = db.session
     try:

@@ -5,7 +5,7 @@ from app import app
 import re
 from util import *
 from datetime import datetime
-from models import AppData, CalendarData, Saving,SavingBoost, SavingCategory, SavingContribution, SavingMonthlyLog
+from models import AppData, Saving,SavingBoost, SavingCategory, SavingContribution
 from dbpg import db
 from pgutils import new_entry_option_data
 from sqlalchemy.orm import joinedload
@@ -17,7 +17,8 @@ calender_data = my_col('calender_data')
 def delete_saving_pg():
     data = request.get_json()
     user_id = data.get('user_id')
-    saving_id = data.get('id')
+    admin_id = data.get('admin_id')
+    saving_id = data.get('id')    
     key = data.get('key')
     action = 'Deleted' if key < 2 else 'Closed'
     field = Saving.deleted_at if key < 2 else Saving.closed_at
@@ -27,34 +28,34 @@ def delete_saving_pg():
     deleted_done = 0
 
     try:
+
+        stmt = select(
+            Saving.id,                                         
+            Saving.total_monthly_balance,                       
+        ).where(Saving.id == saving_id)
+
+        previous_saving = db.session.execute(stmt).mappings().first()
+
+        app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+
+        app_data.total_monthly_saving -= previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
+        app_data.saving_updated_at = None
+        db.session.add(app_data)
+
                 
         # Update the Saving record
         saving_update = db.session.query(Saving).filter(Saving.id == saving_id).update(
             {
                 field: datetime.now(),
+                Saving.admin_id:admin_id
                 #Saving.calender_at: None
             }, synchronize_session=False
         )        
 
-        
 
         result = calender_data.delete_one({'module_id': 'saving', 'data.data_id': saving_id} )  
 
-
-        deleted_monthly_saving = db.session.query(SavingMonthlyLog).filter(            
-            SavingMonthlyLog.saving_id == saving_id
-        ).delete(synchronize_session=False)
-       
-
-
-        app_update = db.session.query(AppData).filter(AppData.user_id == user_id).update(
-            {
-                AppData.total_monthly_saving:0,               
-                AppData.saving_updated_at:None
-
-            }, synchronize_session=False
-        )       
-
+        
         # Ensure the update was successful before committing
         if saving_update:
             db.session.commit()  # Commit only once
@@ -81,8 +82,7 @@ def delete_saving_pg():
 
 @app.route('/api/savingpg/<int:user_id>', methods=['POST'])
 def list_saving_pg(user_id: int):
-    action = request.args.get('action', None)
-    current_month = datetime.now().strftime('%Y-%m')
+    action = request.args.get('action', None)    
     data = request.get_json()
     page_index = data.get('pageIndex', 0)
     page_size = data.get('pageSize', 10)
@@ -132,8 +132,7 @@ def list_saving_pg(user_id: int):
         .all()
     )
     
-    data_list = []
-    total_monthly_saving = 0
+    data_list = []    
     
     for saving in savings:
         category_name = saving.category.name if saving.category else None
@@ -160,11 +159,14 @@ def list_saving_pg(user_id: int):
         })
     
     total_pages = (total_count + page_size - 1) // page_size
+
+    app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
     
     total_data = db.session.query(
         func.sum(Saving.goal_amount).label('total_goal_amount'),
         func.sum(Saving.starting_amount).label('total_starting_amount'),
-        func.sum(Saving.contribution).label('total_contribution')
+        func.sum(Saving.contribution).label('total_contribution'),
+        #func.sum(Saving.total_monthly_balance).label('total_monthly_balance')
     ).filter(Saving.user_id == user_id, Saving.deleted_at.is_(None)).first()
     
     return jsonify({
@@ -175,7 +177,7 @@ def list_saving_pg(user_id: int):
             'total_goal_amount': total_data.total_goal_amount or 0,
             'total_starting_amount': total_data.total_starting_amount or 0,
             'total_contribution': total_data.total_contribution or 0,
-            'total_monthly_saving': round(total_monthly_saving, 2)
+            'total_monthly_saving': app_data.total_monthly_saving if app_data else 0
         }
     })
 
@@ -301,24 +303,6 @@ def get_saving_all_pg(id:int):
             "saving":saving
         }
     })
-
-
-# Helper function to calculate interest and progress
-def calculate_savings(savings):
-    # Calculate total savings: starting amount + total contributions + any savings boosts
-    total_contributions = savings['contribution'] * savings['months_contributed']
-    savings_boost = savings.get('savings_boost', 0)
-    total_savings = savings['starting_amount'] + total_contributions + savings_boost
-    
-    # Calculate interest (assuming monthly compounding for simplicity)
-    interest_rate = savings['interest_rate'] / 100
-    months = savings['months_contributed']
-    interest_earned = total_savings * ((1 + interest_rate / 12) ** months - 1)
-    
-    # Update progress toward goal
-    progress = (total_savings + interest_earned) / savings['goal_amount'] * 100
-    
-    return total_savings, interest_earned, progress
 
 
 def saving_accounts_log_entry(
@@ -589,6 +573,7 @@ async def save_saving_pg():
         goal_reached = contribution_breakdown['goal_reached']
         period = contribution_breakdown['period']
         is_single = contribution_breakdown['is_single']
+        total_monthly_balance_xyz = contribution_breakdown['total_monthly_balance_xyz']
 
         len_breakdown = len(breakdown)
 
@@ -626,6 +611,7 @@ async def save_saving_pg():
                     progress=progress,
                     period=period,
                     commit=commit,
+                    total_monthly_balance = total_monthly_balance_xyz,
                     calender_at=None
                 )
             db.session.add(saving_data)
@@ -672,7 +658,8 @@ async def save_saving_pg():
                     progress=progress,
                     period=period,
                     commit=commit,
-                    calender_at=None
+                    calender_at=None,
+                    total_monthly_balance=total_monthly_balance_xyz
                 )
 
                 db.session.add(saving_data)
@@ -683,9 +670,7 @@ async def save_saving_pg():
                 
                 if is_single > 0:
                     contribution_data = SavingContribution(
-                            saving_id=saving_id,
-                            deleted_at=None,
-                            closed_at=None,
+                            saving_id=saving_id,                            
                             commit=commit,
                             user_id=user_id,
                             **breakdown
@@ -694,9 +679,7 @@ async def save_saving_pg():
                 else:
                     contribution_data = [
                             SavingContribution(
-                                saving_id=saving_id,
-                                deleted_at=None,
-                                closed_at=None,
+                                saving_id=saving_id,                                
                                 commit=commit,
                                 user_id=user_id,
                                 **todo
@@ -705,19 +688,14 @@ async def save_saving_pg():
                     db.session.bulk_save_objects(contribution_data)                                
                 
 
-                monthly_log = SavingMonthlyLog(
-                    saving_id=saving_id,
-                    user_id=user_id,
-                    total_monthly_balance=0,                    
-                    updated_at=None
-                )
+                
 
                 # Query to check if the user already exists
                 app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 if app_data:
                     # Update the existing record                    
-                    app_data.total_monthly_saving = 0                    
+                    app_data.total_monthly_saving += total_monthly_balance_xyz                    
                     app_data.saving_updated_at = None
                     
                     
@@ -725,11 +703,11 @@ async def save_saving_pg():
                     # Insert a new record if the user doesn't exist
                     app_data = AppData(
                         user_id=user_id,
-                        total_monthly_saving=0,                        
+                        total_monthly_saving=total_monthly_balance_xyz,                        
                         saving_updated_at=None
                     )
 
-                db.session.add(monthly_log)
+                
                 db.session.add(app_data)
                 db.session.commit()
                 message = 'Saving account added Succefull'

@@ -1,9 +1,9 @@
-import enum
-from sqlalchemy import Column, Date, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
+
+from sqlalchemy import Column, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from dbpg import db
-from sqlalchemy.types import Enum as PgEnum
+
 from sqlalchemy.dialects.postgresql import JSON
 class User(db.Model):
     __tablename__ = "users"
@@ -235,7 +235,7 @@ class IncomeTransaction(db.Model):
     def __repr__(self):
         return f"<IncomeTransaction id={self.id} month={self.month} pay_date={self.pay_date} gross_income={self.gross_income} net_income={self.net_income}>"
     
-
+'''
 class IncomeMonthlyLog(db.Model):
     __tablename__ = "income_monthly_log"
 
@@ -271,7 +271,7 @@ class IncomeYearlyLog(db.Model):
     def __repr__(self):
         return f"<IncomeYearlyLog income_id={self.income_id} user_id={self.user_id} total_yearly_gross_income={self.total_yearly_gross_income} total_yearly_net_income={self.total_yearly_net_income}>"
 
-
+'''
 #BILL MODELS
 class BillType(db.Model):
     __tablename__ = 'bill_types'
@@ -309,7 +309,12 @@ class BillAccounts(db.Model):
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     admin_id = Column(Integer,nullable=True)
-    latest_transaction_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
+    # In BillAccounts:
+    latest_transaction_id = Column(
+        Integer,
+        ForeignKey('bill_transactions.id', ondelete='SET NULL', use_alter=True, name='fk_accounts_latest_transaction', deferrable=True),
+        nullable=True
+    )
     deleted_at = Column(DateTime, nullable=True, index=True)
     closed_at = Column(DateTime, nullable=True, index=True)
     calender_at = Column(DateTime, nullable=True, index=True)
@@ -346,11 +351,19 @@ class BillTransactions(db.Model):
     updated_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     admin_id = Column(Integer,nullable=True)
-    bill_acc_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)    
+    bill_acc_id = Column(
+        Integer,
+        ForeignKey('bill_accounts.id', ondelete='SET NULL', use_alter=True, name='fk_transactions_account', deferrable=True),
+        nullable=True
+    )
     payment_status = Column(Integer, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
-    latest_payment_id = Column(Integer, ForeignKey('bill_payments.id', ondelete='SET NULL'), nullable=True)
+    latest_payment_id = Column(
+        Integer,
+        ForeignKey('bill_payments.id', ondelete='SET NULL', use_alter=True, name='fk_transactions_latest_payment', deferrable=True),
+        nullable=True
+    )
     
 
     bill_account = relationship(
@@ -384,7 +397,11 @@ class BillPayments(db.Model):
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     admin_id = Column(Integer,nullable=True)
     bill_trans_id = Column(Integer, ForeignKey('bill_transactions.id', ondelete='SET NULL'), nullable=True)
-    bill_account_id = Column(Integer, ForeignKey('bill_accounts.id', ondelete='SET NULL'), nullable=True)
+    bill_account_id = Column(
+        Integer,
+        ForeignKey('bill_accounts.id', ondelete='SET NULL', use_alter=True, name='fk_payments_account', deferrable=True),
+        nullable=True
+    )
     deleted_at = Column(DateTime, nullable=True)
 
     bill_transaction = relationship(
@@ -686,8 +703,7 @@ class SavingContribution(db.Model):
     saving_boost_id = Column(Integer, ForeignKey('saving_boosts.id'), nullable=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     period = Column(Integer, nullable=False)
-    month = Column(String, nullable=False, index=True)
-    month_word = Column(String(20), nullable=False)
+    month = Column(Integer, nullable=False,index=True)    
     interest = Column(Float, nullable=False)
     interest_xyz = Column(Float, nullable=False)
     contribution = Column(Float, nullable=False)
@@ -701,10 +717,8 @@ class SavingContribution(db.Model):
     progress = Column(Float, nullable=False)
     progress_xyz = Column(Float, nullable=False)
     contribution_date = Column(DateTime, nullable=False)
-    next_contribution_date = Column(DateTime, nullable=False)
-    deleted_at = Column(DateTime, nullable=True)
-    closed_at = Column(DateTime, nullable=True)
-    commit = Column(DateTime, nullable=False, default=datetime.now())
+    next_contribution_date = Column(DateTime, nullable=False)    
+    commit = Column(DateTime, nullable=True,index=True)
 
     saving = db.relationship(
         'Saving', 
@@ -724,7 +738,7 @@ class SavingContribution(db.Model):
         return f"<SavingContribution(month={self.month}, contribution={self.contribution}, total_balance={self.total_balance})>"
 
 
-
+'''
 class SavingMonthlyLog(db.Model):
     __tablename__ = 'saving_monthly_logs'
 
@@ -767,4 +781,6 @@ class CalendarData(db.Model):
             'data_id': self.data_id,
             'data': self.data,
             'user_id': self.user_id
-        }
+        }'
+        
+'''

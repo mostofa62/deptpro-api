@@ -1,7 +1,7 @@
 
 
 from flask import request,jsonify
-from sqlalchemy import and_, func
+from sqlalchemy import String, and_, func
 
 from app import app
 
@@ -9,7 +9,7 @@ from util import *
 from datetime import datetime,timedelta
 
 
-from models import Saving,  SavingCategory, SavingContribution, SavingMonthlyLog
+from models import Saving,  SavingCategory, SavingContribution
 from dbpg import db
 
 def transaction_previous(id: int, column: str = 'saving_id'):
@@ -22,7 +22,7 @@ def transaction_previous(id: int, column: str = 'saving_id'):
             SavingContribution.month,
             SavingContribution.saving_id,
             func.max(SavingContribution.total_balance_xyz).label('max_total_balance'),
-            func.min(SavingContribution.month_word).label('month_word')
+            #func.min(SavingContribution.month_word).label('month_word')
         ).join(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
@@ -42,7 +42,11 @@ def transaction_previous(id: int, column: str = 'saving_id'):
         result = db.session.query(
             subquery.c.month,
             func.sum(subquery.c.max_total_balance).label('total_balance'),
-            func.min(subquery.c.month_word).label('month_word')
+            #func.min(subquery.c.month_word).label('month_word')
+            func.to_char(
+                    func.to_date(subquery.c.month.cast(String), 'YYYYMM'), 
+                    'Mon, YYYY')
+                    .label('year_month_word'),
         ).group_by(
             subquery.c.month
         ).order_by(
@@ -55,7 +59,7 @@ def transaction_previous(id: int, column: str = 'saving_id'):
             SavingContribution.month,
             SavingContribution.saving_id,
             func.max(SavingContribution.total_balance_xyz).label('total_balance'),
-            func.min(SavingContribution.month_word).label('month_word')
+            #func.min(SavingContribution.month_word).label('month_word')
         ).join(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
@@ -75,7 +79,11 @@ def transaction_previous(id: int, column: str = 'saving_id'):
         result = db.session.query(
             subquery.c.month,
             subquery.c.total_balance,
-            subquery.c.month_word
+            #subquery.c.month_word
+            func.to_char(
+                    func.to_date(subquery.c.month.cast(String), 'YYYYMM'), 
+                    'Mon, YYYY')
+                    .label('year_month_word'),
         ).order_by(
             subquery.c.month.asc()
         ).limit(12)
@@ -85,7 +93,7 @@ def transaction_previous(id: int, column: str = 'saving_id'):
     year_month_wise_counts = []
     for row in result:
         year_month_wise_counts.append({
-            'year_month_word': row.month_word,
+            'year_month_word': row.year_month_word,
             'total_balance': row.total_balance
         })
 
@@ -119,7 +127,7 @@ def saving_contributions_previous_pg(saving_id:int):
     # 7. Get the total monthly balance
     total_monthly_balance = 0
     if saving_id is not None:
-        income_monthly_log_data = db.session.query(SavingMonthlyLog.total_monthly_balance).filter_by(saving_id=saving_id).first()
+        income_monthly_log_data = db.session.query(Saving.total_monthly_balance).filter_by(saving_id=saving_id).first()
         if income_monthly_log_data is not None:
             total_monthly_balance = income_monthly_log_data.total_monthly_balance
    
@@ -144,7 +152,16 @@ def list_saving_contributions_pg(saving_id: int):
     page_size = data.get('pageSize', 10)
 
     # Create a base query for SavingTransaction model
-    query = db.session.query(SavingContribution)\
+    query = db.session.query(
+        SavingContribution.id,
+        SavingContribution.total_balance,
+        SavingContribution.total_balance_xyz,
+        SavingContribution.month,
+        SavingContribution.contribution_i_intrs_xyz,
+        SavingContribution.interest_xyz,
+        SavingContribution.contribution_date,
+        SavingContribution.next_contribution_date
+    )\
     .join(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
@@ -179,7 +196,7 @@ def list_saving_contributions_pg(saving_id: int):
             'id':todo.id,            
             'total_balance_xyz':todo.total_balance_xyz,
             'total_balance':todo.total_balance,
-            'month_word':todo.month_word,
+            'month_word':convertNumberToDate(todo.month),
             'contribution':todo.contribution_i_intrs_xyz,
             'contribution_date_word': convertDateTostring(todo.contribution_date),
             'interest_xyz':todo.interest_xyz ,
@@ -209,7 +226,16 @@ def list_saving_boost_contributions_pg(saving_id: int):
     page_size = data.get('pageSize', 10)
 
     # Create a base query for SavingTransaction model
-    query = db.session.query(SavingContribution)\
+    query = db.session.query(
+        SavingContribution.id,
+        SavingContribution.total_balance,
+        SavingContribution.total_balance_xyz,
+        SavingContribution.month,
+        SavingContribution.contribution_i_intrs_xyz,
+        SavingContribution.interest_xyz,
+        SavingContribution.contribution_date,
+        SavingContribution.next_contribution_date
+    )\
     .join(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
@@ -244,7 +270,7 @@ def list_saving_boost_contributions_pg(saving_id: int):
             'id':todo.id,            
             'total_balance_xyz':todo.total_balance_xyz,
             'total_balance':todo.total_balance,
-            'month_word':todo.month_word,
+            'month_word':convertNumberToDate(todo.month),
             'contribution':todo.contribution_i_intrs_xyz,
             'contribution_date_word': convertDateTostring(todo.contribution_date),
             'interest_xyz':todo.interest_xyz ,
@@ -270,7 +296,8 @@ def list_saving_boost_contributions_pg(saving_id: int):
 def get_typewise_saving_info_pg(user_id:int):
 
     # Get current month in 'YYYY-MM' format
-    current_month_str = datetime.now().strftime("%Y-%m")
+    #current_month_str = datetime.now().strftime("%Y-%m")
+    current_month = int(datetime.now().strftime('%Y%m'))
 
     #print('current_month_str',current_month_str)
 
@@ -287,7 +314,7 @@ def get_typewise_saving_info_pg(user_id:int):
     )\
      .join(SavingCategory, Saving.category_id == SavingCategory.id) \
      .filter(
-         SavingContribution.month == current_month_str,
+         SavingContribution.month == current_month,
          Saving.user_id == user_id,  # Filter by user_id
          Saving.deleted_at == None,
          Saving.closed_at == None
