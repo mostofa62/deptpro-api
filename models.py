@@ -675,6 +675,7 @@ class SavingBoost(db.Model):
     closed_at = Column(DateTime, nullable=True)
     next_contribution_date = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=False, default=0)
+    total_monthly_balance = Column(Float, nullable=False, default=0)
 
     saving = db.relationship(
         'Saving',

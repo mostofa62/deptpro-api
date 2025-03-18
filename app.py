@@ -58,7 +58,7 @@ def shutdown_session(exception=None):
 
 # Setup Flask-Migrate
 migrate = Migrate(app, db)
-from models import *
+from models import SavingBoost
 '''
 cors = CORS(app, resource={
     r"/*":{

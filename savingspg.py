@@ -342,6 +342,9 @@ async def edit_saving_pg(id:int):
             Saving.starting_amount,
             Saving.starting_date,
             Saving.goal_amount,
+            Saving.total_balance,
+            Saving.total_balance_xyz,
+            Saving.total_monthly_balance,
             Saving.repeat,  
             Saving.commit                     
         ).where(Saving.id == id)
@@ -433,14 +436,26 @@ async def edit_saving_pg(id:int):
                     )
                 
                 results = session.execute(stmt).fetchall()
-                print('results',results)
+                #print('results',results)
+                app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 saving_account_data = None
 
                 saving_account_log_data = \
                 {                    
                     "saving":{
-                        "id":saving_id,  
+                        "id":saving_id,
+                        "total_balance":total_balance,
+                        "total_balance_xyz":total_balance_xyz,
+                        "total_monthly_balance":total_monthly_balance,
+                        "p_total_balance":previous_saving['total_balance'],
+                        "p_total_balance_xyz":previous_saving['total_balance_xyz'],
+                        "p_total_monthly_balance":previous_saving['total_monthly_balance'],
+                        'p_goal_amount':previous_saving['goal_amount'],
+                        'p_starting_amount':previous_saving['starting_amount'], 
+                        'p_contribution':previous_saving['contribution'],
+                        'p_increase_contribution_by':previous_saving['increase_contribution_by'],
+                        'p_interest':previous_saving['interest'],
                         'goal_amount':goal_amount,
                         'starting_amount':starting_amount, 
                         'contribution':contribution,
@@ -448,13 +463,16 @@ async def edit_saving_pg(id:int):
                         'interest':interest,                     
                         "total_balance":total_balance,
                         "total_balance_xyz":total_balance_xyz,                        
-                        "progress":progress,
-                        "period":period,
+                        "progress":0,
+                        "period":0,
                         "starting_date":starting_date,
                         "repeat":repeat,
                         "completed_at":None,
                     },
                     "boost":{},
+                    "app_data":{
+                        'total_monthly_saving':app_data.total_monthly_saving,                        
+                    },
                     "total_balance":0,
                     "total_balance_xyz":0,
                     "commit":commit,
@@ -465,11 +483,14 @@ async def edit_saving_pg(id:int):
 
                     for row in results:
 
-                        boost_frequency =  row.boost_frequency['value'] if row.boost_frequency['value'] < 1 else  repeat
+                        #boost_frequency =  row.boost_frequency['value'] if row.boost_frequency['value'] < 1 else  repeat
+                        boost_frequency =  row.boost_frequency['value']
 
                         saving_account_log_data["boost"][f"{row.saving_boost_id}"]={
                             "id":row.saving_boost_id,
                             "total_balance":total_balance,
+                            "total_monthly_balance":0,
+                            "p_total_monthly_balance":row.total_monthly_balance,
                             "contribution":row.contribution,
                             "start_date":row.start_date,
                             "repeat_boost":boost_frequency,
