@@ -24,7 +24,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             subquery = session.query(
                 IncomeTransaction.month,
                 IncomeTransaction.income_id,
-                func.max(IncomeTransaction.net_income).label('max_total_net_for_period'),
+                func.max(IncomeTransaction.total_net_for_period).label('max_total_net_for_period'),
                 #func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(
@@ -44,7 +44,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             # Now sum those max_total_net_for_periods by month
             result = session.query(
                 subquery.c.month,
-                func.max(subquery.c.max_total_net_for_period).label('total_balance_net'),
+                func.sum(subquery.c.max_total_net_for_period).label('total_balance_net'),
                 #func.min(subquery.c.month).label('month_min')
                 func.to_char(  # Apply formatting to the minimum month
                     func.to_date(cast(func.min(subquery.c.month), String), 'YYYYMM'),
@@ -63,7 +63,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             subquery = session.query(
                 IncomeTransaction.month,
                 IncomeTransaction.income_id,
-                func.max(IncomeTransaction.net_income).label('total_balance_net'),
+                func.max(IncomeTransaction.total_net_for_period).label('total_balance_net'),
                 #func.min(IncomeTransaction.month).label('month_min')
             ).join(Income, 
                 and_(

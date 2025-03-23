@@ -167,15 +167,19 @@ def list_debts_pg(user_id:int):
     sort_by = data.get('sortBy', [])
 
     # Construct SQLAlchemy filter query
-    query = db.session.query(DebtAccounts).filter(
-        DebtAccounts.user_id == user_id,
-        DebtAccounts.deleted_at == None,
-        DebtAccounts.closed_at == None
-    )
+    query = db.session.query(DebtAccounts)
 
     if action is not None:
         query = query.filter(
+            DebtAccounts.user_id == user_id,
+            DebtAccounts.deleted_at == None,
             DebtAccounts.closed_at != None
+        )
+    else:
+        query = query.filter(
+            DebtAccounts.user_id == user_id,
+            DebtAccounts.deleted_at == None,
+            DebtAccounts.closed_at == None
         )
 
 

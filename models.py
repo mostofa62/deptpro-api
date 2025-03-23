@@ -92,6 +92,7 @@ class IncomeSourceType(db.Model):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Foreign Key linking to User
     bysystem = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True, index=True)
+    auto_assigned = Column(Integer, nullable=True, default=0)
 
     # Relationship with User model
     user = relationship("User", backref="income_sources", lazy="joined")
@@ -109,6 +110,7 @@ class IncomeBoostType(db.Model):
     # If you have additional fields like bysystem, add it similarly
     bysystem = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True, index=True)
+    auto_assigned = Column(Integer, nullable=True, default=0)
 
     # Relationship with User model
     user = relationship("User", backref="income_boosts_type", lazy="joined")

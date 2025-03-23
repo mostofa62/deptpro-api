@@ -332,9 +332,8 @@ def create_income():
 
         # Get a database session from get_db
         session = db.session
-        with session.begin():
-
-            try:
+        try:            
+            
                 # Begin transaction                
                 net_income = float(data.get("net_income", 0))
                 gross_income = float(data.get("gross_income", 0))
@@ -463,14 +462,14 @@ def create_income():
                 session.commit()  # Commit the transaction
                 result = 1
                 
-            except Exception as e:
-                income_id = None
-                message = 'Income account addition failed'
-                session.rollback()  # Rollback on error
-                print(f"Error saving income data: {str(e)}")
-                result = 0
-            finally:
-                session.close()            
+        except Exception as e:
+            income_id = None
+            message = 'Income account addition failed'
+            session.rollback()  # Rollback on error
+            print(f"Error saving income data: {str(e)}")
+            result = 0
+        finally:
+            session.close()            
 
         return jsonify({
             "income_id": income_id,
