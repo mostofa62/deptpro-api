@@ -584,10 +584,12 @@ class SavingCategory(db.Model):
     name = Column(String(100), nullable=False)
     parent_id = Column(Integer, ForeignKey('saving_categories.id'), nullable=True)
     #parent_id = Column(Integer, nullable=True) # use this avoid conflict
+    bysystem = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     ordering = Column(Integer, nullable=True)
     in_dashboard_cal = Column(Integer, nullable=True,default= 0)
+    auto_assigned = Column(Integer, nullable=True, default=0)
 
     parent = db.relationship('SavingCategory', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='saving_categories', lazy='joined')
@@ -649,7 +651,9 @@ class SavingBoostType(db.Model):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    bysystem = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
+    auto_assigned = Column(Integer, nullable=True, default=0)
 
     user = db.relationship('User', backref='saving_boost_types', lazy='joined')
 

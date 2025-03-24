@@ -51,7 +51,7 @@ def delete_income_boost_source_pg():
             message = f'Income boost type deleted Successfully'
 
         except Exception as ex:
-
+            db.session.rollback()
             income_source_id = None
             error = 1
             deleted_done = 0
@@ -116,7 +116,7 @@ def delete_income_source_pg():
             message = f'Income source deleted Successfully'
 
         except Exception as ex:
-
+            db.session.rollback()
             income_source_id = None
             error = 1
             deleted_done = 0
