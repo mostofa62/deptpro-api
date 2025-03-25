@@ -285,6 +285,8 @@ class BillType(db.Model):
     deleted_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     ordering = Column(Integer, nullable=True)
+    bysystem = Column(Boolean, default=False)    
+    auto_assigned = Column(Integer, nullable=True, default=0)
 
     parent = db.relationship('BillType', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='bill_types', lazy='joined')
@@ -436,6 +438,8 @@ class DebtType(db.Model):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     ordering = Column(Integer, nullable=True)
     in_calculation = Column(Integer, nullable=True)
+    bysystem = Column(Boolean, default=False)    
+    auto_assigned = Column(Integer, nullable=True, default=0)
 
     parent = db.relationship('DebtType', remote_side=[id], backref='children', lazy='joined')
     user = db.relationship('User', backref='debt_types', lazy='joined')

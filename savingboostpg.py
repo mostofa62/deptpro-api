@@ -86,7 +86,9 @@ def list_saving_boost_pg(saving_id:int):
         SavingBoost.saving_id == saving_id,
         SavingBoost.deleted_at.is_(None),
         SavingBoost.closed_at.is_(None)
-    ).join(SavingBoostType, SavingBoost.saving_boost_source_id == SavingBoostType.id, isouter=True)
+    )\
+    .join(Saving, SavingBoost.saving_id == Saving.id, isouter=True)\
+    .join(SavingBoostType, SavingBoost.saving_boost_source_id == SavingBoostType.id, isouter=True)
 
 
     
@@ -131,6 +133,7 @@ def list_saving_boost_pg(saving_id:int):
             'repeat_boost':entry.repeat_boost,
             'total_balance':entry.total_balance,
             'saving':entry.saving_ac,
+            'boost_operation_type':entry.boost_operation_type,
             'op_type_value':entry.boost_operation_type['value']
         })
 

@@ -1,10 +1,72 @@
-from flask import jsonify
-from sqlalchemy import or_
+from flask import jsonify, request
+from sqlalchemy import func, or_, select, update
 from app import app
 from util import *
 from dbpg import db
-from models import BillType
+from models import BillAccounts, BillType
 from pgutils import RepeatFrequency, ReminderDays
+
+
+@app.route('/api/delete-bill-typepg', methods=['POST'])
+def delete_bill_type_pg():
+    if request.method == 'POST':
+        data = json.loads(request.data)
+
+        id = data['id']                   
+
+        bill_type_id = id
+        message = None
+        error = 0
+        deleted_done = 0
+
+        auto_assigned_id = None
+        
+        try:
+            bill_count = db.session.query(func.count()).filter(BillAccounts.bill_type_id == id).scalar()
+            if bill_count > 0:
+                auto_assigned_id = db.session.execute(
+                    select(BillType.id).where(BillType.auto_assigned == 1).limit(1)
+                ).scalar_one_or_none()
+
+            if auto_assigned_id:
+                stmt_update = update(BillAccounts)\
+                        .where(BillAccounts.bill_type_id == id)\
+                        .values(
+                        bill_type_id=auto_assigned_id                                    
+                        )
+                db.session.execute(stmt_update)
+
+            
+
+            stmt_update = update(BillType)\
+                        .where(BillType.id == id)\
+                        .values(
+                        deleted_at=datetime.now()                                    
+                        )
+            db.session.execute(stmt_update)
+            db.session.commit()
+            bill_type_id = id
+            error = 0
+            deleted_done = 1
+            message = f'Bill type deleted Successfully'
+
+        except Exception as ex:
+            db.session.rollback()
+            bill_type_id = None
+            error = 1
+            deleted_done = 0
+            message = f'Bill type deleted Failed'
+
+
+           
+
+
+        return jsonify({
+            "bill_type_id":bill_type_id,
+            "message":message,
+            "error":error,
+            "deleted_done":deleted_done
+        })
 
 @app.route("/api/billtype-dropdownpg/<int:user_id>", methods=['GET'])
 def bill_type_dropdown_pg(user_id: int, value_return: int = 0):

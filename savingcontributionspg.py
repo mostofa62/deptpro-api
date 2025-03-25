@@ -127,9 +127,9 @@ def saving_contributions_previous_pg(saving_id:int):
     # 7. Get the total monthly balance
     total_monthly_balance = 0
     if saving_id is not None:
-        income_monthly_log_data = db.session.query(Saving.total_monthly_balance).filter_by(saving_id=saving_id).first()
-        if income_monthly_log_data is not None:
-            total_monthly_balance = income_monthly_log_data.total_monthly_balance
+        saving_monthly_log_data = db.session.query(Saving.total_monthly_balance).filter_by(id=saving_id).first()
+        if saving_monthly_log_data is not None:
+            total_monthly_balance = saving_monthly_log_data.total_monthly_balance
    
 
     return jsonify({
