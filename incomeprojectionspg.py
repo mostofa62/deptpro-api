@@ -54,7 +54,7 @@ def process_projections(results=None):
 
 
 
-
+'''
 def get_projection_list(projection_list):
 
 
@@ -145,6 +145,92 @@ def get_projection_list(projection_list):
 
     return result
 
+'''
+
+
+def get_projection_list(projection_list):
+    projection = defaultdict(lambda: {
+        "base_gross_income": 0.0, 
+        "base_net_income": 0.0,
+        "month_word": "",
+        "month": None, 
+        "earners": {}
+    })
+
+    start_date = datetime.now().replace(day=1)  # Start from the current month
+    end_date = start_date + timedelta(days=365)  # Next 12 months
+
+    for income in projection_list:
+        pay_date = income["next_pay_date"]
+        repeat_days = income["repeat"]["value"]
+        gross_income, net_income = income["gross_income"], income["net_income"]
+        income_id, earner_name = income["id"], income["earner"]
+
+        # Initialize total incomes with previous values
+        total_gross_income = income.get("total_gross_income", 0.0)
+        total_net_income = income.get("total_net_income", 0.0)
+
+        # Process Income Boosts and store them in a dict for quick lookup
+        boost_dates = {}
+        for boost in income.get("income_boosts", []):
+            boost_date, boost_amount = boost["pay_date_boost"], boost["income_boost"]
+            boost_repeat = boost["repeat_boost"]["value"]
+
+            while boost_date < end_date:
+                month_key = int(f"{boost_date.year}{boost_date.month:02d}")
+                boost_dates[month_key] = boost_dates.get(month_key, 0) + boost_amount
+                
+                if boost_repeat == 0: 
+                    break  # One-time boost
+                boost_date += get_delta(boost_repeat)  # Apply boost frequency
+
+        # Process Income (main salary payments)
+        while pay_date < end_date:
+            month_key = int(f"{pay_date.year}{pay_date.month:02d}")
+
+            # Accumulate previous total + new income
+            total_gross_income += gross_income
+            total_net_income += net_income
+
+            # Add base income (accumulated)
+            projection[month_key]["base_gross_income"] += total_gross_income
+            projection[month_key]["base_net_income"] += total_net_income
+
+            # Apply Boost (if any for this month)
+            if month_key in boost_dates:
+                total_gross_income += boost_dates[month_key]
+                total_net_income += boost_dates[month_key]
+                projection[month_key]["base_gross_income"] += boost_dates[month_key]
+                projection[month_key]["base_net_income"] += boost_dates[month_key]
+
+            # Set month metadata only once
+            if projection[month_key]["month"] is None:
+                projection[month_key]["month"] = month_key
+                projection[month_key]["month_word"] = convertDateTostring(pay_date, "%b, %Y")
+
+            # Add earner details
+            earner_data = projection[month_key]["earners"].setdefault(income_id, {
+                "earner": earner_name,
+                "earner_id": income_id,
+                "gross_income": 0,
+                "net_income": 0
+            })
+            earner_data["gross_income"] += total_gross_income
+            earner_data["net_income"] += total_net_income
+
+            pay_date += get_delta(repeat_days)  # Move to next pay cycle
+
+    # Convert projection dict to sorted list
+    return sorted(
+        [{
+            "month": month,
+            "base_gross_income": round(data['base_gross_income'], 2),
+            "base_net_income": round(data['base_net_income'], 2),
+            "month_word": data['month_word'],
+            "earners": list(data['earners'].values())
+        } for month, data in projection.items()],
+        key=lambda x: x['month']
+    )
 
         
     
