@@ -65,32 +65,47 @@ def process_projections(results=None):
 
 
 def calculate_end_date(start_date, initial_balance, contribution, daily_rate, goal_amount, frequency):
-    
+    if initial_balance >= goal_amount:
+        return start_date, 0  # Already reached the goal
+
     delta = get_delta(frequency)  # Get time difference based on contribution frequency
     period_days = delta.days  # Convert timedelta to days
 
     # Calculate the periodic rate
     periodic_rate = daily_rate * period_days  # Interest applied per contribution period
 
-    # If no interest is applied, use simple accumulation
     if periodic_rate == 0:
-        if contribution == 0: 
-            return None  # No contribution and no interest -> goal unreachable
+        # No interest; use simple accumulation
+        if contribution == 0:
+            return None, None  # No way to reach the goal
         
         n = (goal_amount - initial_balance) / contribution
     else:
-        # Compute number of periods using the logarithmic formula
-        numerator = math.log((goal_amount - (contribution / periodic_rate) + initial_balance) / (initial_balance + (contribution / periodic_rate)))
+        # Compute number of periods using logarithmic formula
+        term1 = goal_amount - (contribution / periodic_rate) + initial_balance
+        term2 = initial_balance + (contribution / periodic_rate)
+
+        # Ensure valid log input
+        if term1 <= 0 or term2 <= 0:
+            return None, None  # Invalid input to log
+        
+        numerator = math.log(term1 / term2)
         denominator = math.log(1 + periodic_rate)
+
+        if denominator == 0:
+            return None, None  # Avoid division by zero
+        
         n = numerator / denominator
 
     # Convert to integer periods
-    n = math.ceil(n)
+    n = max(1, math.ceil(n))
 
     # Compute the end date
     end_date = start_date + (n * delta)
-    
+
     return end_date, n
+
+
 
 def get_projection_list(projection_list, goal_amount):
     # Dictionary to store merged results
