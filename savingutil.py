@@ -23,6 +23,10 @@ def get_delta(frequency):
     
     return delta
 
+def get_next_contribution_date(current_date, frequency):
+    delta = get_delta(frequency)
+    next_contribution_date = current_date + delta
+    return next_contribution_date
 
 
 def get_single_boost(initial_amount, contribution, start_date,frequency,period,op_type):

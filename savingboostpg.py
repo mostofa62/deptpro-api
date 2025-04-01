@@ -2,6 +2,7 @@ import os
 from flask import request,jsonify, json
 from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
+from savingutil import get_next_contribution_date
 from pgutils import new_entry_option_data
 from app import app
 import re
@@ -184,7 +185,8 @@ async def save_saving_boost_pg():
 
         pay_date_boost = saving_entry.next_contribution_date              
         saving_boost = float(data.get("saving_boost", 0))
-       
+        
+        repeat_boost = data['repeat_boost']['value']
 
 
         merge_data = {    
@@ -200,7 +202,7 @@ async def save_saving_boost_pg():
             "deleted_at": None,
             "closed_at": None,  
             'pay_date_boost': pay_date_boost,                
-            'next_contribution_date': None, 
+            'next_contribution_date':get_next_contribution_date(pay_date_boost,repeat_boost) if repeat_boost > 0 else None, 
             'total_balance': 0,
             'note':data['note'] if 'note' in data and data['note']!='' else None,
             'total_balance':0                                   

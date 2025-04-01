@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 from flask import jsonify
 from sqlalchemy import Integer, case, cast, func
-from savingutil import calculate_breakdown_future
+from savingutil import get_delta
 from app import app
 from util import *
 from datetime import datetime
@@ -10,192 +10,316 @@ from datetime import datetime
 from models import Saving, SavingBoost
 from dbpg import db
 from sqlalchemy.orm import aliased
+from sqlalchemy.exc import OperationalError, TimeoutError, DBAPIError
+import math
+
 # Aliasing the SavingBoost table to avoid conflict in the joins
 saving_boosts_1 = aliased(SavingBoost)
 saving_boosts_2 = aliased(SavingBoost)
 
-def process_projections(todo, total_balance:float=0,goal_amount:float=0):
-    frequency_boost = todo['frequency_boost']
-    onetime_boost = todo['onetime_boost']
-    saving_boost_date = convertDateTostring(todo['next_contribution_date'],'%Y-%m') if onetime_boost < 1 else None
-    total_balance += todo['total_balance']
-    contribution = todo['contribution']
+
+def process_projections(results=None):
+
+    saving_dict = {}
+    goal_amount = 0
+
+    if results:
+        
+        for row in results:
+            goal_amount += row.goal_amount
+            saving_id = row.id
+            if saving_id not in saving_dict:
+                saving_dict[saving_id] = {
+                    "id": row.id,
+                    "saver": row.saver,
+                    "contribution": row.contribution,
+                    "starting_amount": row.starting_amount,
+                    "goal_amount": row.goal_amount,
+                    "increase_contribution_by": row.increase_contribution_by, 
+                    "interest": row.interest,                   
+                    "total_balance": row.total_balance_xyz,
+                    "period": row.period,
+                    "starting_date": row.starting_date,
+                    "next_pay_date": row.next_pay_date,
+                    "repeat": row.repeat,
+                    "user_id": row.user_id,
+                    "saving_boosts": []  # Initialize nested list
+                }
+
+            if saving_id in saving_dict:
+                # Append saving_boost only if it exists
+                if row.saving_boost is not None:                    
+                    saving_dict[saving_id]["saving_boosts"].append({
+                        "saving_boost": row.saving_boost,
+                        "pay_date_boost": row.pay_date_boost,
+                        "repeat_boost": row.repeat_boost,  # Parsed JSON
+                        "next_pay_date_boost": row.next_pay_date_boost,
+                        "total_balance_boost": row.total_balance_boost,
+                        "total_monthly_balance_boost": row.total_monthly_balance_boost,
+                        "op_type": row.boost_operation_type['value'],
+
+                    })
+
+
+    return (list(saving_dict.values()),goal_amount)
+
+
+def calculate_end_date(start_date, initial_balance, contribution, daily_rate, goal_amount, frequency):
     
+    delta = get_delta(frequency)  # Get time difference based on contribution frequency
+    period_days = delta.days  # Convert timedelta to days
 
-    saving_contribution_data = calculate_breakdown_future(
-            initial_amount=total_balance,
-            contribution=contribution,
-            annual_interest_rate=todo['interest'],
-            start_date = todo['next_contribution_date'],
-            goal_amount = goal_amount,
-            frequency=todo['repeat']['value'],
-            saving_boost=onetime_boost,
-            saving_boost_date=saving_boost_date,
-            i_contribution=todo['increase_contribution_by'],
-            period=todo['period'],
-            repeat_saving_boost = frequency_boost
-        )
+    # Calculate the periodic rate
+    periodic_rate = daily_rate * period_days  # Interest applied per contribution period
+
+    # If no interest is applied, use simple accumulation
+    if periodic_rate == 0:
+        if contribution == 0: 
+            return None  # No contribution and no interest -> goal unreachable
+        
+        n = (goal_amount - initial_balance) / contribution
+    else:
+        # Compute number of periods using the logarithmic formula
+        numerator = math.log((goal_amount - (contribution / periodic_rate) + initial_balance) / (initial_balance + (contribution / periodic_rate)))
+        denominator = math.log(1 + periodic_rate)
+        n = numerator / denominator
+
+    # Convert to integer periods
+    n = math.ceil(n)
+
+    # Compute the end date
+    end_date = start_date + (n * delta)
     
-    saving_contribution = saving_contribution_data['breakdown']
-    total_balance = saving_contribution_data['total_balance']
+    return end_date, n
 
-    return(
-        saving_contribution,
-        total_balance
-    )
-
-def get_projection_list(projection_list,single:int=1):
+def get_projection_list(projection_list, goal_amount):
     # Dictionary to store merged results
-    merged_data = defaultdict(lambda: {
+    projection = defaultdict(lambda: {
         "total_balance": 0,
         "contribution": 0,       
-        "month_word": ""
+        "month_word": "",
+        "month": None,
     })
 
-    if single:
-        for entry in projection_list:             
-            month = entry['month']                
-            merged_data[month]['total_balance'] += round(entry['total_balance'],2)
-            merged_data[month]['contribution'] += round(entry['contribution'],2)
-            merged_data[month]['month_word'] = entry['month_word']
-            merged_data[month]['total_balance'] = round(merged_data[month]['total_balance'],2)
-            merged_data[month]['contribution']  = round(merged_data[month]['contribution'] ,2)
+    initial_balance = 0
+    initial_contribution = 0
+    for saving in projection_list:
+        pay_date = saving["next_pay_date"]
+        frequency = saving["repeat"]["value"]
+        contribution = initial_contribution+saving['contribution']
+        balance = initial_balance + saving['total_balance']
+        #goal_amount = saving['goal_amount']
+        interest_rate = saving['interest'] / 100
+        daily_rate = interest_rate / 365
+        period = saving['period']
+        i_contribution = saving['increase_contribution_by']
+        delta = get_delta(frequency)
 
-    else:        
-        for sublist in projection_list:
-            for entry in sublist:                
-                month = entry['month']                
-                merged_data[month]['total_balance'] += round(entry['total_balance'],2)
-                merged_data[month]['contribution'] += round(entry['contribution'],2)
-                merged_data[month]['month_word'] = entry['month_word']
-                merged_data[month]['total_balance'] = round(merged_data[month]['total_balance'],2)
-                merged_data[month]['contribution']  = round(merged_data[month]['contribution'] ,2)
+        next_contribution_date = pay_date + delta
+        current_datetime_now = datetime.now()
 
+        end_date, num_periods = calculate_end_date(pay_date, balance, contribution, daily_rate, goal_amount, frequency)
+        #print('end date and periods',end_date, num_periods)
 
-     # Round values during final conversion to avoid redundant operations
-    result = sorted(
-        [
-            {
-                "month": month,
-                "total_balance": round(data['total_balance'], 2),
-                "contribution": round(data['contribution'], 2),
-                "month_word": data['month_word']                
-            }
-            for month, data in merged_data.items()
-        ],
-        key=lambda x: datetime.strptime(x['month'], "%Y-%m")
-    )
-    #result = [{"month": month, **data} for month, data in merged_data.items()]
+        boost_dates = {}
+        for boost in saving.get("saving_boosts", []):
+            boost_date, boost_amount, op_type = boost["pay_date_boost"], boost["saving_boost"], boost["op_type"]
+            boost_repeat = boost["repeat_boost"]["value"]
 
-    return result
-    
+            while boost_date < end_date:
+                month_key = int(f"{boost_date.year}{boost_date.month:02d}")
+                
+                if month_key not in boost_dates:
+                    boost_dates[month_key] = {}
+                
+                boost_dates[month_key] = {"amount": boost_amount, "op_type": op_type}
 
-@app.route('/api/saving-contributions-nextpgu/<int:user_id>', methods=['GET'])
-def saving_contributions_next_pgu(user_id:int):
-    '''
-    # Subquery for frequency_boost with conditional subtraction
-    frequency_boost_subquery = db.session.query(
-        func.sum(
-            case(
-                (cast(saving_boosts_1.boost_operation_type['value'].astext, Integer) > 1, -saving_boosts_1.saving_boost),  # Subtract if value is 1
-                else_=saving_boosts_1.saving_boost  # Otherwise, add
-            )
-        ).label('frequency_boost')
-    ).filter(
-        saving_boosts_1.user_id == user_id,
-        saving_boosts_1.saving_id == Saving.id,
-        saving_boosts_1.deleted_at == None,
-        saving_boosts_1.closed_at == None,
-        cast(saving_boosts_1.repeat_boost['value'].astext, Integer) > 0
-    ).scalar_subquery()
+                if boost_repeat == 0: 
+                    break  # One-time boost
+                boost_date += get_delta(boost_repeat)  # Apply boost frequency
+        
+        if next_contribution_date >= current_datetime_now and balance:
+            while balance < goal_amount:
 
-    # Subquery for onetime_boost
-    onetime_boost_subquery = db.session.query(
-        func.sum(
-            case(
-                (cast(saving_boosts_2.boost_operation_type['value'].astext, Integer) > 1, -saving_boosts_2.saving_boost),  # Subtract if value is 1
-                else_=saving_boosts_2.saving_boost  # Otherwise, add
-            )
-            
-        ).label('onetime_boost')
-    ).filter(
-        saving_boosts_2.user_id == user_id,
-        saving_boosts_2.saving_id == Saving.id,
-        saving_boosts_2.deleted_at == None,
-        saving_boosts_2.closed_at == None,
-        cast(saving_boosts_2.repeat_boost['value'].astext, Integer) < 1
-    ).scalar_subquery()
+                month_key = int(f"{pay_date.year}{pay_date.month:02d}")
+                next_contribution_date = pay_date + delta            
+                days_in_period = (next_contribution_date - pay_date).days
+                interest = balance * (daily_rate * days_in_period)
+                
+                balance += interest + contribution 
+                
+                inc_contri = period * i_contribution
 
-    goal_amount = db.session.query(
-        func.sum(Saving.goal_amount)).filter(
-            Saving.closed_at == None, 
-           Saving.deleted_at == None, 
-           Saving.goal_reached == None, 
-           Saving.next_contribution_date != None, 
-           Saving.user_id == user_id).scalar()
+                contribution_i = inc_contri+contribution
 
+                balance += inc_contri
 
-    # Main query
-    query = db.session.query(
-        Saving.id,
-        Saving.total_balance,
-        Saving.starting_amount,
-        Saving.interest,
-        Saving.contribution,
-        Saving.increase_contribution_by,
-        Saving.goal_amount,
-        Saving.goal_reached,
-        Saving.next_contribution_date,
-        Saving.period,
-        Saving.repeat,
-        Saving.user_id,
-        func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
-        func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
-    ).filter(
-        Saving.user_id == user_id,
-        Saving.deleted_at == None,
-        Saving.closed_at == None
-    )
+                period += 1
+
+                
+
+                projection[month_key]["total_balance"] = balance
+                projection[month_key]["contribution"] = contribution_i
+
+                if month_key in boost_dates:
+                    #print('yes',boost_dates[month_key])
+                    op_type = boost_dates[month_key]['op_type']
+                    if op_type > 1:
+                        balance -= boost_dates[month_key]['amount']
+                        projection[month_key]["total_balance"] -= boost_dates[month_key]['amount']
+                    else:
+                        projection[month_key]["total_balance"] += boost_dates[month_key]['amount']
+                        balance += boost_dates[month_key]['amount']
+
+                
+
+                if projection[month_key]["month"] is None:
+                    projection[month_key]["month"] = month_key
+                    projection[month_key]["month_word"] = convertDateTostring(pay_date, "%b, %Y")
+
+                initial_balance = balance
+                initial_contribution = contribution_i
+
+                pay_date = next_contribution_date
+                
 
    
 
-    total_balance = 0    
+    
+    return sorted(
+        [{
+            "month": month,
+            "total_balance": round(data['total_balance'], 2),
+            "contribution": round(data['contribution'], 2),
+            "month_word": data['month_word'],
+        } for month, data in projection.items()],
+        key=lambda x: x['month']
+    )
+    
 
-    results = query.all()    
+  
+
+@app.route('/api/saving-contributions-nextpgu/<int:user_id>', methods=['GET'])
+def saving_contributions_next_pgu(user_id:int):
+
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    projection_list = []    
+
+    session = None
 
     
-    projection_list = []
+    try:
+        
+        session = db.session
 
-    for row in results:
-        data= {
-            "id": row.id,           
-            "total_balance": row.total_balance,
-            "starting_amount": row.starting_amount,
-            "interest": row.interest,
-            "contribution": row.contribution,
-            "increase_contribution_by": row.increase_contribution_by,
-            "goal_amount": row.goal_amount,
-            "goal_reached": row.goal_reached,
-            "next_contribution_date": row.next_contribution_date,
-            "repeat": row.repeat,
-            "period":row.period,
-            "frequency_boost": row.frequency_boost,
-            "onetime_boost": row.onetime_boost
-        }
-        projections = process_projections(data,total_balance, goal_amount)
-        projection = projections[0]
-        total_balance = projections[1]
-        projection_list.append(projection)
+        # Check if the session is connected (optional, but a good practice)
+        if not session.is_active:
+            raise Exception("Database session is not active.")
+        
+        query = session.query(
+            Saving.id,
+            Saving.saver,
+            Saving.contribution,
+            Saving.increase_contribution_by,
+            Saving.interest,
+            Saving.starting_amount,
+            Saving.period,
+            Saving.goal_amount,
+            Saving.starting_date,
+            Saving.next_contribution_date.label('next_pay_date'),
+            Saving.repeat,            
+            Saving.user_id,
+            Saving.total_balance,
+            Saving.total_balance_xyz,
+            Saving.total_monthly_balance,
+            SavingBoost.saving_boost,
+            SavingBoost.pay_date_boost,
+            SavingBoost.repeat_boost,
+            SavingBoost.next_contribution_date.label('next_pay_date_boost'),
+            SavingBoost.boost_operation_type,
+            SavingBoost.total_balance.label('total_balance_boost'),
+            SavingBoost.total_monthly_balance.label('total_monthly_balance_boost')
+        ).outerjoin(
+            SavingBoost, 
+            (SavingBoost.saving_id == Saving.id) &            
+            (SavingBoost.deleted_at.is_(None)) &
+            (SavingBoost.closed_at.is_(None)) &
+            #(SavingBoost.pay_date_boost >= today) &
+            (func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost) >= today) #&  # Use pay_date_boost if next_pay_date_boost is None
+            #(func.coalesce(SavingBoost.next_pay_date_boost, SavingBoost.pay_date_boost) >= Saving.next_pay_date)  # Check if pay_date_boost or next_pay_date_boost is >= saving's next pay date
+        ).filter(
+            Saving.user_id == user_id,
+            Saving.deleted_at.is_(None),
+            Saving.closed_at.is_(None),
+            Saving.goal_reached.is_(None),
+            Saving.next_contribution_date >=today
+        ).order_by(
+            Saving.id,  # Order by saving ID
+            Saving.next_contribution_date.asc(),
+            func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost).asc()  # Order boosts by pay_date in ascending order
+        )
 
-    result = get_projection_list(projection_list,0) if len(projection_list) > 0 else []
-    '''
-    result = []
+        results = query.all()
+        projections = process_projections(results)
+        projection_list = get_projection_list(projections[0],projections[1])
+    except OperationalError as e:
+        print(f"Operational error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Database operational error. Please try again later."
+            }
+        })
+    except TimeoutError as e:
+        print(f"Timeout error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Database timeout error. Please try again later."
+            }
+        })
+    except DBAPIError as e:
+        print(f"DBAPI error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Database API error. Please try again later."
+            }
+        })
+    except ConnectionError as e:
+        print(f"Connection error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Unable to connect to the database. Please try again later."
+            }
+        })
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        if session:
+            session.rollback()
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': f"Unexpected error: {str(e)}"
+            }
+        })
 
-
+    finally:
+        if session:
+            session.close()
+    
     return jsonify({
-        "payLoads":{                                     
-            'projection_list':result
-        }        
+        "payLoads": {
+            'projection_list': projection_list,            
+            'exception':None
+        }
     })
 
 
@@ -203,86 +327,7 @@ def saving_contributions_next_pgu(user_id:int):
 @app.route('/api/saving-contributions-nextpg/<int:saving_id>', methods=['GET'])
 def saving_contributions_next_pg(saving_id:int):
 
-    # Subquery for frequency_boost with conditional subtraction
-    '''
-    frequency_boost_subquery = db.session.query(
-        func.sum(
-            case(
-                (cast(saving_boosts_1.boost_operation_type['value'].astext, Integer) > 1, -saving_boosts_1.saving_boost),  # Subtract if value is 1
-                else_=saving_boosts_1.saving_boost  # Otherwise, add
-            )
-        ).label('frequency_boost')
-    ).filter(        
-        saving_boosts_1.saving_id == saving_id,
-        saving_boosts_1.deleted_at == None,
-        saving_boosts_1.closed_at == None,
-        cast(saving_boosts_1.repeat_boost['value'].astext, Integer) > 0
-    ).scalar_subquery()
-
-    # Subquery for onetime_boost
-    onetime_boost_subquery = db.session.query(
-        func.sum(
-            case(
-                (cast(saving_boosts_2.boost_operation_type['value'].astext, Integer) > 1, -saving_boosts_2.saving_boost),  # Subtract if value is 1
-                else_=saving_boosts_2.saving_boost  # Otherwise, add
-            )
-            
-        ).label('onetime_boost')
-    ).filter(        
-        saving_boosts_2.saving_id == saving_id,
-        saving_boosts_2.deleted_at == None,
-        saving_boosts_2.closed_at == None,
-        cast(saving_boosts_2.repeat_boost['value'].astext, Integer) < 1
-    ).scalar_subquery()
-
-
-
-    # Main query
-    row = db.session.query(
-        Saving.id,
-        Saving.total_balance,
-        Saving.starting_amount,
-        Saving.interest,
-        Saving.contribution,
-        Saving.increase_contribution_by,
-        Saving.goal_amount,
-        Saving.goal_reached,
-        Saving.next_contribution_date,
-        Saving.period,
-        Saving.repeat,
-        Saving.user_id,
-        func.coalesce(frequency_boost_subquery, 0).label('frequency_boost'),
-        func.coalesce(onetime_boost_subquery, 0).label('onetime_boost')
-    ).filter(
-        Saving.id == saving_id,
-        Saving.deleted_at == None,
-        Saving.closed_at == None
-    ).first() 
-
-    goal_amount = row.goal_amount
-    total_balance = 0    
-        
     
-    data= {
-        "id": row.id,           
-        "total_balance": row.total_balance,
-        "starting_amount": row.starting_amount,
-        "interest": row.interest,
-        "contribution": row.contribution,
-        "increase_contribution_by": row.increase_contribution_by,
-        "goal_amount": row.goal_amount,
-        "goal_reached": row.goal_reached,
-        "next_contribution_date": row.next_contribution_date,
-        "repeat": row.repeat,
-        "period":row.period,
-        "frequency_boost": row.frequency_boost,
-        "onetime_boost": row.onetime_boost
-    }
-    projection_list = process_projections(data)[0]
-
-    result = get_projection_list(projection_list,total_balance, goal_amount)
-
-    '''
     result =[]
 
     return jsonify({

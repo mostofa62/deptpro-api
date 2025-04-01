@@ -266,6 +266,10 @@ def list_debts_pg(user_id:int):
         func.sum(DebtAccounts.highest_balance).label('total_highest_balance'),
         func.sum(DebtAccounts.monthly_payment).label('total_monthly_payment'),
         func.sum(DebtAccounts.monthly_interest).label('total_monthly_interest')
+    ).filter(
+        DebtAccounts.user_id == user_id,
+        DebtAccounts.deleted_at == None,
+        DebtAccounts.closed_at == None
     ).one()
 
     # Extracting totals from the result

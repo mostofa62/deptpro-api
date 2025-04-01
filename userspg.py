@@ -351,6 +351,7 @@ def update_user_pg(id: int):
         phone = request.form.get('phone')
         email = request.form.get('email')
         password = request.form.get('password')
+        role = request.form.get('role')
 
         message = ''
         error = 0
@@ -368,6 +369,7 @@ def update_user_pg(id: int):
             user.name = name
             user.phone = phone
             user.email = email
+            user.role = role
             user.updated_at = datetime.now()
 
             # Update password if provided

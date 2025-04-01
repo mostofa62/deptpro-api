@@ -10,12 +10,14 @@ from dbpg import db
 from pgutils import *
 from sqlalchemy import func, insert, select, update
 #from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload,aliased
 from sqlalchemy import or_, desc, asc
 
 from db import my_col
 income_accounts_logs = my_col('income_accounts_logs')
 calender_data = my_col('calender_data')
+
+IncomeTxn = aliased(IncomeTransaction)
 
 @app.route('/api/delete-incomepg', methods=['POST'])
 async def delete_income_pg():
@@ -205,6 +207,7 @@ async def list_income_pg(user_id: int):
     global_filter = data.get('filter', '')
     sort_by = data.get('sortBy', [])
     action = request.args.get('action', None)
+    current_month = int(datetime.now().strftime('%Y%m'))
 
     session = db.session
     try:
@@ -258,12 +261,51 @@ async def list_income_pg(user_id: int):
 
         # Apply pagination
         total_count = query.count()
+        '''
         incomes = (
             query.options(joinedload(Income.income_source))
             .offset(page_index * page_size)
             .limit(page_size)
             .all()
         )
+        '''
+
+        # Step 1: Create a subquery that calculates total gross and net income boosts per income_id
+        income_txn_subquery = (
+            select(
+                IncomeTransaction.income_id,
+                #func.sum(IncomeTransaction.gross_income).label("gross_income_boost_monthly"),
+                func.sum(IncomeTransaction.net_income).label("net_income_boost_monthly")
+            )
+            .filter(
+                IncomeTransaction.income_boost_id != None,  # Only include income boost transactions
+                IncomeTransaction.month == current_month  # Filter by current month
+            )
+            .group_by(IncomeTransaction.income_id)  # Group by income_id to get totals per income record
+            .alias("income_txn_subquery")  # Alias for the subquery
+        )
+
+        print(income_txn_subquery)
+
+
+        # Step 2: Modify the main query to include all Income fields + the aggregated subquery fields
+        incomes = (
+            db.session.query(
+                Income,  # Select all columns from Income
+                #func.coalesce(income_txn_subquery.c.gross_income_boost_monthly, 0).label("gross_income_boost_monthly"),
+                func.coalesce(income_txn_subquery.c.net_income_boost_monthly, 0).label("net_income_boost_monthly"),
+            )
+            .filter(
+                Income.user_id == user_id,
+                Income.deleted_at == None,  # Only active records
+                Income.closed_at == None  # Only non-closed records
+            )
+            .outerjoin(income_txn_subquery, income_txn_subquery.c.income_id == Income.id)  # LEFT JOIN with subquery
+            .offset(page_index * page_size)  # Apply pagination
+            .limit(page_size)  # Apply pagination
+            .all()  # Execute query
+        )
+
 
         # Fetch app data in a single query
         app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
@@ -271,18 +313,19 @@ async def list_income_pg(user_id: int):
         # Convert results into response format
         income_list = [
             {
-                "id": income.id,
-                "earner": income.earner,
-                "income_source": income.income_source.name if income.income_source else None,
-                'gross_income':income.gross_income,
-                'net_income':income.net_income,
-                'repeat':income.repeat,
-                'total_gross_income':income.total_gross_income,
-                'total_net_income':income.total_net_income,            
-                "pay_date": convertDateTostring(income.pay_date),
-                "next_pay_date": convertDateTostring(income.next_pay_date),
-                "total_yearly_net_income": income.total_yearly_net_income,
-                
+                "id": income[0].id,  # First element is the Income object
+                "earner": income[0].earner,
+                "income_source": income[0].income_source.name if income[0].income_source else None,
+                "gross_income": income[0].gross_income,
+                "net_income": income[0].net_income,
+                "repeat": income[0].repeat,
+                "total_gross_income": income[0].total_gross_income,
+                "total_net_income": income[0].total_net_income,
+                "pay_date": convertDateTostring(income[0].pay_date),
+                "next_pay_date": convertDateTostring(income[0].next_pay_date),
+                "total_yearly_net_income": income[0].total_yearly_net_income,
+                #"gross_income_boost_monthly": income[1] if income[1] is not None else 0,  # Accessing the second column (from the subquery)
+                "net_income_boost_monthly": income[1] if income[1] is not None else 0  # Accessing the third column (from the subquery)
             }
             for income in incomes
         ]
