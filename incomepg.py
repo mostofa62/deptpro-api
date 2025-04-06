@@ -323,7 +323,10 @@ async def list_income_pg(user_id: int):
                 "total_net_income": income[0].total_net_income,
                 "pay_date": convertDateTostring(income[0].pay_date),
                 "next_pay_date": convertDateTostring(income[0].next_pay_date),
+                "total_monthly_gross_income": income[0].total_monthly_gross_income,
+                "total_monthly_net_income": income[0].total_monthly_net_income,
                 "total_yearly_net_income": income[0].total_yearly_net_income,
+                "total_yearly_gross_income": income[0].total_yearly_gross_income,
                 #"gross_income_boost_monthly": income[1] if income[1] is not None else 0,  # Accessing the second column (from the subquery)
                 "net_income_boost_monthly": income[1] if income[1] is not None else 0  # Accessing the third column (from the subquery)
             }
@@ -338,7 +341,9 @@ async def list_income_pg(user_id: int):
             'totalRows': total_count,
             'extra_payload': {
                 'total_net_income': app_data.total_monthly_net_income if app_data else 0,
-                'total_gross_income': app_data.total_monthly_gross_income if app_data else 0
+                'total_gross_income': app_data.total_monthly_gross_income if app_data else 0,
+                'total_net_income_yearly': app_data.total_yearly_net_income if app_data else 0,
+                'total_gross_income_yearly': app_data.total_yearly_gross_income if app_data else 0
             }
         })
     
