@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
+from sqlalchemy import BigInteger, Column, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from dbpg import db
@@ -76,6 +76,8 @@ class AppData(db.Model):
     saving_updated_at = Column(DateTime, nullable=True)
     total_current_gross_income = Column(Float, nullable=True, default=0.0)
     total_current_net_income = Column(Float, nullable=True, default=0.0)
+    financial_freedom_month = Column(Integer, nullable=True)
+    financial_freedom_target = Column(BigInteger, nullable=True)
 
     # Relationship with the user
     user = relationship("User", backref="app_data", lazy="joined")

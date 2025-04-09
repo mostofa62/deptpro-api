@@ -7,7 +7,7 @@ from app import app
 from util import *
 from datetime import datetime
 
-from models import Saving, SavingBoost
+from models import AppData, Saving, SavingBoost
 from dbpg import db
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import OperationalError, TimeoutError, DBAPIError
@@ -223,6 +223,7 @@ def saving_contributions_next_pgu(user_id:int):
 
     session = None
 
+
     
     try:
         
@@ -231,6 +232,9 @@ def saving_contributions_next_pgu(user_id:int):
         # Check if the session is connected (optional, but a good practice)
         if not session.is_active:
             raise Exception("Database session is not active.")
+        
+
+        app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
         
         query = session.query(
             Saving.id,
@@ -278,6 +282,25 @@ def saving_contributions_next_pgu(user_id:int):
         results = query.all()
         projections = process_projections(results)
         projection_list = get_projection_list(projections[0],projections[1])
+
+        financial_freedom_month = projection_list[-1]['month'] if projection_list else None
+        financial_freedom_target = projections[1]
+        if app_data \
+        and \
+        app_data.financial_freedom_month!=financial_freedom_month \
+        and \
+        app_data.financial_freedom_target !=financial_freedom_target\
+        :
+            print('saving new data')
+            app_data.financial_freedom_month = financial_freedom_month
+            app_data.financial_freedom_target = financial_freedom_target
+            session.add(app_data)
+            session.commit()
+            
+            
+
+        
+
     except OperationalError as e:
         print(f"Operational error: {str(e)}")
         return jsonify({

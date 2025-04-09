@@ -17,8 +17,9 @@ from sqlalchemy import func, or_, select
 from models import db, DebtAccounts, DebtType
 from sqlalchemy.orm import joinedload
 
-from db import my_col
+from db import my_col,mydb
 debt_accounts_log = my_col('debt_accounts_log')
+debt_user_setting = my_col('debt_user_setting')
 calender_data = my_col('calender_data')
 @app.route('/api/delete-debtpg', methods=['POST'])
 def delete_dept_pg():
@@ -48,7 +49,17 @@ def delete_dept_pg():
                 # Update the appropriate field based on the 'key'
                 setattr(dept_account, field, datetime.now())
                 setattr(dept_account, 'admin_id',admin_id )
-                #dept_account.calender_at = None                
+                #dept_account.calender_at = None
+                dynamic_collection_name = f"debt_{dept_account_id}"
+                if dynamic_collection_name in mydb.list_collection_names():
+                    print('found debt:',dynamic_collection_name)
+                    mydb[dynamic_collection_name].drop()
+
+                debt_accounts_log.delete_one({'debt_id':dept_account_id, 'user_id':dept_account.user_id})                
+                newvalues = { "$set": {
+                    'ammortization_at':None
+                } }    
+                debt_user_setting.update_one({'user_id':dept_account.user_id},newvalues, upsert=True)
 
                 result = calender_data.delete_one({'module_id': 'debt', 'data.data_id': dept_account_id} )  
                 
@@ -398,18 +409,20 @@ def save_debt_account_pg():
         debt_id = None
         message = ''
         result = 0
-
-        
+ 
         
         try:
             user_id =int(data["user_id"])
             admin_id = data.get('admin_id')
+
+
 
             usersetting = (
                 db.session.query(UserSettings.monthly_budget)
                 .filter(UserSettings.user_id == user_id)
                 .first()
             )
+             
             total_count = db.session.query(func.count(DebtAccounts.id)).filter(
                 DebtAccounts.user_id == user_id,
                 DebtAccounts.deleted_at == None
@@ -463,34 +476,46 @@ def save_debt_account_pg():
                 total_interest_sum=0
             )
             
-            
+            if usersetting and usersetting.monthly_budget > 0:
                 
-            db.session.add(debt_account)
-            db.session.commit()
+                db.session.add(debt_account)
+                db.session.commit()
 
-            debt_id = debt_account.id
+                debt_id = debt_account.id
 
-            debt_acc_query = {
-                            "debt_id": debt_id,
-                            "user_id":user_id
-                }
-            newvalues = { "$set": {                                  
-                            'balance': balance,
-                            'interest_rate': interest_rate,
-                            'monthly_payment': monthly_payment,
-                            'credit_limit': credit_limit,
-                            'current_date': due_date,
-                            'monthly_budget': monthly_payment,
-                            'user_monthly_budget':usersetting.monthly_budget,
-                            'ammortization_at':None
-                        } }
-            debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
+                debt_acc_query = {
+                                "debt_id": debt_id,
+                                "user_id":user_id
+                    }
+                newvalues = { "$set": {                                  
+                                'balance': balance,
+                                'interest_rate': interest_rate,
+                                'monthly_payment': monthly_payment,
+                                'credit_limit': credit_limit,
+                                'current_date': due_date,
+                                'monthly_budget': monthly_payment,
+                                #'user_monthly_budget':usersetting.monthly_budget,
+                                #'ammortization_at':None
+                            } }
+                debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
+                debt_user_setting.update_one({"user_id":user_id},{
+                    '$set':{
+                        'ammortization_at':None
+                    }
+                })
 
 
-            
-            result = 1 if debt_id else 0
-            message = 'Debt account added successfully'
-        
+                
+                result = 1 if debt_id else 0
+                message = 'Debt account added successfully'
+            else:                
+                raise ValueError("Please add monthly budget on Debt settings")
+        except ValueError as e:
+            # Handle value-related exceptions
+            print(f"Value error: {e}")
+            result = 0
+            message = str(e)
+
         except Exception as ex:
             print(ex)
             db.session.rollback()
@@ -561,11 +586,16 @@ def update_debt_account_pg(accntid:int):
                                 'credit_limit': credit_limit,
                                 'current_date': due_date,
                                 'monthly_budget': monthly_payment,
-                                'user_monthly_budget':usersetting.monthly_budget,
-                                'ammortization_at':None,
+                                #'user_monthly_budget':usersetting.monthly_budget,
+                                #'ammortization_at':None,
                                 'admin_id':admin_id
                             } }
                 debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
+                debt_user_setting.update_one({"user_id":user_id},{
+                    '$set':{
+                        'ammortization_at':None
+                    }
+                })
             #end check changes
 
             autopay = True if 'autopay' in data else False

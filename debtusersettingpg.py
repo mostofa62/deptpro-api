@@ -6,7 +6,9 @@ from util import *
 from models import UserSettings, DebtAccounts
 from dbpg import db
 
-
+from db import my_col
+debt_accounts_log = my_col('debt_accounts_log')
+debt_user_setting = my_col('debt_user_setting')
 #save debt user settings 
 @app.route("/api/get-user-settingspg/<int:user_id>", methods=['GET'])
 def get_user_settings_pg(user_id:int):
@@ -54,6 +56,8 @@ def save_user_settings_pg():
         message = ''
         result = 0
         user_setting_id = None
+        change_found_monthly_budget = False
+        is_new_settings = False
         
         try:
             # Check if the user setting already exists
@@ -64,12 +68,18 @@ def save_user_settings_pg():
             )
 
             if user_setting:
+                print('both budget: ', data['monthly_budget'], round(user_setting.monthly_budget), are_floats_equal(float(data['monthly_budget']), round(user_setting.monthly_budget,0)))
+                change_found_monthly_budget = False if are_floats_equal(float(data['monthly_budget']), user_setting.monthly_budget) else True
                 # Update existing user setting
                 user_setting.monthly_budget = float(data['monthly_budget'])
                 user_setting.debt_payoff_method = data['debt_payoff_method']
                 message = 'Settings updated!'
                 user_setting_id = user_setting.id
+                is_new_settings = False
+                
             else:
+                change_found_monthly_budget = False
+                is_new_settings = True
                 # Create a new user setting
                 new_user_setting = UserSettings(
                     user_id=user_id,
@@ -79,6 +89,28 @@ def save_user_settings_pg():
                 db.session.add(new_user_setting)
                 message = 'Settings saved!'
                 user_setting_id = new_user_setting.user_id
+            
+            
+            debt_acc_query = {                               
+                "user_id":user_id
+            }
+            
+
+            update_json = {
+                'user_monthly_budget':float(data['monthly_budget']),
+                'ammortization_at':None
+            }
+            if is_new_settings:
+                update_json['ammortization_at']  = datetime.now()
+            
+            if change_found_monthly_budget and not is_new_settings:
+                update_json['ammortization_at']  = None                          
+                
+            
+            newvalues = { "$set": update_json }
+                
+            if is_new_settings or change_found_monthly_budget:
+                debt_user_setting.update_one(debt_acc_query,newvalues, upsert=True)                
             
             # Commit changes to the database
             db.session.commit()

@@ -90,9 +90,10 @@ async def header_summary_data_pg(user_id:int):
         # Get the total amount or default to 0 if no result
         #monthly_bill_totals = round(result.total_amount, 2) if result and result.total_amount else 0
 
-        financial_frdom_date = convertDateTostring(datetime.now()+relativedelta(years=1),"%b %Y")
+        #financial_frdom_date = convertDateTostring(datetime.now()+relativedelta(years=1),"%b %Y")
+        financial_frdom_date = convertDateTostring(convertStringTodate(f"{app_datas.financial_freedom_month}","%Y%m"),"%b, %Y") if app_datas.financial_freedom_month!=None else ""
 
-        financial_frdom_target = 100000000
+        financial_frdom_target = app_datas.financial_freedom_target
 
         return jsonify({
             "saving_progress":saving_average_progress,
