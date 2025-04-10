@@ -20,6 +20,7 @@ from models import DebtAccounts,DebtTransactions,UserSettings
 from sqlalchemy.orm import joinedload
 from db import my_col
 debt_accounts_log = my_col('debt_accounts_log')
+debt_user_setting = my_col('debt_user_setting')
 
 @app.route('/api/debt-transpg/<int:accntid>', methods=['POST'])
 def get_debt_trans_pg(accntid:int):
@@ -240,10 +241,15 @@ def save_debt_transaction_pg(accntid:int):
                             'credit_limit': debt_account.credit_limit,
                             'current_date': debt_account.due_date,
                             'monthly_budget': debt_account.monthly_payment,
-                            'user_monthly_budget':usersetting.monthly_budget,                            
-                            'ammortization_at':None
+                            #'user_monthly_budget':usersetting.monthly_budget,                            
+                            #'ammortization_at':None
                         } }
             debt_account_data = debt_accounts_log.update_one(debt_acc_query,newvalues,upsert=True)
+            debt_user_setting.update_one({"user_id":user_id},{
+                    '$set':{
+                        'ammortization_at':None
+                    }
+                })
             
             
             result = 1 if debt_account_id!=None and debt_trans_id!=None else 0

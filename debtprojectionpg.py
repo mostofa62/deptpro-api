@@ -139,7 +139,7 @@ def debt_projection_pg(userid:int):
                     return datetime.min  # Default to a minimal date if parsing fails
 
             all_months = sorted(all_months, key=parse_month)
-            print('all months',all_months)
+            #print('all months',all_months)
 
             # Initialize merged_data with all months and set missing values to debt_type_balances
             for month in all_months:
@@ -147,17 +147,18 @@ def debt_projection_pg(userid:int):
                 for debt_type in debt_type_balances:  # Iterate over all debt types
                     if month == start_date:
                         # Use debt_type_balances for start_date
-                        merged_data[month][debt_type] = debt_type_balances.get(debt_type, 0)
+                        merged_data[month][debt_type] = data[month][debt_type]
                     elif parse_month(month) < parse_month(start_date):
                         # For months before start_date, use debt_type_balances
-                        merged_data[month][debt_type] = debt_type_balances.get(debt_type, 0)
+                        merged_data[month][debt_type] = data[month][debt_type]
                     else:
                         # For other months, check if data is present
                         if month in data and debt_type in data[month]:
                             merged_data[month][debt_type] = data[month][debt_type]
                         else:
                             # Fill missing month data with last known debt_type_balances
-                            merged_data[month][debt_type] = merged_data[all_months[all_months.index(month)-1]].get(debt_type, debt_type_balances.get(debt_type, 0))
+                            #merged_data[month][debt_type] = merged_data[all_months[all_months.index(month)-1]].get(debt_type, debt_type_balances.get(debt_type, 0))
+                            merged_data[month][debt_type] = merged_data[all_months[all_months.index(month)-1]].get(debt_type, 0)
 
         # Convert to list of dicts for the frontend
         chart_data = list(merged_data.values()) if len(merged_data) > 0 else []
@@ -169,8 +170,9 @@ def debt_projection_pg(userid:int):
                 "total_balance":total_balance,
                 "debt_type_names":debt_type_names,                            
                 "debt_type_ammortization":chart_data,
+                #"debt_type_balances":debt_type_balances,
                 #"bill_type_ammortization":normalized_data,
-                "data":[]                            
+                "data":data                            
             }        
         })
     
