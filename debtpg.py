@@ -76,6 +76,9 @@ def delete_dept_pg():
             deleted_done = 0
             db.session.rollback()  # Rollback the transaction in case of error
 
+        finally:
+            db.session.close()
+
         return jsonify({
             "dept_account_id": dept_account_id if dept_account else None,
             "message": message,
@@ -87,64 +90,95 @@ def delete_dept_pg():
 @app.route('/api/debt-allpg/<int:accntid>', methods=['GET'])
 def get_dept_all_pg(accntid:int):
 
-    debt_account = (
-        db.session.query(DebtAccounts)
-        .options(
-            joinedload(DebtAccounts.debt_type).joinedload(DebtType.parent)
-        )
-        .filter(DebtAccounts.id == accntid, DebtAccounts.deleted_at.is_(None))
-        .first()
-    )    
-
     debtaccounts = {
-        "name": debt_account.name,
-        "payor":debt_account.payor,        
-        "note":debt_account.note        
+        "name": "",
+        "payor":"",        
+        "note":"" ,
+        "debt_type":"",
+        'due_date_word':"",
+        'due_date':None,
+        'start_date_word':None,
+        'start_date':None,
+        'payoff_order':None,
+        'balance': 0,
+        'highest_balance': 0,
+        'monthly_payment': 0,
+        'interest_rate': 0,
+        'credit_limit': 0,
+        'monthly_interest': 0,
+        'autopay':None,
+        'reminder_days':None,
+        'inlclude_payoff':None,
+
     }
 
-    debt_type = debt_account.debt_type
-    if debt_type:            
-        debtaccounts['debt_type']= debt_type.name
-     
+    try:
+
+        debt_account = (
+            db.session.query(DebtAccounts)
+            .options(
+                joinedload(DebtAccounts.debt_type).joinedload(DebtType.parent)
+            )
+            .filter(DebtAccounts.id == accntid, DebtAccounts.deleted_at.is_(None))
+            .first()
+        )
+
+        if debt_account:    
+            
+            debtaccounts['name'] = debt_account.name
+            debtaccounts['payor'] = debt_account.payor
+            debtaccounts['note'] = debt_account.note
+            
+
+            debt_type = debt_account.debt_type
+            if debt_type:            
+                debtaccounts['debt_type']= debt_type.name
+            
+                
+            debtaccounts['due_date_word'] = convertDateTostring(debt_account.due_date)
+            debtaccounts['due_date'] = convertDateTostring(debt_account.due_date,'%Y-%m-%d')
+            debtaccounts['start_date_word'] = convertDateTostring(debt_account.start_date)
+            debtaccounts['start_date'] = convertDateTostring(debt_account.start_date,'%Y-%m-%d')
+            
+
+            key_to_search = 'value'
+            value_to_search = int(debt_account.payoff_order)
+            matching_dicts = next((dictionary for dictionary in PayoffOrder if dictionary.get(key_to_search) == value_to_search),None)    
+
+            if matching_dicts:
+                debtaccounts['payoff_order'] = matching_dicts['label']
+
+            debtaccounts['balance'] = round(debt_account.balance,2)
+            debtaccounts['highest_balance'] = round(debt_account.highest_balance,2)   
+            debtaccounts['monthly_payment'] = round(debt_account.monthly_payment,2)
+            debtaccounts['interest_rate'] = round(debt_account.interest_rate,2)
+            debtaccounts['credit_limit'] = round(debt_account.credit_limit,2)
+            debtaccounts['monthly_interest'] = round(debt_account.monthly_interest,2)
+            
+
+
+            key_to_search = 'value'
+            value_to_search = int(debt_account.reminder_days)
+            matching_dicts = next((dictionary for dictionary in ReminderDays if dictionary.get(key_to_search) == value_to_search),None)    
+            if matching_dicts:
+                debtaccounts['reminder_days'] = matching_dicts['label']
+
+            debtaccounts['autopay'] = 'Yes'  if debt_account.autopay > 0 else 'No'
+            debtaccounts['inlclude_payoff'] = 'Yes'  if debt_account.inlclude_payoff > 0 else 'No'
+            
+            paid_off_percentage = calculate_paid_off_percentage(debtaccounts['highest_balance'], debtaccounts['balance'])
+            left_to_go = round(float(100) - float(paid_off_percentage),1)
+
         
-    debtaccounts['due_date_word'] = convertDateTostring(debt_account.due_date)
-    debtaccounts['due_date'] = convertDateTostring(debt_account.due_date,'%Y-%m-%d')
-    debtaccounts['start_date_word'] = convertDateTostring(debt_account.start_date)
-    debtaccounts['start_date'] = convertDateTostring(debt_account.start_date,'%Y-%m-%d')
-    
+    except Exception as ex:
+        print('Dept trace Exception: ', ex)
+        debtaccounts = {}
+        left_to_go = 0
+        paid_off_percentage = 0
+        db.session.rollback()
 
-    key_to_search = 'value'
-    value_to_search = int(debt_account.payoff_order)
-    matching_dicts = next((dictionary for dictionary in PayoffOrder if dictionary.get(key_to_search) == value_to_search),None)    
-
-    if matching_dicts:
-        debtaccounts['payoff_order'] = matching_dicts['label']
-
-    debtaccounts['balance'] = round(debt_account.balance,2)
-    debtaccounts['highest_balance'] = round(debt_account.highest_balance,2)   
-    debtaccounts['monthly_payment'] = round(debt_account.monthly_payment,2)
-    debtaccounts['interest_rate'] = round(debt_account.interest_rate,2)
-    debtaccounts['credit_limit'] = round(debt_account.credit_limit,2)
-    debtaccounts['monthly_interest'] = round(debt_account.monthly_interest,2)
-    
-
-
-    key_to_search = 'value'
-    value_to_search = int(debt_account.reminder_days)
-    matching_dicts = next((dictionary for dictionary in ReminderDays if dictionary.get(key_to_search) == value_to_search),None)    
-    if matching_dicts:
-        debtaccounts['reminder_days'] = matching_dicts['label']
-
-    debtaccounts['autopay'] = 'Yes'  if debt_account.autopay > 0 else 'No'
-    debtaccounts['inlclude_payoff'] = 'Yes'  if debt_account.inlclude_payoff > 0 else 'No'
-    
-    paid_off_percentage = calculate_paid_off_percentage(debtaccounts['highest_balance'], debtaccounts['balance'])
-    left_to_go = round(float(100) - float(paid_off_percentage),1)
-
-    twelve_months_ago = datetime.now() - timedelta(days=365)
-
-    
-    
+    finally:
+        db.session.close()
 
     return jsonify({
         "payLoads":{
