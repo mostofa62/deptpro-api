@@ -284,12 +284,13 @@ def saving_contributions_next_pgu(user_id:int):
         projection_list = get_projection_list(projections[0],projections[1])
 
         financial_freedom_month = projection_list[-1]['month'] if projection_list else None
-        financial_freedom_target = projections[1]
+        financial_freedom_target = int(round(projection_list[-1]['total_balance'],0)) if projection_list else None
+        print(financial_freedom_month,financial_freedom_target, app_data.financial_freedom_target,app_data.financial_freedom_target!=financial_freedom_target )
         if app_data \
         and \
-        app_data.financial_freedom_month!=financial_freedom_month \
-        and \
-        app_data.financial_freedom_target !=financial_freedom_target\
+        (app_data.financial_freedom_month!=financial_freedom_month \
+        or \
+        app_data.financial_freedom_target!=financial_freedom_target)\
         :
             print('saving new data')
             app_data.financial_freedom_month = financial_freedom_month

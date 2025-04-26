@@ -11,38 +11,38 @@ from models import DebtAccounts, UserSettings, PayoffStrategy, PaymentBoost, Deb
 from dbpg import db
 
 
-@app.route("/api/get-payoff-strategypg/<int:user_id>", methods=['GET'])
-def get_payoff_strategy_pg(user_id: int):
-    # Attempt to find the payoff strategy for the given user_id
-    payoff_strategy = PayoffStrategy.query.filter_by(user_id=user_id).first()
+@app.route("/api/get-payoff-strategypg/<int:user_id>/<int:init_state>", methods=['GET'])
+def get_payoff_strategy_pg(user_id: int, init_state: int):
+    payoff_strategy_data = {}
 
-    payoff_strategy_data= {}
-
-    if payoff_strategy is None:
-        # If no payoff strategy found, look for user settings as a fallback
+    if init_state > 0:
         user_setting = UserSettings.query.filter_by(user_id=user_id).first()
-        
         if user_setting:
-            # If user settings exist, create a fallback payoff strategy response
             payoff_strategy_data = {
                 'debt_payoff_method': user_setting.debt_payoff_method,
                 'selected_month': {"value": 1, "label": "Use Current Month"},
                 'monthly_budget': user_setting.monthly_budget
             }
-        else:
-            # If no user setting, return an appropriate empty response
-            payoff_strategy_data = {}
     else:
-        payoff_strategy_data = {
+        payoff_strategy = PayoffStrategy.query.filter_by(user_id=user_id).first()
+        if payoff_strategy:
+            payoff_strategy_data = {
                 'debt_payoff_method': payoff_strategy.debt_payoff_method,
                 'selected_month': {"value": 1, "label": "Use Current Month"},
                 'monthly_budget': payoff_strategy.monthly_budget
             }
+        else:
+            user_setting = UserSettings.query.filter_by(user_id=user_id).first()
+            if user_setting:
+                payoff_strategy_data = {
+                    'debt_payoff_method': user_setting.debt_payoff_method,
+                    'selected_month': {"value": 1, "label": "Use Current Month"},
+                    'monthly_budget': user_setting.monthly_budget
+                }
 
     return jsonify({
         "payoff_strategy": payoff_strategy_data
     })
-
 
 
 @app.route("/api/save-payoff-strategypg", methods=['POST'])
@@ -115,40 +115,56 @@ def distribute_amount(amount, debt_accounts):
 
 
 
-@app.route("/api/get-payoff-strategy-accountpg/<int:user_id>", methods=['GET'])
-def get_payoff_strategy_account_pg(user_id:int):
+@app.route("/api/get-payoff-strategy-accountpg/<int:user_id>/<int:init_state>", methods=['GET'])
+def get_payoff_strategy_account_pg(user_id:int, init_state:int):
     # Default value for debt_payoff_method
     debt_payoff_method = 0
-    # Attempt to fetch the payoff strategy for the user
-    payoff_strategy = db.session.query(
-        PayoffStrategy.debt_payoff_method,
-        PayoffStrategy.monthly_budget
-    ).filter(PayoffStrategy.user_id == user_id).first()
 
     payoff_strategy_data = {
-        'debt_payoff_method':None,
-        'monthly_budget':0
+        'debt_payoff_method': None,
+        'monthly_budget': 0
     }
-    
-    # If payoff_strategy is not found, fall back to user settings
-    if payoff_strategy is None:
+
+    if init_state > 0:
+        # Directly fetch from UserSettings
         user_setting = db.session.query(
             UserSettings.debt_payoff_method, 
-            UserSettings.monthly_budget).filter(UserSettings.user_id==user_id).first()
-        if user_setting:            
-            # Use user settings to populate payoff_strategy and set debt_payoff_method
+            UserSettings.monthly_budget
+        ).filter(UserSettings.user_id == user_id).first()
+
+        if user_setting:
             payoff_strategy_data = {
                 'debt_payoff_method': user_setting.debt_payoff_method,
                 'monthly_budget': user_setting.monthly_budget
             }
             debt_payoff_method = user_setting.debt_payoff_method['value']
+
     else:
-        payoff_strategy_data = {
+        # First attempt to fetch from PayoffStrategy
+        payoff_strategy = db.session.query(
+            PayoffStrategy.debt_payoff_method,
+            PayoffStrategy.monthly_budget
+        ).filter(PayoffStrategy.user_id == user_id).first()
+
+        if payoff_strategy:
+            payoff_strategy_data = {
                 'debt_payoff_method': payoff_strategy.debt_payoff_method,
                 'monthly_budget': payoff_strategy.monthly_budget
-        }
-        # If payoff_strategy is found, extract debt_payoff_method
-        debt_payoff_method = payoff_strategy.debt_payoff_method['value']
+            }
+            debt_payoff_method = payoff_strategy.debt_payoff_method['value']
+        else:
+            # If not found, fall back to UserSettings
+            user_setting = db.session.query(
+                UserSettings.debt_payoff_method,
+                UserSettings.monthly_budget
+            ).filter(UserSettings.user_id == user_id).first()
+
+            if user_setting:
+                payoff_strategy_data = {
+                    'debt_payoff_method': user_setting.debt_payoff_method,
+                    'monthly_budget': user_setting.monthly_budget
+                }
+                debt_payoff_method = user_setting.debt_payoff_method['value']
             
     # Fetch debt types where deleted_at is None
     debt_type_query = db.session.query(DebtType.id, DebtType.name).filter(DebtType.deleted_at == None).all()

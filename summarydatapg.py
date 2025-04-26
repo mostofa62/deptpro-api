@@ -1,6 +1,6 @@
 from flask import jsonify
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import Float, case, cast, desc, extract, func
+from sqlalchemy import Float, case, cast, desc, extract, func,and_, or_
 from app import app
 from util import *
 from datetime import datetime
@@ -79,12 +79,24 @@ async def header_summary_data_pg(user_id:int):
 
 
 
+        # monthly_bill_totals = session.query(
+        #     func.sum(BillTransactions.amount).label('monthly_bill_totals')
+        # ).join(
+        #     BillTransactions.bill_account
+        # ).filter(
+        #     BillTransactions.user_id == user_id,
+        #     extract('year', BillTransactions.due_date) == target_year,
+        #     extract('month', BillTransactions.due_date) == target_month,
+        #     BillTransactions.type == 1,
+        #     BillAccounts.deleted_at.is_(None),  # Make sure related account is not deleted
+        #     BillAccounts.closed_at.is_(None)    # Make sure related account is not closed
+        # ).scalar() or 0
+
         monthly_bill_totals = session.query(
-            func.sum(BillTransactions.amount).label('monthly_bill_totals')
+            func.coalesce(func.sum(BillAccounts.paid_total), 0).label("bill_paid_total")
         ).filter(
-            BillTransactions.user_id == user_id,
-            extract('year', BillTransactions.due_date) == target_year,
-            extract('month', BillTransactions.due_date) == target_month
+            BillAccounts.user_id == user_id,
+            BillAccounts.deleted_at.is_(None)
         ).scalar() or 0
 
         # Get the total amount or default to 0 if no result
