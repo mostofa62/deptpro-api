@@ -117,6 +117,8 @@ def distribute_amount(amount, debt_accounts):
 
 @app.route("/api/get-payoff-strategy-accountpg/<int:user_id>/<int:init_state>", methods=['GET'])
 def get_payoff_strategy_account_pg(user_id:int, init_state:int):
+    
+    print('request started', datetime.now())
     # Default value for debt_payoff_method
     debt_payoff_method = 0
 
@@ -125,13 +127,12 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
         'monthly_budget': 0
     }
 
-    if init_state > 0:
-        # Directly fetch from UserSettings
-        user_setting = db.session.query(
-            UserSettings.debt_payoff_method, 
-            UserSettings.monthly_budget
-        ).filter(UserSettings.user_id == user_id).first()
+    user_setting = db.session.query(
+        UserSettings.debt_payoff_method, 
+        UserSettings.monthly_budget
+    ).filter(UserSettings.user_id == user_id).first()
 
+    if init_state > 0:        
         if user_setting:
             payoff_strategy_data = {
                 'debt_payoff_method': user_setting.debt_payoff_method,
@@ -152,27 +153,15 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
                 'monthly_budget': payoff_strategy.monthly_budget
             }
             debt_payoff_method = payoff_strategy.debt_payoff_method['value']
-        else:
-            # If not found, fall back to UserSettings
-            user_setting = db.session.query(
-                UserSettings.debt_payoff_method,
-                UserSettings.monthly_budget
-            ).filter(UserSettings.user_id == user_id).first()
-
-            if user_setting:
-                payoff_strategy_data = {
-                    'debt_payoff_method': user_setting.debt_payoff_method,
-                    'monthly_budget': user_setting.monthly_budget
-                }
-                debt_payoff_method = user_setting.debt_payoff_method['value']
-            
+        
+    #print('payoff_strategy_data',payoff_strategy_data, datetime.now())        
     # Fetch debt types where deleted_at is None
-    debt_type_query = db.session.query(DebtType.id, DebtType.name).filter(DebtType.deleted_at == None).all()
+    # Query the debt types directly and create a dictionary
+    debt_type_names = {debt_type.id: debt_type.name for debt_type in db.session.query(DebtType.id, DebtType.name)
+                   .filter(DebtType.deleted_at == None).all()}
 
-    # Create a dictionary for debt type names
-    debt_type_names = {}
-    for debt_type in debt_type_query:
-        debt_type_names[debt_type.id] = debt_type.name        
+
+    #print('debt_type_names',debt_type_names, datetime.now())                
 
     # Query for debt accounts based on the provided criteria
     deb_query = db.session.query(
@@ -200,11 +189,24 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
     if debt_payoff_method == 3:
         deb_query = deb_query.order_by(DebtAccounts.custom_payoff_order.asc())
 
+    if debt_payoff_method == 1:
+        deb_query = deb_query.order_by(DebtAccounts.balance.asc())
+
+    if debt_payoff_method == 2:
+        deb_query = deb_query.order_by(DebtAccounts.interest_rate.desc())
+    
+
+    if debt_payoff_method == 8:
+        deb_query = deb_query.order_by(
+            (func.coalesce(DebtAccounts.balance, 0) / (func.coalesce(DebtAccounts.credit_limit, 0) + 1)).desc()
+        )
+
     # Fetch data from the database
     # Fetch data from the database and convert to a list of dictionaries
     # Initialize the total to 0
     total_monthly_payment = 0
 
+    '''
     debt_accounts_list = [
         {
             'id': debt.id,
@@ -222,13 +224,14 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
         }
         for debt in deb_query.all()
     ]
-
+    '''
+    debt_accounts_list = deb_query.all()
 
     #print('debt_accounts_list',debt_accounts_list)
 
     # Sorting debts if payoff method is not 3
-    if debt_payoff_method != 3:
-        debt_accounts_list = sort_debts_payoff(debt_accounts_list, debt_payoff_method)
+    # if debt_payoff_method != 3:
+    #     debt_accounts_list = sort_debts_payoff(debt_accounts_list, debt_payoff_method)
 
     
     
@@ -253,15 +256,33 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
     debt_totals = {}
 
     #total_monthly_payment = round(sum(account["monthly_payment"] for account in debt_accounts_list),2)
+    monthly_budget = round(payoff_strategy_data["monthly_budget"], 2)
+    total_monthly_minimum = db.session.query(
+        func.coalesce(func.sum(DebtAccounts.monthly_payment), 0)
+    ).filter(
+        DebtAccounts.user_id == user_id,
+        DebtAccounts.deleted_at.is_(None)
+    ).scalar() or 0
+    current_month_string = datetime.now().strftime('%b %Y')
 
-    debt_accounts_list = distribute_amount(payoff_strategy_data['monthly_budget'], debt_accounts_list)
+    total_payment_boost = (
+        db.session.query(func.coalesce(func.sum(PaymentBoost.amount), 0))
+        .filter(
+            PaymentBoost.month == current_month_string,
+            PaymentBoost.deleted_at.is_(None)
+        )
+        .scalar()
+    ) or 0
+    cashflow_amount = round((monthly_budget - total_monthly_minimum) + total_payment_boost,2)
+
+    #debt_accounts_list = distribute_amount(payoff_strategy_data['monthly_budget'], debt_accounts_list)
 
     for index,account in enumerate(debt_accounts_list):
-        debt_id = str(account['id'])
-        debt_names[str(index+1)+debt_id] =account['name']
-        debt_id_types[debt_id] = account['debt_type']
+        debt_id = str(account.id)
+        debt_names[str(index+1)+debt_id] = account.name
+        debt_id_types[debt_id] = account.debt_type
         debt_id_list.append(debt_id)
-        account_balance = float(account['balance']+account['monthly_interest'])
+        account_balance = float(account.balance+account.monthly_interest)
         debt_account_balances[debt_id]= {
             'balance':account_balance,            
         }
@@ -271,12 +292,15 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
             "month_debt_free": None,
             "months_to_payoff": None  # Initialize as None
         }
-        # Accumulate balance for the same debt type        
-        monthly_data = []
+        # Accumulate balance for the same debt type 
+        #print('data',account.balance, account.interest_rate,account.monthly_payment, account.credit_limit, initail_date,cashflow_amount)       
+        monthly_data = []        
         try:
-            monthly_data = calculate_amortization(account['balance'], account['interest_rate'],account['monthly_payment'], account['credit_limit'], initail_date,payoff_strategy_data['monthly_budget']) 
+          monthly_data, cashflow_amount = calculate_amortization(account.balance, account.interest_rate,account.monthly_payment, account.credit_limit, initail_date,cashflow_amount)   
         except Exception as ex:
             print('Exception handling',ex)
+
+        #print('cashflow_amount',cashflow_amount)       
         
         if len(monthly_data) > 0:  # If there's data, add it to the correct month
             for record in monthly_data:
@@ -286,15 +310,16 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
                 snowball_amount = record.get('snowball_amount', 0)
                 interest = record.get('interest', 0)
                 # Build the query to filter and aggregate for the total amount
-                payment_boost_data = db.session.query(
-                    func.sum(PaymentBoost.amount)
-                ).filter(
-                    PaymentBoost.month == month,  # Filter by the month
-                    PaymentBoost.deleted_at == None  # Filter out deleted records
-                ).scalar()  # Use scalar to get the result as a single value
+                # payment_boost_data = db.session.query(
+                #     func.sum(PaymentBoost.amount)
+                # ).filter(
+                #     PaymentBoost.month == month,  # Filter by the month
+                #     PaymentBoost.deleted_at == None  # Filter out deleted records
+                # ).scalar()  # Use scalar to get the result as a single value
 
                 # If no data is found, set the total_month_wise_boost to 0
-                total_month_wise_boost = payment_boost_data if payment_boost_data else 0
+                #total_month_wise_boost = payment_boost_data if payment_boost_data else 0
+                total_month_wise_boost = 0
                 # Initialize the month entry if not already present
                 if month not in data:
                     data[month] = {'month': month, 'boost':total_month_wise_boost}
@@ -316,6 +341,10 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
                     data[month][debt_id]['snowball_amount'] =snowball_amount
                     data[month][debt_id]['interest'] =interest                
 
+        
+    data[current_month_string]['boost'] = total_payment_boost
+    
+    #print('data',data)
     # Merge data by month and debt type
     # Prepare data for Recharts - merge months across all debt types
     merged_data = {}
@@ -453,19 +482,21 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
         for debt_id, totals in debt_totals.items()
     ]
 
+    #print(chart_data)
+
     return jsonify({
             "total_paid":total_paid_amount,
             "total_interest":total_interest_amount,
             "paid_off":paid_off,
             "max_months_to_payoff":max_months_to_payoff,
             "debt_accounts_list":debt_accounts_clist,
-            'debt_accounts_clist':debt_accounts_list,        
+            #'debt_accounts_clist':debt_accounts_list,        
             'total_monthly_payment':total_monthly_payment,
             "debt_type_ammortization":chart_data,            
             "debt_type_names":debt_names,
             "all_data":output,
-            'all_d':data,
-            'all_d1':all_data            
+            #'all_d':data,
+            #'all_d1':all_data            
         })
 
     

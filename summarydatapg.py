@@ -5,7 +5,7 @@ from app import app
 from util import *
 from datetime import datetime
 
-from models import AppData, BillAccounts, BillTransactions, DebtAccounts, DebtTransactions, DebtType, Saving, SavingCategory, SavingContribution, UserSettings
+from models import AppData, BillAccounts, BillTransactions, DebtAccounts, DebtTransactions, DebtType, PaymentBoost, Saving, SavingCategory, SavingContribution, UserSettings
 from dbpg import db
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -46,8 +46,19 @@ async def header_summary_data_pg(user_id:int):
 
         # Set monthly_budget with rounding if user_setting exists, otherwise default to 0
         monthly_budget = round(user_setting.monthly_budget, 2) if user_setting and user_setting.monthly_budget else 0
+
+        current_month_string = datetime.now().strftime('%b %Y')
+
+        total_payment_boost = (
+            db.session.query(func.coalesce(func.sum(PaymentBoost.amount), 0))
+            .filter(
+                PaymentBoost.month == current_month_string,
+                PaymentBoost.deleted_at.is_(None)
+            )
+            .scalar()
+        ) or 0
         
-        snowball_amount = round(monthly_budget - total_monthly_minimum,2)
+        snowball_amount = round((monthly_budget - total_monthly_minimum)+total_payment_boost,2)
 
         active_debt_account = session.query(func.count()).filter(
             DebtAccounts.user_id == user_id,
