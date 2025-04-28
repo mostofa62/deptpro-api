@@ -470,6 +470,7 @@ def save_debt_account_pg():
             monthly_payment = float(data.get("monthly_payment", 0))
             credit_limit = float(data.get("credit_limit", 0))
             due_date = convertStringTodate(data['due_date'])
+            custom_payoff_order = total_count+1
             
             debt_account = DebtAccounts(
                 name=data.get("name"),
@@ -493,7 +494,7 @@ def save_debt_account_pg():
                 autopay=0,
                 inlclude_payoff=0,
                 payoff_order=0,
-                custom_payoff_order=total_count+1,
+                custom_payoff_order=custom_payoff_order,
                 reminder_days=0,
                 monthly_payment_option=0,
                 percentage=0,
@@ -528,6 +529,7 @@ def save_debt_account_pg():
                                 'credit_limit': credit_limit,
                                 'current_date': due_date,
                                 'monthly_budget': monthly_payment,
+                                'custom_payoff_order':custom_payoff_order,
                                 #'user_monthly_budget':usersetting.monthly_budget,
                                 #'ammortization_at':None
                             } }
@@ -620,6 +622,7 @@ def update_debt_account_pg(accntid:int):
                                 'credit_limit': credit_limit,
                                 'current_date': due_date,
                                 'monthly_budget': monthly_payment,
+                                'custom_payoff_order':DebtAccounts.custom_payoff_order,
                                 #'user_monthly_budget':usersetting.monthly_budget,
                                 #'ammortization_at':None,
                                 'admin_id':admin_id

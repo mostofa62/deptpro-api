@@ -1,10 +1,13 @@
 from flask import request,jsonify
+from pymongo import UpdateOne
 #from flask_cors import CORS, cross_origin
 from app import app
 from util import *
 from models import  DebtAccounts, DebtType, UserSettings
 from dbpg import db
 
+from db import my_col
+debt_accounts_log = my_col('debt_accounts_log')
 
 @app.route('/api/debtpayoffpg/<int:user_id>', methods=['POST'])
 def debtpayoff_pg(user_id: int):
@@ -80,9 +83,24 @@ def update_payoff_order_pg():
             DebtAccounts.custom_payoff_order: custom_payoff_case
         })
 
-        db.session.commit()  # Commit the changes to the database
+        operations = [
+            UpdateOne(
+                {"debt_id": item["id"]},  # Match
+                {"$set": {"custom_payoff_order": item["custom_payoff_order"]}}
+            )
+            for item in data
+        ]
 
-        return jsonify({'message': 'Custom payoff order updated successfully'}), 200
+        message = 'Custom payoff order updated successfully'
+
+        if operations:  # Make sure it's not empty
+            debt_accounts_log.bulk_write(operations)
+            db.session.commit()  # Commit the changes to the database
+        else:
+            message = 'Custom payoff order update failed'
+        
+        
+        return jsonify({'message': message}), 200
 
     except Exception as e:
         db.session.rollback()  # Rollback in case of error

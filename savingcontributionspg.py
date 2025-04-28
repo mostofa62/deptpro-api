@@ -157,7 +157,7 @@ def list_saving_contributions_pg(saving_id: int):
         SavingContribution.total_balance,
         SavingContribution.total_balance_xyz,
         SavingContribution.month,
-        SavingContribution.contribution_i_intrs_xyz,
+        SavingContribution.contribution_i,
         SavingContribution.interest_xyz,
         SavingContribution.contribution_date,
         SavingContribution.next_contribution_date
@@ -197,7 +197,7 @@ def list_saving_contributions_pg(saving_id: int):
             'total_balance_xyz':todo.total_balance_xyz,
             'total_balance':todo.total_balance,
             'month_word':convertNumberToDate(todo.month),
-            'contribution':todo.contribution_i_intrs_xyz,
+            'contribution':todo.contribution_i,
             'contribution_date_word': convertDateTostring(todo.contribution_date),
             'interest_xyz':todo.interest_xyz ,
             'next_contribution_date_word': convertDateTostring(todo.next_contribution_date),
