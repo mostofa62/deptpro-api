@@ -182,7 +182,7 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
     .filter(
         DebtAccounts.user_id == user_id,
         DebtAccounts.deleted_at == None,
-        DebtAccounts.closed_at == None
+        #DebtAccounts.closed_at == None
     )
 
     # Add sorting based on the payoff method
@@ -278,7 +278,7 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
     #debt_accounts_list = distribute_amount(payoff_strategy_data['monthly_budget'], debt_accounts_list)
 
     for index,account in enumerate(debt_accounts_list):
-        debt_id = str(account.id)
+        debt_id = str(account.id)        
         debt_names[str(index+1)+debt_id] = account.name
         debt_id_types[debt_id] = account.debt_type
         debt_id_list.append(debt_id)
@@ -298,6 +298,7 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
         try:
           monthly_data, cashflow_amount = calculate_amortization(account.balance, account.interest_rate,account.monthly_payment, account.credit_limit, initail_date,cashflow_amount)   
         except Exception as ex:
+            print('debt_id',debt_id)
             print('Exception handling',ex)
 
         #print('cashflow_amount',cashflow_amount)       
@@ -343,7 +344,7 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
 
         
     data[current_month_string]['boost'] = total_payment_boost
-    
+    #print('debt_account_balances',debt_account_balances)
     #print('data',data)
     # Merge data by month and debt type
     # Prepare data for Recharts - merge months across all debt types
@@ -369,11 +370,21 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
                 if month == start_date:
                     # Use debt_type_balances for start_date
                     #merged_data[month][debt_id] = debt_account_balances.get(debt_id, 0)
+                    balance = 0
+                    interest = 0
+                    total_payment = 0
+                    snowball_amount =0
+                    if debt_id in data[month]:
+                        balance = data[month][debt_id]['balance']
+                        interest = data[month][debt_id]['interest']
+                        total_payment = data[month][debt_id]['total_payment']
+                        snowball_amount = data[month][debt_id]['snowball_amount']
+
                     merged_data[month][debt_id] = {
-                        'balance':data[month][debt_id]['balance'],
-                        'interest':data[month][debt_id]['interest'],
-                        'total_payment':data[month][debt_id]['total_payment'],
-                        'snowball_amount':data[month][debt_id]['snowball_amount']
+                        'balance':balance ,
+                        'interest':interest,
+                        'total_payment':total_payment,
+                        'snowball_amount':snowball_amount
                     }
                 elif parse_month(month) < parse_month(start_date):
                     # For months before start_date, use debt_type_balances

@@ -582,13 +582,7 @@ def update_debt_account_pg(accntid:int):
         try:
 
             user_id = int(data["user_id"])
-            admin_id = data.get('admin_id')
-
-            usersetting = (
-                db.session.query(UserSettings.monthly_budget)
-                .filter(UserSettings.user_id == user_id)
-                .first()
-            )
+            admin_id = data.get('admin_id')           
             
             debtaccounts = (
                 db.session.query(DebtAccounts)               
@@ -622,7 +616,7 @@ def update_debt_account_pg(accntid:int):
                                 'credit_limit': credit_limit,
                                 'current_date': due_date,
                                 'monthly_budget': monthly_payment,
-                                'custom_payoff_order':DebtAccounts.custom_payoff_order,
+                                'custom_payoff_order':debtaccounts.custom_payoff_order,
                                 #'user_monthly_budget':usersetting.monthly_budget,
                                 #'ammortization_at':None,
                                 'admin_id':admin_id

@@ -8,9 +8,10 @@ def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit
     interest_rate_decimal = interest_rate / 100
 
     # Set a maximum date limit (100 years from the current date)
-    limit_date = current_date.replace(year=current_date.year + 100)
+    #limit_date = current_date.replace(year=current_date.year + 100)
+    limit_years = current_date + relativedelta(years=100)
 
-    while balance > 0 and current_date <= limit_date:
+    while balance > 0 and current_date <= limit_years:
         # Ensure balance doesn't exceed the credit limit
         if credit_limit is not None:
             balance = min(balance, credit_limit)
@@ -50,12 +51,13 @@ def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit
         # Decrease cashflow for the current month after usage
         cashflow_used = min(cashflow_amount, balance)
         cashflow_amount -= cashflow_used       
-
-        # Manually increment the date by 1 month
-        if current_date.month == 12:
-            current_date = current_date.replace(year=current_date.year + 1, month=1)
-        else:
-            current_date = current_date.replace(month=current_date.month + 1)
+        
+        current_date += relativedelta(months=1)
+        # # Manually increment the date by 1 month
+        # if current_date.month == 12:
+        #     current_date = current_date.replace(year=current_date.year + 1, month=1)
+        # else:
+        #     current_date = current_date.replace(month=current_date.month + 1)
 
     return amortization_schedule, cashflow_amount
 
