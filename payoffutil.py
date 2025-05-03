@@ -6,58 +6,45 @@ def calculate_amortization(balance, interest_rate, monthly_payment, credit_limit
 
     # Convert interest rate to decimal
     interest_rate_decimal = interest_rate / 100
-
-    # Set a maximum date limit (100 years from the current date)
-    #limit_date = current_date.replace(year=current_date.year + 100)
     limit_years = current_date + relativedelta(years=100)
+    is_first_month = True
 
     while balance > 0 and current_date <= limit_years:
-        # Ensure balance doesn't exceed the credit limit
+        # Cap balance by credit limit
         if credit_limit is not None:
             balance = min(balance, credit_limit)
 
-        # Calculate interest for the current balance
+        # Calculate interest for the month
         interest = balance * interest_rate_decimal / 12
 
-        # Calculate the payment this month (principal + interest)
-        payment = monthly_payment + min(cashflow_amount, balance)
+        # Apply cashflow only in the first month
+        extra_payment = 0
+        if is_first_month:
+            extra_payment = min(cashflow_amount, balance)
+            cashflow_amount -= extra_payment
+        payment = monthly_payment + extra_payment
 
-        # Calculate the snowball amount (portion going to principal after interest)
-        snowball_amount = payment - interest
+        # Cap payment to total due (avoid overpaying)
+        total_due = balance + interest
+        if payment > total_due:
+            payment = total_due
 
-        # If cashflow is greater than the balance, we apply it entirely to the balance
-        if cashflow_amount >= balance:
-            snowball_amount = balance  # Paying off the balance
-            balance = 0  # Debt is fully paid off
-        else:
-            balance -= snowball_amount  # Decrease balance by snowball amount
+        # Principal = payment - interest
+        principal_payment = max(payment - interest, 0)
+        balance = max(balance - principal_payment, 0)
 
-        total_payment = snowball_amount + interest
-
-        if balance <0:
-            balance = 0
-
-        # Record this month's data
         amortization_schedule.append({
             'month': current_date.strftime("%b %Y"),
             'month_debt_free': current_date,
             'balance': round(balance, 2),
-            'total_payment': round(total_payment, 2),
-            'snowball_amount': round(snowball_amount, 2),
+            'total_payment': round(payment, 2),
+            'snowball_amount': round(principal_payment, 2),
             'interest': round(interest, 2),
-            'principal': round(snowball_amount, 2)
+            'principal': round(principal_payment, 2)
         })
 
-        # Decrease cashflow for the current month after usage
-        cashflow_used = min(cashflow_amount, balance)
-        cashflow_amount -= cashflow_used       
-        
+        is_first_month = False
         current_date += relativedelta(months=1)
-        # # Manually increment the date by 1 month
-        # if current_date.month == 12:
-        #     current_date = current_date.replace(year=current_date.year + 1, month=1)
-        # else:
-        #     current_date = current_date.replace(month=current_date.month + 1)
 
     return amortization_schedule, cashflow_amount
 
