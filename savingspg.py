@@ -684,7 +684,8 @@ async def save_saving_pg():
                     period=period,
                     commit=commit,
                     calender_at=None,
-                    total_monthly_balance=total_monthly_balance_xyz
+                    total_monthly_balance=total_monthly_balance_xyz,
+                    financial_freedom_target=financial_freedom_target
                 )
 
                 db.session.add(saving_data)

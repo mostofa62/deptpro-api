@@ -148,7 +148,7 @@ def get_projection_list(projection_list):
 '''
 
 
-def get_projection_list(projection_list):
+def get_projection_list(projection_list,total_gross_income, total_net_income):
     projection = defaultdict(lambda: {
         "base_gross_income": 0.0, 
         "base_net_income": 0.0,
@@ -160,6 +160,8 @@ def get_projection_list(projection_list):
     start_date = datetime.now().replace(day=1)  # Start from the current month
     end_date = start_date + timedelta(days=365)  # Next 12 months
 
+     
+
     for income in projection_list:
         pay_date = income["next_pay_date"]
         repeat_days = income["repeat"]["value"]
@@ -167,8 +169,8 @@ def get_projection_list(projection_list):
         income_id, earner_name = income["id"], income["earner"]
 
         # Initialize total incomes with previous values
-        total_gross_income = income.get("total_gross_income", 0.0)
-        total_net_income = income.get("total_net_income", 0.0)
+        #total_gross_income = income.get("total_gross_income", 0.0)
+        #total_net_income = income.get("total_net_income", 0.0)
 
         # Process Income Boosts and store them in a dict for quick lookup
         boost_dates = {}
@@ -292,11 +294,23 @@ async def income_transactions_next_pg(income_id:int):
             func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost).asc()  # Order boosts by pay_date in ascending order
         )
 
-        results = query.all()        
+        results = query.all()
+
+        result = session.query(
+            func.sum(Income.total_gross_income),
+            func.sum(Income.total_net_income)
+        ).filter(
+            Income.id == income_id,
+            Income.deleted_at == None
+        ).first()
+
+        # Unpack and round the results, defaulting to 0 if None
+        total_gross_income = round(result[0] or 0, 2)
+        total_net_income = round(result[1] or 0, 2)        
 
         
         projection_list = process_projections(results)
-        projection_list = get_projection_list(projection_list)                    
+        projection_list = get_projection_list(projection_list, total_gross_income, total_net_income)                    
 
             
             
@@ -419,11 +433,23 @@ async def income_transactions_next_pgu(user_id:int):
             func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost).asc()  # Order boosts by pay_date in ascending order
         )
 
-        results = query.all()        
+        results = query.all()
+
+        result = session.query(
+            func.sum(Income.total_gross_income),
+            func.sum(Income.total_net_income)
+        ).filter(
+            Income.user_id == user_id,
+            Income.deleted_at == None
+        ).first()
+
+        # Unpack and round the results, defaulting to 0 if None
+        total_gross_income = round(result[0] or 0, 2)
+        total_net_income = round(result[1] or 0, 2)        
 
         
         projection_list = process_projections(results)
-        projection_list = get_projection_list(projection_list)                    
+        projection_list = get_projection_list(projection_list, total_gross_income, total_net_income)                    
 
             
             
