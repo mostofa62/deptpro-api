@@ -459,7 +459,7 @@ def save_debt_account_pg():
              
             total_count = db.session.query(func.count(DebtAccounts.id)).filter(
                 DebtAccounts.user_id == user_id,
-                DebtAccounts.deleted_at == None
+                #DebtAccounts.deleted_at == None
             ).scalar()
 
             balance = float(data.get("balance", 0))

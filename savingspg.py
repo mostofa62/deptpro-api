@@ -358,6 +358,7 @@ async def edit_saving_pg(id:int):
         contribution = round(float(data.get("contribution", 0)),2)
         i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
         repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+        financial_freedom_target = round(float(data.get("financial_freedom_target", 0)),2)
 
 
         previous_saving = session.execute(stmt).mappings().first()                              
@@ -395,7 +396,8 @@ async def edit_saving_pg(id:int):
             'contribution':contribution,
             'increase_contribution_by':i_contribution,
             'interest':interest,                                                       
-            "updated_at": datetime.now(),                                                                                   
+            "updated_at": datetime.now(),
+            "financial_freedom_target":financial_freedom_target                                                                                   
         }
 
         merge_data = data | append_data
@@ -574,6 +576,7 @@ async def save_saving_pg():
         contribution = round(float(data.get("contribution", 0)),2)
         i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
         repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None        
+        financial_freedom_target = round(float(data.get("financial_freedom_target", 0)),2)
 
         commit = datetime.now()            
         goal_reached = None                    
@@ -633,7 +636,8 @@ async def save_saving_pg():
                     period=period,
                     commit=commit,
                     total_monthly_balance = total_monthly_balance_xyz,
-                    calender_at=None
+                    calender_at=None,
+                    financial_freedom_target=financial_freedom_target
                 )
             db.session.add(saving_data)
             db.session.commit()

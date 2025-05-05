@@ -104,7 +104,7 @@ async def header_summary_data_pg(user_id:int):
         # ).scalar() or 0
 
         monthly_bill_totals = session.query(
-            func.coalesce(func.sum(BillAccounts.paid_total), 0).label("bill_paid_total")
+            func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
         ).filter(
             BillAccounts.user_id == user_id,
             BillAccounts.deleted_at.is_(None)
@@ -116,7 +116,15 @@ async def header_summary_data_pg(user_id:int):
         #financial_frdom_date = convertDateTostring(datetime.now()+relativedelta(years=1),"%b %Y")
         financial_frdom_date = convertDateTostring(convertStringTodate(f"{app_datas.financial_freedom_month}","%Y%m"),"%b, %Y") if app_datas.financial_freedom_month!=None else ""
 
-        financial_frdom_target = app_datas.financial_freedom_target
+        #financial_frdom_target = app_datas.financial_freedom_target
+        financial_frdom_target = (
+            session.query(func.coalesce(func.sum(Saving.financial_freedom_target), 0))
+            .filter(
+                Saving.user_id == user_id,
+                Saving.deleted_at.is_(None)
+            )
+            .scalar()
+        ) or 0
 
         return jsonify({
             "saving_progress":saving_average_progress,
@@ -210,7 +218,7 @@ async def get_dashboard_data_pg(user_id: int):
         ).scalar()
 
         bill_paid_total = session.query(
-            func.coalesce(func.sum(BillAccounts.paid_total), 0).label("bill_paid_total")
+            func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
         ).filter(
             BillAccounts.user_id == user_id,
             BillAccounts.deleted_at.is_(None)

@@ -21,13 +21,14 @@ saving_boosts_2 = aliased(SavingBoost)
 def process_projections(results=None):
 
     saving_dict = {}
-    goal_amount = 0
+    #goal_amount = 0
 
     if results:
         
         for row in results:
-            goal_amount += row.goal_amount
+            #goal_amount += row.goal_amount
             saving_id = row.id
+            print('saving_id',saving_id)
             if saving_id not in saving_dict:
                 saving_dict[saving_id] = {
                     "id": row.id,
@@ -61,7 +62,8 @@ def process_projections(results=None):
                     })
 
 
-    return (list(saving_dict.values()),goal_amount)
+    #return (list(saving_dict.values()),goal_amount)
+    return list(saving_dict.values())
 
 
 def calculate_end_date(start_date, initial_balance, contribution, daily_rate, goal_amount, frequency):
@@ -107,7 +109,7 @@ def calculate_end_date(start_date, initial_balance, contribution, daily_rate, go
 
 
 
-def get_projection_list(projection_list, goal_amount):
+def get_projection_list(projection_list, goal_amount, total_balance_xyz):
     # Dictionary to store merged results
     projection = defaultdict(lambda: {
         "total_balance": 0,
@@ -116,13 +118,15 @@ def get_projection_list(projection_list, goal_amount):
         "month": None,
     })
 
-    initial_balance = 0
-    initial_contribution = 0
+    initial_balance = total_balance_xyz
+    initial_contribution = total_balance_xyz
     for saving in projection_list:
         pay_date = saving["next_pay_date"]
         frequency = saving["repeat"]["value"]
-        contribution = initial_contribution+saving['contribution']
-        balance = initial_balance + saving['total_balance']
+        #contribution = initial_contribution+saving['contribution']
+        #balance = initial_balance + saving['total_balance']
+        balance = initial_balance
+        contribution = initial_contribution
         #goal_amount = saving['goal_amount']
         interest_rate = saving['interest'] / 100
         daily_rate = interest_rate / 365
@@ -235,6 +239,18 @@ def saving_contributions_next_pgu(user_id:int):
         
 
         app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
+
+        result = session.query(
+            func.sum(Saving.total_balance_xyz),
+            func.sum(Saving.goal_amount)
+        ).filter(
+            Saving.user_id == user_id,
+            Saving.deleted_at == None
+        ).first()
+
+        # Unpack and round the results, defaulting to 0 if None
+        total_balance_xyz = round(result[0] or 0, 2)
+        total_goal_amount = round(result[1] or 0, 2)
         
         query = session.query(
             Saving.id,
@@ -281,7 +297,8 @@ def saving_contributions_next_pgu(user_id:int):
 
         results = query.all()
         projections = process_projections(results)
-        projection_list = get_projection_list(projections[0],projections[1])
+        #projection_list = get_projection_list(projections[0],projections[1])
+        projection_list = get_projection_list(projections,total_goal_amount, total_balance_xyz)
 
         financial_freedom_month = projection_list[-1]['month'] if projection_list else None
         financial_freedom_target = int(round(projection_list[-1]['total_balance'],0)) if projection_list else None
