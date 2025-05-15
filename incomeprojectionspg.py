@@ -385,7 +385,8 @@ async def income_transactions_next_pgu(user_id:int):
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    projection_list = []    
+    projection_list = []
+    projection = []    
 
     session = None
 
@@ -448,8 +449,8 @@ async def income_transactions_next_pgu(user_id:int):
         total_net_income = round(result[1] or 0, 2)        
 
         
-        projection_list = process_projections(results)
-        projection_list = get_projection_list(projection_list, total_gross_income, total_net_income)                    
+        projection = process_projections(results)
+        projection_list = get_projection_list(projection, total_gross_income, total_net_income)                    
 
             
             
@@ -512,13 +513,143 @@ async def income_transactions_next_pgu(user_id:int):
 
     return jsonify({
         "payLoads": {
-            'projection_list': projection_list,            
+            'projection_list': projection_list,
+            'projection':projection,            
             'exception':None
         }
     })
     
 
 
+@app.route('/api/income-transactions-nextpguv/<int:user_id>', methods=['GET'])
+#@profile
+async def income_transactions_next_pguv(user_id:int):
 
-   
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    projection_list = []
+    projection = []    
+
+    session = None
+
+    try:
+
+        session = db.session
+
+        # Check if the session is connected (optional, but a good practice)
+        if not session.is_active:
+            raise Exception("Database session is not active.")
+
+        
+        query = session.query(
+            Income.id,
+            Income.earner,
+            Income.gross_income,
+            Income.net_income,
+            Income.total_gross_income,
+            Income.total_net_income,
+            Income.pay_date,
+            Income.next_pay_date,
+            Income.repeat,
+            Income.user_id,
+            IncomeBoost.income_boost,
+            IncomeBoost.pay_date_boost,
+            IncomeBoost.repeat_boost,
+            IncomeBoost.next_pay_date_boost
+        ).outerjoin(
+            IncomeBoost, 
+            (IncomeBoost.income_id == Income.id) &
+            (IncomeBoost.user_id == user_id) &
+            (IncomeBoost.deleted_at.is_(None)) &
+            (IncomeBoost.closed_at.is_(None)) &
+            #(IncomeBoost.pay_date_boost >= today) &
+            (func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost) >= today) #&  # Use pay_date_boost if next_pay_date_boost is None
+            #(func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost) >= Income.next_pay_date)  # Check if pay_date_boost or next_pay_date_boost is >= income's next pay date
+        ).filter(
+            Income.user_id == user_id,
+            Income.deleted_at.is_(None),
+            Income.closed_at.is_(None),
+            Income.next_pay_date >=today
+        ).order_by(
+            Income.id,  # Order by income ID
+            Income.next_pay_date.asc(),
+            func.coalesce(IncomeBoost.next_pay_date_boost, IncomeBoost.pay_date_boost).asc()  # Order boosts by pay_date in ascending order
+        )
+
+        results = query.all()
+
+        result = session.query(
+            func.sum(Income.total_gross_income),
+            func.sum(Income.total_net_income)
+        ).filter(
+            Income.user_id == user_id,
+            Income.deleted_at == None
+        ).first()
+
+        # Unpack and round the results, defaulting to 0 if None
+        total_gross_income = round(result[0] or 0, 2)
+        total_net_income = round(result[1] or 0, 2)        
+
+        
+        projection = process_projections(results)
+
+    except OperationalError as e:
+        print(f"Operational error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Database operational error. Please try again later."
+            }
+        })
+    except TimeoutError as e:
+        print(f"Timeout error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Database timeout error. Please try again later."
+            }
+        })
+    except DBAPIError as e:
+        print(f"DBAPI error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Database API error. Please try again later."
+            }
+        })
+    except ConnectionError as e:
+        print(f"Connection error: {str(e)}")
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': "Unable to connect to the database. Please try again later."
+            }
+        })
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        if session:
+            session.rollback()
+        return jsonify({
+            "payLoads": {
+                'projection_list': [],
+                'projection': [],
+                'exception': f"Unexpected error: {str(e)}"
+            }
+        })
+
+    finally:
+        if session:
+            session.close()
+
+    return jsonify({
+        "payLoads": {
+            'projection_list': projection_list,
+            'projection':projection,            
+            'exception':None
+        }
+    })
     
