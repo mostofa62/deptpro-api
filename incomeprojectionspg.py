@@ -4,7 +4,7 @@ from flask import Flask,request,jsonify, json
 from sqlalchemy import Integer, case, cast, func
 #from flask_cors import CORS, cross_origin
 from models import Income, IncomeBoost
-from incomeutil import calculate_breakdown_future, get_delta
+from incomeutil import calculate_breakdown_future, get_delta, get_remaining_frequency_with_next
 from app import app
 from util import *
 from datetime import datetime,timedelta
@@ -13,7 +13,7 @@ from sqlalchemy.orm import aliased
 import calendar
 from sqlalchemy.exc import OperationalError, TimeoutError, DBAPIError
 #from memory_profiler import profile
-
+from dateutil.relativedelta import relativedelta
 def process_projections(results=None):
 
     income_dict = {}
@@ -41,6 +41,7 @@ def process_projections(results=None):
                 # Append income_boost only if it exists
                 if row.income_boost is not None:                    
                     income_dict[income_id]["income_boosts"].append({
+                        "id":row.income_boost_id,
                         "income_boost": row.income_boost,
                         "pay_date_boost": row.pay_date_boost,
                         "repeat_boost": row.repeat_boost,  # Parsed JSON
@@ -271,6 +272,7 @@ async def income_transactions_next_pg(income_id:int):
             Income.next_pay_date,
             Income.repeat,
             Income.user_id,
+            IncomeBoost.id.label('income_boost_id'),
             IncomeBoost.income_boost,
             IncomeBoost.pay_date_boost,
             IncomeBoost.repeat_boost,
@@ -310,7 +312,7 @@ async def income_transactions_next_pg(income_id:int):
 
         
         projection_list = process_projections(results)
-        projection_list = get_projection_list(projection_list, total_gross_income, total_net_income)                    
+        projection_list = generate_projection(projection_list, total_gross_income, total_net_income)                    
 
             
             
@@ -379,9 +381,9 @@ async def income_transactions_next_pg(income_id:int):
     })
 
 
-@app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
+@app.route('/api/income-transactions-nextpguv/<int:user_id>', methods=['GET'])
 #@profile
-async def income_transactions_next_pgu(user_id:int):
+async def income_transactions_next_pguv(user_id:int):
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -410,6 +412,7 @@ async def income_transactions_next_pgu(user_id:int):
             Income.next_pay_date,
             Income.repeat,
             Income.user_id,
+            IncomeBoost.id.label('income_boost_id'),
             IncomeBoost.income_boost,
             IncomeBoost.pay_date_boost,
             IncomeBoost.repeat_boost,
@@ -521,9 +524,114 @@ async def income_transactions_next_pgu(user_id:int):
     
 
 
-@app.route('/api/income-transactions-nextpguv/<int:user_id>', methods=['GET'])
+def generate_projection(data, total_gross_amount=0, total_net_amount=0):
+    start_dt = datetime.now().replace(day=1)
+    end_dt = start_dt + relativedelta(years=1)
+
+    start_year = start_dt.year
+    start_month = start_dt.month
+
+    months = [
+        (start_year + (start_month + i - 1) // 12) * 100 + (start_month + i - 1) % 12 + 1
+        for i in range((end_dt.year - start_year) * 12 + (end_dt.month - start_month) + 1)
+    ]
+
+    account_states = {f"{acc['id']}": acc["next_pay_date"].date() for acc in data}
+    projection_list = []
+
+    #print('account_states',account_states)
+    
+    progressive_gross_total = total_gross_amount
+    progressive_net_total = total_net_amount
+    for index, month_key in enumerate(months):
+        results_by_month = {}
+        year = month_key // 100
+        month = month_key % 100
+
+        label = f"{year}{month:02d}"
+        results_by_month[index] = {}
+        
+        monthly_gross_total = 0
+        monthly_net_total = 0
+        results_by_month[index]["earners"] = []
+        for acc in data:
+            ac_id = f"{acc['id']}"            
+            freq = acc["repeat"]["value"]
+            gross_income = acc["gross_income"]
+            net_income = acc["net_income"]
+            acc_sd = account_states[ac_id]
+            income_boosts = acc["income_boosts"]
+
+            income_boost_gross = 0
+            income_boost_net = 0
+
+            if acc_sd.year == year and acc_sd.month == month:
+                result = get_remaining_frequency_with_next(acc_sd, freq, gross_income, net_income)
+
+                if len(income_boosts)> 0:
+
+                    account_states_i_b = {
+                        f"{acc_ibs['id']}": (
+                            acc_ibs["next_pay_date_boost"].date()
+                            if acc_ibs["next_pay_date_boost"] is not None
+                            else acc_ibs["pay_date_boost"].date()
+                        )
+                        for acc_ibs in income_boosts                        
+                    }
+
+                    for i_b in income_boosts:
+                        ac_id_i_b = f"{i_b['id']}"
+                        freq_i_b =  i_b['repeat_boost']['value']
+                        gross_income_i_b = i_b["income_boost"]
+                        net_income_i_b = i_b["income_boost"]
+                        acc_sd_i_b = account_states_i_b[ac_id_i_b]
+
+                        if acc_sd_i_b.year == year and acc_sd_i_b.month == month:
+                            if freq_i_b < 1:
+                                income_boost_gross += gross_income_i_b
+                                income_boost_net += net_income_i_b
+                            else:
+                                result_i_b = get_remaining_frequency_with_next(acc_sd_i_b, freq_i_b, gross_income_i_b, net_income_i_b)
+                                income_boost_gross += result_i_b['gross_income']
+                                income_boost_net += result_i_b['net_income']
+                                account_states_i_b[ac_id_i_b] = result_i_b["next_pay_date"]
+                        
+
+
+
+                #print(month_key,'income_boost_total',income_boost_total)        
+                
+                if len(result) > 0:
+                    result["earner"] = acc["earner"]
+                    result["earner_id"] = acc['id']
+                #print('result',result)
+                account_states[ac_id] = result["next_pay_date"]
+                result["gross_income"] += income_boost_gross
+                result["net_income"] += income_boost_net
+                results_by_month[index]["earners"].append(result)
+                monthly_gross_total += result["gross_income"]
+                monthly_net_total += result["net_income"]
+                del result["next_pay_date"]
+            
+            #results_by_month[label]["monthly_gross_total"] = monthly_gross_total
+            #results_by_month[label]["monthly_net_total"] = monthly_net_total
+
+        progressive_gross_total += monthly_gross_total
+        progressive_net_total += monthly_net_total
+        results_by_month[index]["base_gross_income"] = progressive_gross_total
+        results_by_month[index]["base_net_income"] = progressive_net_total
+        results_by_month[index]["month"] = int(label)
+        results_by_month[index]["month_word"] = convertDateTostring(datetime.strptime(label, "%Y%m"),"%b, %Y")
+        projection_list.append(results_by_month[index])
+
+    return projection_list
+    
+
+
+
+@app.route('/api/income-transactions-nextpgu/<int:user_id>', methods=['GET'])
 #@profile
-async def income_transactions_next_pguv(user_id:int):
+async def income_transactions_next_pgu(user_id:int):
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -552,6 +660,7 @@ async def income_transactions_next_pguv(user_id:int):
             Income.next_pay_date,
             Income.repeat,
             Income.user_id,
+            IncomeBoost.id.label('income_boost_id'),
             IncomeBoost.income_boost,
             IncomeBoost.pay_date_boost,
             IncomeBoost.repeat_boost,
@@ -592,6 +701,8 @@ async def income_transactions_next_pguv(user_id:int):
 
         
         projection = process_projections(results)
+        projection_list = generate_projection(projection, total_gross_income, total_net_income)
+        #print('projection_list',projection_list)
 
     except OperationalError as e:
         print(f"Operational error: {str(e)}")

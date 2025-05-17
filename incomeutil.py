@@ -869,8 +869,8 @@ def get_remaining_frequency_with_next(start_date: date, frequency_days: int, gro
     total_net_amount = in_month_count * net_amount
 
     return {
-        "count": in_month_count,
-        "next_month_first_date": first_next_month_date,
-        'total_gross_amount':total_gross_amount,
-        'total_net_amount':total_net_amount
+        #"count": in_month_count,
+        "next_pay_date": first_next_month_date,
+        'gross_income':total_gross_amount,
+        'net_income':total_net_amount
     }
