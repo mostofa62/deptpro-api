@@ -6,7 +6,7 @@ from util import *
 from datetime import datetime
 from dbpg import db
 from models import BillAccounts, BillPayments, BillTransactions
-from pgutils import ExtraType
+from pgutils import ExtraType, RepeatFrequency
 
 def distribute_amount(bill_account_id,withdraw_amount):
 
@@ -221,7 +221,8 @@ def list_extras_pg(bill_id: int):
         BillTransactions.id,
         BillTransactions.amount, 
         BillTransactions.due_date,
-        BillTransactions.type
+        BillTransactions.type,
+        BillTransactions.repeat_frequency
         ).filter(
         BillTransactions.bill_acc_id == bill_account_id,
         BillTransactions.deleted_at == None
@@ -254,7 +255,11 @@ def list_extras_pg(bill_id: int):
             'due_date_word': convertDateTostring(transaction.due_date),
             'due_date': convertDateTostring(transaction.due_date,('%Y-%m-%d')),
             'type':None,
-            'amount':transaction.amount
+            'amount':transaction.amount,
+            "repeat_frequency": next(
+                (d['label'] for d in RepeatFrequency if d['value'] == transaction.repeat_frequency),
+                None
+            ),
         }
         
         # Add `type` label instead of number

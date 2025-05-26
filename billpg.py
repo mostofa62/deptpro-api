@@ -12,6 +12,7 @@ from dbpg import db
 from models import *
 from sqlalchemy.orm import joinedload
 from db import my_col
+from billutil import generate_bill
 calender_data = my_col('calender_data')
 @app.route('/api/billspg/<int:user_id>', methods=['POST'])
 async def list_bills_pg(user_id: int):
@@ -135,22 +136,25 @@ def save_bill_account_pg():
             # Get user and bill type
             user_id = data['user_id']
             admin_id = data['admin_id']
-            bill_type_id = data['bill_type']['value']            
+            bill_type_id = data['bill_type']['value']
+            current_amount = amount
+
+            today = datetime.now()            
 
             # Create BillAccount record
             bill_account = BillAccounts(
                 name=data['name'],
                 bill_type_id=bill_type_id,
                 payor=data.get('payor', None),
-                default_amount=amount,
-                current_amount=amount,
+                default_amount=current_amount,
+                current_amount=current_amount,
                 paid_total=0,
                 next_due_date=next_due_date,
                 repeat_frequency=repeat_frequency,
                 reminder_days=reminder_days,
                 note=data.get('note', None),
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=today,
+                updated_at=today,
                 user_id=user_id,
                 admin_id=admin_id,
                 latest_transaction_id=None,  # Set later
@@ -161,30 +165,68 @@ def save_bill_account_pg():
             db.session.flush()  # Commit to get the bill_account ID
             bill_account_id = bill_account.id
 
-            # Create BillTransaction record
-            bill_transaction = BillTransactions(
-                amount=amount,
-                type=op_type,
-                payor=None,
-                note=None,
-                current_amount=amount,
-                due_date=next_due_date,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-                user_id=user_id,
-                admin_id=admin_id,
-                bill_acc_id=bill_account.id,
-                payment_status=0,
-                deleted_at=None,
-                closed_at=None
-            )
-            db.session.add(bill_transaction)
-            db.session.flush()  # Commit to get the transaction ID
-            bill_trans_id = bill_transaction.id
+            bill_trans_id = None
+            
+            if repeat_frequency > 0:
+                bill_transaction_generate = generate_bill(
+                    amount,
+                    next_due_date,
+                    repeat_frequency,
+                    user_id,
+                    admin_id,
+                    bill_account_id,
+                    op_type                    
+                )
+                bill_transaction_list = bill_transaction_generate['bill_transaction']
+                current_amount = bill_transaction_generate['current_amount']
+                next_due_date = bill_transaction_generate['next_pay_date']
+                is_single = bill_transaction_generate['is_single']
+                
+                
+                bill_transaction = None
+                if len(bill_transaction_list) > 0:
+                    if is_single > 0:
+                        bill_transaction = BillTransactions(**bill_transaction_list)
+                        db.session.add(bill_transaction)
+                    else:
+                        bill_transaction = [BillTransactions(**txn) for txn in bill_transaction_list]
+                        db.session.add_all(bill_transaction)
+
+
+
+                # Create BillTransaction record
+                
+                db.session.flush()  # Commit to get the transaction ID
+                bill_trans_id = bill_transaction.id if is_single > 0 else bill_transaction[-1].id
+            else:
+
+                bill_transaction = BillTransactions(
+                    amount=amount,
+                    type=op_type,
+                    payor=None,
+                    note=None,
+                    current_amount=amount,
+                    due_date=next_due_date,
+                    created_at=today,
+                    updated_at=today,
+                    user_id=user_id,
+                    admin_id=admin_id,
+                    bill_acc_id=bill_account.id,
+                    payment_status=0,
+                    deleted_at=None,
+                    closed_at=None,
+                    repeat_frequency=repeat_frequency
+                )
+                db.session.add(bill_transaction)
+                db.session.flush()  # Commit to get the transaction ID
+                bill_trans_id = bill_transaction.id
+
 
             # Update BillAccount with the latest_transaction_id
-            bill_account.latest_transaction_id = bill_transaction.id
-            bill_account.updated_at = datetime.now()
+            bill_account.latest_transaction_id = bill_trans_id
+            bill_account.current_amount = current_amount
+            bill_account.updated_at = today
+            bill_account.next_due_date = next_due_date
             db.session.commit()  # Commit the update
 
             result = 1 if bill_account_id and bill_trans_id else 0
@@ -217,6 +259,8 @@ def update_bill_pg(accntid:int):
         result = 0
 
         admin_id = data['admin_id']
+        del data['created_at']
+        del data['updated_at']
 
         try:
 
@@ -295,6 +339,8 @@ def get_bill_all_pg(accntid: int):
             (d['label'] for d in RepeatFrequency if d['value'] == bill_account.repeat_frequency),
             None
         ),
+        "created_at":convertDateTostring(bill_account.created_at,"%d %b, %Y %H:%M"),
+        "updated_at":convertDateTostring(bill_account.updated_at,"%d %b, %Y %H:%M")
     }
 
     # Get Bill Payments for the last 12 months
@@ -356,7 +402,9 @@ def get_bill_pg(accntid:int):
         "current_amount": round(bill_account.current_amount or 0, 2),
         "reminder_days": None,
         "repeat_frequency": None,
-        "note":bill_account.note
+        "note":bill_account.note,
+        'created_at':convertDateTostring(bill_account.created_at,'%d %b, %Y %H:%M'),
+        'updated_at':convertDateTostring(bill_account.updated_at,'%d %b, %Y %H:%M')
     }
 
     bill_type = bill_account.bill_type
@@ -392,8 +440,10 @@ def get_bill_pg(accntid:int):
     
     bill_types = bill_type_dropdown_pg(user_id,1)
 
+
+
     return jsonify({
-        "billaccounts":billaccounts,
+        "billaccounts":billaccounts,        
         "repeat_frequency":RepeatFrequency,
         "reminder_days":ReminderDays,
         "bill_types":bill_types,

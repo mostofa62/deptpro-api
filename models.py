@@ -370,6 +370,7 @@ class BillTransactions(db.Model):
         ForeignKey('bill_payments.id', ondelete='SET NULL', use_alter=True, name='fk_transactions_latest_payment', deferrable=True),
         nullable=True
     )
+    repeat_frequency = Column(Integer, nullable=True)
     
 
     bill_account = relationship(
