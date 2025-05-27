@@ -1,5 +1,5 @@
 from flask import request,jsonify, json
-from sqlalchemy import asc, update
+from sqlalchemy import asc, func, update
 #from flask_cors import CORS, cross_origin
 from app import app
 from util import *
@@ -7,6 +7,71 @@ from datetime import datetime
 from dbpg import db
 from models import BillAccounts, BillPayments, BillTransactions
 from pgutils import ExtraType, RepeatFrequency
+
+
+@app.route("/api/delete-bill-transactionpg/<string:accntid>", methods=['POST'])
+def delete_bill_transaction_pg(accntid:str):
+    if request.method == 'POST':
+        data = json.loads(request.data)
+        bill_account_id = accntid
+        bill_trans_id = data['id']
+        admin_id = data['admin_id']
+        message = None
+        error = 0
+        deleted_done = 0
+        try:
+            # Get the bill account object by ID
+            account_current_amount, account_paid_total = db.session.query(
+                BillAccounts.current_amount,
+                BillAccounts.paid_total
+            ).filter_by(id=bill_account_id).first() or (0, 0)
+
+            transaction_current_amount = db.session.query(
+                BillTransactions.amount
+            ).filter_by(id=bill_trans_id).scalar()
+
+            total_paid_amount = db.session.query(
+                func.coalesce(func.sum(BillPayments.amount), 0)
+            ).filter(
+                BillPayments.bill_trans_id == bill_trans_id
+            ).scalar()
+            if total_paid_amount > 0:
+                account_current_amount += total_paid_amount
+                account_paid_total -= total_paid_amount
+
+            
+            account_current_amount -= transaction_current_amount
+
+            BillPayments.query.filter_by(bill_trans_id=bill_trans_id).delete()
+
+            # Delete BillTransactions by ID
+            BillTransactions.query.filter_by(id=bill_trans_id).delete()
+            # Update BillAccounts current_amount
+            BillAccounts.query.filter_by(id=bill_account_id).update({
+                BillAccounts.current_amount: account_current_amount,
+                BillAccounts.paid_total:account_paid_total,
+                BillAccounts.admin_id:admin_id,
+                BillAccounts.updated_at:datetime.now()
+            })
+
+            db.session.commit()  # Commit the changes to the database
+            message = f'Bill transaction deleted Successfully'
+            deleted_done = 1
+            error = 0
+
+        except Exception as ex:
+            print('Bill transaction deletion Exception: ', ex)
+            message = f'Bill transaction deletion Failed'
+            error = 1
+            deleted_done = 0
+            db.session.rollback()  # Rollback the transaction in case of error
+
+        return jsonify({
+            "bill_trans_id": bill_trans_id,
+            "message": message,
+            "error": error,
+            "deleted_done": deleted_done
+        })
 
 def distribute_amount(bill_account_id,withdraw_amount):
 
@@ -223,10 +288,16 @@ def list_extras_pg(bill_id: int):
         BillTransactions.due_date,
         BillTransactions.type,
         BillTransactions.repeat_frequency
-        ).filter(
+        )\
+    .join(BillAccounts, BillTransactions.bill_acc_id == BillAccounts.id) \
+    .filter(
         BillTransactions.bill_acc_id == bill_account_id,
-        BillTransactions.deleted_at == None
+        BillAccounts.deleted_at == None,
+        BillAccounts.closed_at == None
     )
+
+    # Clone for count
+    total_count = query.with_entities(db.func.count()).scalar()
 
     # Handle sorting
     for sort in sort_by:
@@ -240,10 +311,10 @@ def list_extras_pg(bill_id: int):
     # Fetch data from the database
     transactions = query.all()
 
-    total_count = BillTransactions.query.filter(
-        BillTransactions.bill_acc_id == bill_account_id,
-        BillTransactions.deleted_at == None
-    ).count()
+    # total_count = BillTransactions.query.filter(
+    #     BillTransactions.bill_acc_id == bill_account_id,
+    #     BillTransactions.deleted_at == None
+    # ).count()
 
     # Prepare the response data
     data_list = []

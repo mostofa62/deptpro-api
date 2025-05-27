@@ -381,10 +381,17 @@ class BillTransactions(db.Model):
     )
     user = relationship('User', backref='bill_transactions', lazy='joined')
     latest_payment = relationship(
-        'BillPayments', 
-        backref='bill_transactions', 
+        'BillPayments',
+        foreign_keys=[latest_payment_id],
         lazy='joined',
-        foreign_keys=[latest_payment_id]
+        backref='latest_transactions'
+    )
+
+    payments = relationship(
+        'BillPayments',
+        back_populates='transaction',
+        foreign_keys='BillPayments.bill_trans_id',
+        lazy='dynamic'
     )
 
     def __repr__(self):
@@ -411,11 +418,19 @@ class BillPayments(db.Model):
     )
     deleted_at = Column(DateTime, nullable=True)
 
+    transaction = relationship(
+        'BillTransactions',
+        back_populates='payments',
+        foreign_keys=[bill_trans_id],
+        overlaps="bill_transaction"
+    )
+
+    # Optional: if you still want this alias
     bill_transaction = relationship(
-        'BillTransactions', 
-        backref='bill_payments', 
+        'BillTransactions',
+        foreign_keys=[bill_trans_id],
         lazy='joined',
-        foreign_keys=[bill_trans_id]
+        overlaps="transaction,payments"
     )
     user = relationship('User', backref='bill_payments', lazy='joined')
     bill_account = relationship(
@@ -423,7 +438,7 @@ class BillPayments(db.Model):
         backref='bill_payments', 
         lazy='joined',
         foreign_keys=[bill_account_id]
-    )
+    )    
 
     def __repr__(self):
         return f"<BillPayments(amount={self.amount}, bill_trans_id={self.bill_trans_id}, bill_account_id={self.bill_account_id})>"

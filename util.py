@@ -302,3 +302,10 @@ def add_time(current_date, frequency, repeat_count=1):
         return current_date + timedelta(weeks=repeat_count)
     elif frequency == 14:
         return current_date + timedelta(weeks=2 * repeat_count)
+    
+
+def safe_nested_int(data, key):
+    val = data.get(key)
+    if isinstance(val, dict):
+        return int(val.get('value') or 0)
+    return 0

@@ -199,27 +199,28 @@ def save_bill_account_pg():
                 db.session.flush()  # Commit to get the transaction ID
                 bill_trans_id = bill_transaction.id if is_single > 0 else bill_transaction[-1].id
             else:
-
-                bill_transaction = BillTransactions(
-                    amount=amount,
-                    type=op_type,
-                    payor=None,
-                    note=None,
-                    current_amount=amount,
-                    due_date=next_due_date,
-                    created_at=today,
-                    updated_at=today,
-                    user_id=user_id,
-                    admin_id=admin_id,
-                    bill_acc_id=bill_account.id,
-                    payment_status=0,
-                    deleted_at=None,
-                    closed_at=None,
-                    repeat_frequency=repeat_frequency
-                )
-                db.session.add(bill_transaction)
-                db.session.flush()  # Commit to get the transaction ID
-                bill_trans_id = bill_transaction.id
+                current_datetime_now = datetime.now() 
+                if next_due_date <= current_datetime_now:
+                    bill_transaction = BillTransactions(
+                        amount=amount,
+                        type=op_type,
+                        payor=None,
+                        note=None,
+                        current_amount=amount,
+                        due_date=next_due_date,
+                        created_at=today,
+                        updated_at=today,
+                        user_id=user_id,
+                        admin_id=admin_id,
+                        bill_acc_id=bill_account.id,
+                        payment_status=0,
+                        deleted_at=None,
+                        closed_at=None,
+                        repeat_frequency=repeat_frequency
+                    )
+                    db.session.add(bill_transaction)
+                    db.session.flush()  # Commit to get the transaction ID
+                    bill_trans_id = bill_transaction.id
 
 
             # Update BillAccount with the latest_transaction_id
@@ -259,21 +260,59 @@ def update_bill_pg(accntid:int):
         result = 0
 
         admin_id = data['admin_id']
-        del data['created_at']
-        del data['updated_at']
+        data.pop('created_at', None)
+        data.pop('updated_at', None)
 
-        try:
+        amount  = float(data['default_amount'])            
+        repeat_frequency = safe_nested_int(data, 'repeat_frequency')
+        reminder_days = safe_nested_int(data, 'reminder_days')
 
-            amount  = float(data['default_amount'])
+
+        bill_account = BillAccounts.query.filter_by(id=accntid).first()
+        previous_frequency = bill_account.repeat_frequency
+        previous_amount = bill_account.default_amount
+        latest_transaction = bill_account.latest_transaction
+        payment_count = latest_transaction.payments.count()
+        paid_total = bill_account.paid_total
+        previous_due_date = bill_account.next_due_date
+        
+
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        valid = True
+        change_found_amount = False if are_floats_equal(amount, previous_amount) else True
+        current_amount = amount  if payment_count < 1 and change_found_amount else bill_account.current_amount
+        
+
+        if previous_frequency < 1:
             
-            repeat_frequency = int(data['repeat_frequency']['value'])
-            reminder_days = int(data['reminder_days']['value'])
+            if repeat_frequency >  previous_frequency:
+                valid = False
+                message = 'Non-repeat accounts cannot be upgraded to repeat accounts. Please create a new account instead.'
+            if payment_count > 0 and change_found_amount:
+                valid = False
+                message = f'This account has already been settled with a payment of {paid_total}; modifying the amount {amount} is not permitted.'
+            if previous_due_date <= today and reminder_days > 0:
+                valid = False
+                message = 'Reminders cannot be set for past due dates in non-recurring accounts.'
+
+            
+        if not valid:    
+            return jsonify({
+                "bill_account_id":bill_account_id,            
+                "message":message,
+                "result":0
+            })           
+        
+        
+
+        try:            
 
             stmt = update(BillAccounts).where(BillAccounts.id == bill_account_id).values(
                     name=data['name'],
                     bill_type_id=data['bill_type']['value'],
                     payor=data['payor'] if 'payor' in  data else None,
-                    default_amount=amount,                      
+                    default_amount=amount,
+                    current_amount=current_amount,                      
                     repeat_frequency=repeat_frequency,
                     reminder_days = reminder_days,
                     note=data['note'] if 'note' in data and data['note']!=None else None,
@@ -283,9 +322,16 @@ def update_bill_pg(accntid:int):
             
             db.session.execute(stmt)
 
+            if previous_frequency < 1 and change_found_amount:
+                latest_transaction.amount = amount
+                latest_transaction.current_amount = amount
+                latest_transaction.admin_id = admin_id
+                db.session.add(latest_transaction)
+
             db.session.commit()
             result = 1 
-            message = 'Bill account updated Succefull'
+            message = 'Bill account updated successfully'
+
         except Exception as ex:
 
             print('BILL UPDATE EX: ',ex)

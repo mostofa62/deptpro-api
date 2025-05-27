@@ -10,10 +10,14 @@ from models import *
 def get_bill_trans_paymentspg(tranid: int):
     # Query the BillPayments model with the necessary filters and sorting
     payments = (
-        db.session.query(BillPayments)
+        db.session.query(
+            BillPayments.amount,
+            BillPayments.pay_date
+        )
+        .join(BillAccounts, BillPayments.bill_account_id == BillAccounts.id)\
         .filter(
             BillPayments.bill_trans_id == tranid,
-            BillPayments.deleted_at.is_(None)
+            BillAccounts.deleted_at.is_(None)
         )
         .order_by(BillPayments.pay_date.desc())
         .all()
@@ -41,10 +45,27 @@ def get_bill_trans_pg(accntid: int):
     op_type = ExtraType[0]['value']
 
     # Build query using SQLAlchemy
-    query = db.session.query(BillTransactions).filter(
+    query = db.session.query(
+        BillTransactions.id,
+        BillTransactions.amount, 
+        BillTransactions.due_date,
+        BillTransactions.type,
+        BillTransactions.payor,
+        BillTransactions.current_amount,
+        BillTransactions.note,
+        BillTransactions.created_at,
+        BillTransactions.updated_at,
+        BillTransactions.user_id,
+        BillTransactions.bill_acc_id,
+        BillTransactions.payment_status,
+        BillTransactions.deleted_at,
+        BillTransactions.closed_at,
+        BillTransactions.latest_payment_id
+    ).join(BillAccounts, BillTransactions.bill_acc_id == BillAccounts.id)\
+    .filter(
         BillTransactions.bill_acc_id == accntid,
         BillTransactions.type == op_type,
-        BillTransactions.deleted_at.is_(None)
+        BillAccounts.deleted_at.is_(None)
     ).order_by(BillTransactions.created_at.desc())
 
     # Get total count for pagination
@@ -92,6 +113,8 @@ def pay_bill_transaction_pg(accntid: int):
     if request.method == 'POST':
         data = request.get_json()
         bill_trans_id = data['trans_id']
+        user_id = data['user_id']
+        admin_id = data['admin_id']
         bill_account_id = accntid
         trans_payment_id = None
         message = ''
@@ -111,7 +134,8 @@ def pay_bill_transaction_pg(accntid: int):
                 updated_at=datetime.now(),
                 bill_trans_id=bill_trans_id,
                 bill_account_id=bill_account_id,
-                deleted_at=None
+                user_id=user_id,
+                admin_id=admin_id
             )
             db.session.add(new_payment)
             db.session.flush()  # Get the new payment ID
