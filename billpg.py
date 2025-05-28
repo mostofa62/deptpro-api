@@ -166,6 +166,7 @@ def save_bill_account_pg():
             bill_account_id = bill_account.id
 
             bill_trans_id = None
+            no_repeat_next = 0            
             
             if repeat_frequency > 0:
                 bill_transaction_generate = generate_bill(
@@ -201,36 +202,39 @@ def save_bill_account_pg():
             else:
                 current_datetime_now = datetime.now() 
                 if next_due_date <= current_datetime_now:
+                    no_repeat_next = 1
                     bill_transaction = BillTransactions(
                         amount=amount,
                         type=op_type,
                         payor=None,
                         note=None,
                         current_amount=amount,
+                        pay_date = next_due_date,
                         due_date=next_due_date,
                         created_at=today,
                         updated_at=today,
                         user_id=user_id,
                         admin_id=admin_id,
                         bill_acc_id=bill_account.id,
-                        payment_status=0,
-                        deleted_at=None,
-                        closed_at=None,
+                        payment_status=0,                        
                         repeat_frequency=repeat_frequency
                     )
                     db.session.add(bill_transaction)
                     db.session.flush()  # Commit to get the transaction ID
                     bill_trans_id = bill_transaction.id
 
-
+            if repeat_frequency < 1 and no_repeat_next < 1:
+                current_amount = 0
             # Update BillAccount with the latest_transaction_id
             bill_account.latest_transaction_id = bill_trans_id
             bill_account.current_amount = current_amount
             bill_account.updated_at = today
             bill_account.next_due_date = next_due_date
+            bill_account.single_done = 1 if repeat_frequency < 1 and no_repeat_next < 1 else 0
+            bill_account.auto_update = int(not no_repeat_next)
             db.session.commit()  # Commit the update
 
-            result = 1 if bill_account_id and bill_trans_id else 0
+            result = 1 if bill_account_id else 0
             message = 'Bill account added successfully' if result else 'Bill account addition failed!'
 
         except Exception as ex:

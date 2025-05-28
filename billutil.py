@@ -57,15 +57,14 @@ def generate_bill(
             'payor':None,
             'note':None,
             'current_amount':amount,
+            'pay_date':current_date,
             'due_date':next_pay_date,
             'created_at':datetime.now(),
             'updated_at':datetime.now(),
             'user_id':user_id,
             'admin_id':admin_id,
             'bill_acc_id':bill_acc_id,
-            'payment_status':0,
-            'deleted_at':None,
-            'closed_at':None,
+            'payment_status':0,           
             'repeat_frequency':frequency
 
         }
@@ -92,15 +91,14 @@ def generate_bill(
                 'payor':None,
                 'note':None,
                 'current_amount':amount,
+                'pay_date':current_date,
                 'due_date':next_pay_date,
                 'created_at':datetime.now(),
                 'updated_at':datetime.now(),
                 'user_id':user_id,
                 'admin_id':admin_id,
                 'bill_acc_id':bill_acc_id,
-                'payment_status':0,
-                'deleted_at':None,
-                'closed_at':None,
+                'payment_status':0,               
                 'repeat_frequency':frequency
 
             })
