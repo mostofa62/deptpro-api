@@ -286,6 +286,7 @@ def list_extras_pg(bill_id: int):
         BillTransactions.id,
         BillTransactions.amount, 
         BillTransactions.due_date,
+        BillTransactions.pay_date,
         BillTransactions.type,
         BillTransactions.repeat_frequency
         )\
@@ -324,6 +325,8 @@ def list_extras_pg(bill_id: int):
         # Format `due_date` similarly to MongoDB version
         transaction_data={
             'due_date_word': convertDateTostring(transaction.due_date),
+            'pay_date_word': convertDateTostring(transaction.pay_date),
+            'pay_date': convertDateTostring(transaction.pay_date,('%Y-%m-%d')),
             'due_date': convertDateTostring(transaction.due_date,('%Y-%m-%d')),
             'type':None,
             'amount':transaction.amount,

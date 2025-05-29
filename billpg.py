@@ -230,7 +230,7 @@ def save_bill_account_pg():
             bill_account.current_amount = current_amount
             bill_account.updated_at = today
             bill_account.next_due_date = next_due_date
-            bill_account.single_done = 1 if repeat_frequency < 1 and no_repeat_next < 1 else 0
+            bill_account.single_done = 1 if repeat_frequency < 1 and no_repeat_next > 0 else 0
             bill_account.auto_update = int(not no_repeat_next)
             db.session.commit()  # Commit the update
 
