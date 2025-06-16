@@ -1,8 +1,8 @@
 from collections import defaultdict
 import os
 from flask import jsonify
-from sqlalchemy import Integer, case, cast, func
-from savingutil import get_delta
+from sqlalchemy import Integer, and_, case, cast, func
+from savingutil import get_delta, get_freq_month
 from app import app
 from util import *
 from datetime import datetime
@@ -12,6 +12,7 @@ from dbpg import db
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import OperationalError, TimeoutError, DBAPIError
 import math
+
 
 # Aliasing the SavingBoost table to avoid conflict in the joins
 saving_boosts_1 = aliased(SavingBoost)
@@ -216,6 +217,51 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
     )
     
 
+def generate_projection(data):
+    month_wise_projection = defaultdict(dict)
+
+    for acc in data:
+        ac_id = str(acc['id'])
+        saver = acc['saver']   
+        freq = acc["repeat"]["value"]
+        contribution = acc['contribution']
+        increase_contribution_by = acc['increase_contribution_by']
+        interest = acc['interest']
+        balance = acc['total_balance']        
+        goal_amount = acc['goal_amount']
+        pay_date = acc["next_pay_date"].date()
+
+        while balance < goal_amount:
+            result = get_freq_month(
+                balance,
+                contribution,
+                interest,
+                freq,
+                pay_date
+            )
+
+            pay_date = result["next_pay_date"]
+            balance = result["balance"]
+            period = result["period"]
+            total_contribution = result['total_contribution']
+            total_interest = result['total_interest']
+            interest_rate = result['interest_rate']
+
+            month_label = int(f"{pay_date.year}{pay_date.month:02d}")
+
+            # ✅ Ensure inner dict exists before assigning values
+            if ac_id not in month_wise_projection[month_label]:
+                month_wise_projection[month_label][ac_id] = {}
+
+            month_wise_projection[month_label][ac_id]['balance'] = round(balance, 2)
+            month_wise_projection[month_label][ac_id]['contribution'] = total_contribution
+            month_wise_projection[month_label][ac_id]['interest'] = total_interest
+            month_wise_projection[month_label][ac_id]['interest_rate'] = interest_rate
+            month_wise_projection[month_label][ac_id]['period'] = period
+            month_wise_projection[month_label][ac_id]['saver'] = saver
+
+    return dict(month_wise_projection)
+
   
 
 @app.route('/api/saving-contributions-nextpgu/<int:user_id>', methods=['GET'])
@@ -251,6 +297,18 @@ def saving_contributions_next_pgu(user_id:int):
         # Unpack and round the results, defaulting to 0 if None
         total_balance_xyz = round(result[0] or 0, 2)
         total_goal_amount = round(result[1] or 0, 2)
+
+        next_pay_date = case(
+            (Saving.starting_date >= today, Saving.starting_date),
+            (
+                and_(
+                    Saving.next_contribution_date.isnot(None),
+                    Saving.next_contribution_date >= today
+                ),
+                Saving.next_contribution_date
+            ),
+            else_=None  # or func.null() if needed explicitly
+        ).label("next_pay_date")
         
         query = session.query(
             Saving.id,
@@ -262,7 +320,8 @@ def saving_contributions_next_pgu(user_id:int):
             Saving.period,
             Saving.goal_amount,
             Saving.starting_date,
-            Saving.next_contribution_date.label('next_pay_date'),
+            next_pay_date,
+
             Saving.repeat,            
             Saving.user_id,
             Saving.total_balance,
@@ -280,23 +339,22 @@ def saving_contributions_next_pgu(user_id:int):
             (SavingBoost.saving_id == Saving.id) &            
             (SavingBoost.deleted_at.is_(None)) &
             (SavingBoost.closed_at.is_(None)) &
-            #(SavingBoost.pay_date_boost >= today) &
-            (func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost) >= today) #&  # Use pay_date_boost if next_pay_date_boost is None
-            #(func.coalesce(SavingBoost.next_pay_date_boost, SavingBoost.pay_date_boost) >= Saving.next_pay_date)  # Check if pay_date_boost or next_pay_date_boost is >= saving's next pay date
+            (func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost) >= today)
         ).filter(
             Saving.user_id == user_id,
             Saving.deleted_at.is_(None),
             Saving.closed_at.is_(None),
             Saving.goal_reached.is_(None),
-            Saving.next_contribution_date >=today
+            next_pay_date >= today
         ).order_by(
-            Saving.id,  # Order by saving ID
-            Saving.next_contribution_date.asc(),
-            func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost).asc()  # Order boosts by pay_date in ascending order
+            Saving.id,
+            next_pay_date.asc(),
+            func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost).asc()
         )
 
         results = query.all()
         projections = process_projections(results)
+        gen_projections = generate_projection(projections)
         #projection_list = get_projection_list(projections[0],projections[1])
         projection_list = get_projection_list(projections,total_goal_amount, total_balance_xyz)
 
@@ -373,7 +431,9 @@ def saving_contributions_next_pgu(user_id:int):
     
     return jsonify({
         "payLoads": {
-            'projection_list': projection_list,            
+            'projection_list': projection_list,
+            'projections':projections,
+            'gen_projections':gen_projections,            
             'exception':None
         }
     })

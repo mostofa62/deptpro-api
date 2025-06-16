@@ -1,4 +1,5 @@
-from datetime import datetime
+import calendar
+from datetime import date, datetime, timedelta
 import math
 from dateutil.relativedelta import relativedelta
 
@@ -347,7 +348,39 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     })
 
 
+def get_freq_month(balance,
+                   contribution, 
+                   interest_rate,
+                   frequency,
+                   start_date:date,
+                   i_contribution=0 
+                   ):
+    
+    if frequency < 1:
+        raise ValueError("Frequency must be a positive integer.")
+    
+    year, month = start_date.year, start_date.month
+    last_day = calendar.monthrange(year, month)[1]
+    end_of_month = date(year, month, last_day)
 
+    days_remaining = (end_of_month - start_date).days + 1
+    in_month_count = 1 + (days_remaining - 1) // frequency
+
+    next_pay_date = start_date + timedelta(days=in_month_count * frequency)
+
+    total_contribution = in_month_count * contribution
+    interest_rate = interest_rate / 100
+    total_interest = round(in_month_count * interest_rate,2)
+    balance += total_contribution + total_interest
+    return {
+        #"count": in_month_count,
+        "next_pay_date": next_pay_date,
+        'balance':balance,
+        'total_contribution':total_contribution,
+        'interest_rate':interest_rate,
+        'total_interest':total_interest,
+        'period':in_month_count
+    }
 
 # Function to calculate breakdown based on frequency
 def calculate_breakdown_future(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency,saving_boost=0,
