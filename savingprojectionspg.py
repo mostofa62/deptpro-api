@@ -5,7 +5,7 @@ from sqlalchemy import Integer, and_, case, cast, func
 from savingutil import get_delta, get_freq_month
 from app import app
 from util import *
-from datetime import datetime
+from datetime import datetime,timedelta
 
 from models import AppData, Saving, SavingBoost
 from dbpg import db
@@ -230,6 +230,18 @@ def generate_projection(data):
         balance = acc['total_balance']        
         goal_amount = acc['goal_amount']
         pay_date = acc["next_pay_date"].date()
+        saving_boosts = acc["saving_boosts"]
+
+        # Initialize saving boost tracker
+        boost_states = []
+        for s_b in saving_boosts:
+            next_boost_date = s_b["next_pay_date_boost"].date() if s_b["next_pay_date_boost"] else s_b["pay_date_boost"].date()
+            boost_states.append({
+                "amount": s_b["saving_boost"],
+                "freq": s_b["repeat_boost"]["value"],
+                "next_date": next_boost_date,
+                "applied": False  # default for one-time
+            })
 
         while balance < goal_amount:
             result = get_freq_month(
@@ -237,7 +249,8 @@ def generate_projection(data):
                 contribution,
                 interest,
                 freq,
-                pay_date
+                pay_date,
+                increase_contribution_by
             )
 
             pay_date = result["next_pay_date"]
@@ -246,19 +259,41 @@ def generate_projection(data):
             total_contribution = result['total_contribution']
             total_interest = result['total_interest']
             interest_rate = result['interest_rate']
+            i_contribution = result['i_contribution']
+            total_i_contribution = result['total_i_contribution']
 
             month_label = int(f"{pay_date.year}{pay_date.month:02d}")
 
-            # ✅ Ensure inner dict exists before assigning values
             if ac_id not in month_wise_projection[month_label]:
                 month_wise_projection[month_label][ac_id] = {}
 
+            
+
+            # Apply eligible boosts
+            total_boost = 0
+            for b in boost_states:
+                print('pay date boost and pay date', b["next_date"],pay_date)
+                
+                if b["freq"] == 0:
+                    if not b.get("applied", False) and b["next_date"] <= pay_date:
+                        balance += b["amount"]
+                        total_boost += b["amount"]
+                        b["applied"] = True
+                else:
+                    while b["next_date"] <= pay_date:
+                        balance += b["amount"]
+                        total_boost += b["amount"]
+                        b["next_date"] += get_delta(b["freq"])
+            
+            month_wise_projection[month_label][ac_id]["boosts"] = round(total_boost, 2)
             month_wise_projection[month_label][ac_id]['balance'] = round(balance, 2)
             month_wise_projection[month_label][ac_id]['contribution'] = total_contribution
             month_wise_projection[month_label][ac_id]['interest'] = total_interest
             month_wise_projection[month_label][ac_id]['interest_rate'] = interest_rate
             month_wise_projection[month_label][ac_id]['period'] = period
             month_wise_projection[month_label][ac_id]['saver'] = saver
+            month_wise_projection[month_label][ac_id]['i_contribution'] = i_contribution
+            month_wise_projection[month_label][ac_id]['total_i_contribution'] = total_i_contribution
 
     return dict(month_wise_projection)
 
@@ -309,6 +344,32 @@ def saving_contributions_next_pgu(user_id:int):
             ),
             else_=None  # or func.null() if needed explicitly
         ).label("next_pay_date")
+
+
+        next_pay_date_boost = case(
+            (SavingBoost.pay_date_boost >= today, SavingBoost.pay_date_boost),
+            (
+                and_(
+                    SavingBoost.next_contribution_date.isnot(None),
+                    SavingBoost.next_contribution_date >= today
+                ),
+                SavingBoost.next_contribution_date
+            ),
+            else_=None  # or func.null() if needed explicitly
+        ).label("next_pay_date_boost")
+
+
+        saving_boost_next_pay_date_expr = case(
+            (SavingBoost.pay_date_boost >= today, SavingBoost.pay_date_boost),
+            (
+                and_(
+                    SavingBoost.next_contribution_date.isnot(None),
+                    SavingBoost.next_contribution_date >= today
+                ),
+                SavingBoost.next_contribution_date
+            ),
+            else_=None
+        )
         
         query = session.query(
             Saving.id,
@@ -330,26 +391,32 @@ def saving_contributions_next_pgu(user_id:int):
             SavingBoost.saving_boost,
             SavingBoost.pay_date_boost,
             SavingBoost.repeat_boost,
-            SavingBoost.next_contribution_date.label('next_pay_date_boost'),
+            #SavingBoost.next_contribution_date.label('next_pay_date_boost'),
+            next_pay_date_boost,
             SavingBoost.boost_operation_type,
             SavingBoost.total_balance.label('total_balance_boost'),
             SavingBoost.total_monthly_balance.label('total_monthly_balance_boost')
         ).outerjoin(
-            SavingBoost, 
-            (SavingBoost.saving_id == Saving.id) &            
-            (SavingBoost.deleted_at.is_(None)) &
-            (SavingBoost.closed_at.is_(None)) &
-            (func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost) >= today)
-        ).filter(
+                SavingBoost,
+                and_(
+                    SavingBoost.saving_id == Saving.id,
+                    SavingBoost.deleted_at.is_(None),
+                    SavingBoost.closed_at.is_(None),
+                    saving_boost_next_pay_date_expr.isnot(None),           # ✅ makes CASE usable
+                    saving_boost_next_pay_date_expr >= today               # ✅ explicit comparison
+                )
+            ).filter(
             Saving.user_id == user_id,
             Saving.deleted_at.is_(None),
             Saving.closed_at.is_(None),
             Saving.goal_reached.is_(None),
+            next_pay_date.isnot(None), 
             next_pay_date >= today
         ).order_by(
             Saving.id,
             next_pay_date.asc(),
-            func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost).asc()
+            #func.coalesce(SavingBoost.next_contribution_date, SavingBoost.pay_date_boost).asc()
+            next_pay_date_boost.asc()
         )
 
         results = query.all()

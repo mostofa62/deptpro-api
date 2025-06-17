@@ -368,10 +368,11 @@ def get_freq_month(balance,
 
     next_pay_date = start_date + timedelta(days=in_month_count * frequency)
 
-    total_contribution = in_month_count * contribution
+    total_contribution = round(in_month_count * contribution,2)
     interest_rate = interest_rate / 100
     total_interest = round(in_month_count * interest_rate,2)
-    balance += total_contribution + total_interest
+    total_i_contribution = round(in_month_count * i_contribution,2)
+    balance += total_contribution + total_interest + total_i_contribution
     return {
         #"count": in_month_count,
         "next_pay_date": next_pay_date,
@@ -379,6 +380,8 @@ def get_freq_month(balance,
         'total_contribution':total_contribution,
         'interest_rate':interest_rate,
         'total_interest':total_interest,
+        'i_contribution':i_contribution,
+        'total_i_contribution':total_i_contribution,
         'period':in_month_count
     }
 
