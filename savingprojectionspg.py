@@ -220,6 +220,8 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
 def generate_projection(data):
     month_wise_projection = defaultdict(dict)
 
+    
+
     for acc in data:
         ac_id = str(acc['id'])
         saver = acc['saver']   
@@ -243,7 +245,11 @@ def generate_projection(data):
                 "applied": False  # default for one-time
             })
 
+       
+
         while balance < goal_amount:
+
+            
             result = get_freq_month(
                 balance,
                 contribution,
@@ -262,7 +268,13 @@ def generate_projection(data):
             i_contribution = result['i_contribution']
             total_i_contribution = result['total_i_contribution']
 
+            
+
             month_label = int(f"{pay_date.year}{pay_date.month:02d}")
+            month_word = convertDateTostring(pay_date, "%b, %Y")
+
+            if 'total_balance' not in month_wise_projection[month_label]:
+                month_wise_projection[month_label]['total_balance'] = 0
 
             if ac_id not in month_wise_projection[month_label]:
                 month_wise_projection[month_label][ac_id] = {}
@@ -272,7 +284,7 @@ def generate_projection(data):
             # Apply eligible boosts
             total_boost = 0
             for b in boost_states:
-                print('pay date boost and pay date', b["next_date"],pay_date)
+                #print('pay date boost and pay date', b["next_date"],pay_date)
                 
                 if b["freq"] == 0:
                     if not b.get("applied", False) and b["next_date"] <= pay_date:
@@ -280,11 +292,25 @@ def generate_projection(data):
                         total_boost += b["amount"]
                         b["applied"] = True
                 else:
-                    while b["next_date"] <= pay_date:
+                    month_label_n_d = int(f"{b['next_date'].year}{b['next_date'].month:02d}")
+                    #print(month_label_n_d, month_label)
+                    if month_label_n_d == month_label:
                         balance += b["amount"]
                         total_boost += b["amount"]
                         b["next_date"] += get_delta(b["freq"])
+
             
+            #print('acc:balance',ac_id,balance)
+            #extra = 0
+            #total_balance += balance
+            if(balance > goal_amount):
+                del month_wise_projection[month_label][ac_id]
+                break
+                #extra = balance - goal_amount
+                #balance = goal_amount
+            #month_wise_projection[month_label][ac_id]['extra'] = round(extra,2)
+            month_wise_projection[month_label]['total_balance'] += round(balance,2)
+            month_wise_projection[month_label]['month_word'] = month_word
             month_wise_projection[month_label][ac_id]["boosts"] = round(total_boost, 2)
             month_wise_projection[month_label][ac_id]['balance'] = round(balance, 2)
             month_wise_projection[month_label][ac_id]['contribution'] = total_contribution
@@ -295,7 +321,8 @@ def generate_projection(data):
             month_wise_projection[month_label][ac_id]['i_contribution'] = i_contribution
             month_wise_projection[month_label][ac_id]['total_i_contribution'] = total_i_contribution
 
-    return dict(month_wise_projection)
+    #return dict(month_wise_projection)
+    return [{'month': month, **info} for month, info in month_wise_projection.items()]
 
   
 
@@ -421,13 +448,14 @@ def saving_contributions_next_pgu(user_id:int):
 
         results = query.all()
         projections = process_projections(results)
-        gen_projections = generate_projection(projections)
+        projection_list = generate_projection(projections)
         #projection_list = get_projection_list(projections[0],projections[1])
-        projection_list = get_projection_list(projections,total_goal_amount, total_balance_xyz)
+        #projection_list = get_projection_list(projections,total_goal_amount, total_balance_xyz)
 
         financial_freedom_month = projection_list[-1]['month'] if projection_list else None
         financial_freedom_target = int(round(projection_list[-1]['total_balance'],0)) if projection_list else None
-        print(financial_freedom_month,financial_freedom_target, app_data.financial_freedom_target,app_data.financial_freedom_target!=financial_freedom_target )
+        #financial_freedom_target = 0
+        #print(financial_freedom_month,financial_freedom_target, app_data.financial_freedom_target,app_data.financial_freedom_target!=financial_freedom_target )
         if app_data \
         and \
         (app_data.financial_freedom_month!=financial_freedom_month \
@@ -500,7 +528,7 @@ def saving_contributions_next_pgu(user_id:int):
         "payLoads": {
             'projection_list': projection_list,
             'projections':projections,
-            'gen_projections':gen_projections,            
+            #'gen_projections':gen_projections,            
             'exception':None
         }
     })
