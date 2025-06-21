@@ -13,3 +13,4 @@ Flask-Alembic ##only for migration
 Flask-Migrate ##only required for migration
 psycopg2
 gunicorn
+pandas
