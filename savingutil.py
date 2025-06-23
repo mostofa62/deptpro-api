@@ -203,6 +203,19 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     current_datetime_now = datetime.now()
     is_single = 0
 
+    if current_date > current_datetime_now:
+        return ({
+        'breakdown':months_breakdown,
+        'next_contribution_date':None,
+        'progress':progress,
+        'total_balance':total_balance,
+        'total_balance_xyz':total_balance_xyz,
+        'goal_reached':goal_reached,
+        'period':period,
+        'is_single':is_single,
+        'total_monthly_balance_xyz':total_monthly_balance_xyz
+    })
+
     if current_datetime_now <= next_contribution_date:
         is_single = 1
 

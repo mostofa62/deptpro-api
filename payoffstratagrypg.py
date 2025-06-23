@@ -9,12 +9,13 @@ from datetime import datetime
 
 from models import DebtAccounts, UserSettings, PayoffStrategy, PaymentBoost, DebtType
 from dbpg import db
-
+from db import my_col
+debt_user_setting = my_col('debt_user_setting')
 
 @app.route("/api/get-payoff-strategypg/<int:user_id>/<int:init_state>", methods=['GET'])
 def get_payoff_strategy_pg(user_id: int, init_state: int):
     payoff_strategy_data = {}
-
+    '''
     if init_state > 0:
         user_setting = UserSettings.query.filter_by(user_id=user_id).first()
         if user_setting:
@@ -24,6 +25,7 @@ def get_payoff_strategy_pg(user_id: int, init_state: int):
                 'monthly_budget': user_setting.monthly_budget
             }
     else:
+        
         payoff_strategy = PayoffStrategy.query.filter_by(user_id=user_id).first()
         if payoff_strategy:
             payoff_strategy_data = {
@@ -39,6 +41,14 @@ def get_payoff_strategy_pg(user_id: int, init_state: int):
                     'selected_month': {"value": 1, "label": "Use Current Month"},
                     'monthly_budget': user_setting.monthly_budget
                 }
+        '''
+    user_setting = UserSettings.query.filter_by(user_id=user_id).first()
+    if user_setting:
+        payoff_strategy_data = {
+            'debt_payoff_method': user_setting.debt_payoff_method,
+            'selected_month': {"value": 1, "label": "Use Current Month"},
+            'monthly_budget': user_setting.monthly_budget
+        }
 
     return jsonify({
         "payoff_strategy": payoff_strategy_data
@@ -49,12 +59,19 @@ def get_payoff_strategy_pg(user_id: int, init_state: int):
 def save_payoff_strategy_pg():
     if request.method == 'POST':
         data = json.loads(request.data)        
-        payoff_strategy_id = None
-        payoff_id = data['user_id']
+        ## payoff_strategy_id = None
+        ## payoff_id = data['user_id']
+        user_id = int(data['user_id'])
         message = ''
         result = 0
 
+        user_setting_id = None
+        change_found_monthly_budget = False
+        change_found_debt_payoff_method = False
+        is_new_settings = False
+
         try:
+            '''
             # Attempt to find the PayoffStrategy for the given user_id
             payoff_strategy = PayoffStrategy.query.filter_by(user_id=payoff_id).first()
 
@@ -75,19 +92,77 @@ def save_payoff_strategy_pg():
                 db.session.add(payoff_strategy)
                 message = 'Settings saved!'
 
+            '''
+            user_setting = (
+                db.session.query(UserSettings)
+                .filter(UserSettings.user_id == user_id)
+                .first()
+            )
+
+            if user_setting:
+                print('both budget: ', data['monthly_budget'], round(user_setting.monthly_budget), are_floats_equal(float(data['monthly_budget']), round(user_setting.monthly_budget,0)))
+                change_found_monthly_budget = False if are_floats_equal(float(data['monthly_budget']), user_setting.monthly_budget) else True
+                change_found_debt_payoff_method = False if data['debt_payoff_method']['value'] == user_setting.debt_payoff_method['value'] else True
+                # Update existing user setting
+                user_setting.monthly_budget = float(data['monthly_budget'])
+                user_setting.debt_payoff_method = data['debt_payoff_method']
+                message = 'Settings updated!'
+                user_setting_id = user_setting.id
+                is_new_settings = False
+                
+            else:
+                change_found_monthly_budget = False
+                change_found_debt_payoff_method = False
+                is_new_settings = True
+                # Create a new user setting
+                new_user_setting = UserSettings(
+                    user_id=user_id,
+                    monthly_budget=float(data['monthly_budget']),
+                    debt_payoff_method=data['debt_payoff_method']
+                )
+                db.session.add(new_user_setting)
+                message = 'Settings saved!'
+                user_setting_id = new_user_setting.user_id
+            
+            
+            debt_acc_query = {                               
+                "user_id":user_id
+            }
+            
+
+            update_json = {
+                'user_monthly_budget':float(data['monthly_budget']),
+                'debt_payoff_method':data['debt_payoff_method'],
+                'ammortization_at':None,
+            }
+            if is_new_settings:
+                update_json['ammortization_at']  = datetime.now()
+            
+            if change_found_monthly_budget and not is_new_settings:
+                update_json['ammortization_at']  = None
+                                      
+            if change_found_debt_payoff_method and not is_new_settings:
+                update_json['ammortization_at']  = None    
+            
+            newvalues = { "$set": update_json }
+                
+            if is_new_settings or change_found_monthly_budget or change_found_debt_payoff_method:
+                debt_user_setting.update_one(debt_acc_query,newvalues, upsert=True)
+
             # Commit changes to the database
             db.session.commit()
-            payoff_strategy_id = payoff_strategy.id  # Get the ID of the saved/updated strategy
+            ###payoff_strategy_id = payoff_strategy.id  # Get the ID of the saved/updated strategy
             result = 1
             
         except Exception as ex:
             print('PAYOFF EXP: ', ex)
-            payoff_strategy_id = None
+            ###payoff_strategy_id = None
             result = 0
             message = 'Settings Failed!'
 
         return jsonify({
-            "payoff_strategy_id": payoff_strategy_id,
+            ##"payoff_strategy_id": payoff_strategy_id,
+            "user_setting_id": user_setting_id,
             "message": message,
             "result": result
         })
@@ -131,6 +206,15 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
         UserSettings.debt_payoff_method, 
         UserSettings.monthly_budget
     ).filter(UserSettings.user_id == user_id).first()
+    ## direct load from user settings
+    if user_setting:
+        payoff_strategy_data = {
+            'debt_payoff_method': user_setting.debt_payoff_method,
+            'monthly_budget': user_setting.monthly_budget
+        }
+        debt_payoff_method = user_setting.debt_payoff_method['value']
+
+    '''
 
     if init_state > 0:        
         if user_setting:
@@ -153,7 +237,7 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
                 'monthly_budget': payoff_strategy.monthly_budget
             }
             debt_payoff_method = payoff_strategy.debt_payoff_method['value']
-        
+    '''    
     #print('payoff_strategy_data',payoff_strategy_data, datetime.now())        
     # Fetch debt types where deleted_at is None
     # Query the debt types directly and create a dictionary

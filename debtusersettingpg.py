@@ -52,7 +52,7 @@ def save_user_settings_pg():
     if request.method == 'POST':
         data = request.get_json()  # Using get_json() is safer and cleaner
         
-        user_id = data['user_id']
+        user_id = int(data['user_id'])
         message = ''
         result = 0
         user_setting_id = None

@@ -90,25 +90,25 @@ async def header_summary_data_pg(user_id:int):
 
 
 
-        # monthly_bill_totals = session.query(
-        #     func.sum(BillTransactions.amount).label('monthly_bill_totals')
-        # ).join(
-        #     BillTransactions.bill_account
-        # ).filter(
-        #     BillTransactions.user_id == user_id,
-        #     extract('year', BillTransactions.due_date) == target_year,
-        #     extract('month', BillTransactions.due_date) == target_month,
-        #     BillTransactions.type == 1,
-        #     BillAccounts.deleted_at.is_(None),  # Make sure related account is not deleted
-        #     BillAccounts.closed_at.is_(None)    # Make sure related account is not closed
-        # ).scalar() or 0
-
         monthly_bill_totals = session.query(
-            func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
+            func.sum(BillTransactions.amount).label('monthly_bill_totals')
+        ).join(
+            BillTransactions.bill_account
         ).filter(
-            BillAccounts.user_id == user_id,
-            BillAccounts.deleted_at.is_(None)
+            BillTransactions.user_id == user_id,
+            extract('year', BillTransactions.due_date) == target_year,
+            extract('month', BillTransactions.due_date) == target_month,
+            BillTransactions.type == 1,
+            BillAccounts.deleted_at.is_(None),  # Make sure related account is not deleted
+            BillAccounts.closed_at.is_(None)    # Make sure related account is not closed
         ).scalar() or 0
+
+        # monthly_bill_totals = session.query(
+        #     func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
+        # ).filter(
+        #     BillAccounts.user_id == user_id,
+        #     BillAccounts.deleted_at.is_(None)
+        # ).scalar() or 0
 
         # Get the total amount or default to 0 if no result
         #monthly_bill_totals = round(result.total_amount, 2) if result and result.total_amount else 0
