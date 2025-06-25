@@ -163,12 +163,28 @@ def get_single_breakdown(initial_amount, contribution, annual_interest_rate, goa
         'period':period
     })
 
-
+FREQUENCY_MAP = {
+    1: 365,
+    7: 52,
+    14: 26,     # every 2 weeks
+    30: 12,
+    90: 4,     # every 3 months
+    365:1
+}
 #compount breakdown
 # Function to calculate breakdown based on frequency
-def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal_amount, start_date, frequency, i_contribution=0,period=0):
-    # n = 12  # Compounded monthly (for interest)
-    # monthly_rate = annual_interest_rate / n  # Monthly interest rate (same across frequencies)
+def calculate_breakdown(initial_amount, 
+                        contribution, 
+                        annual_interest_rate, 
+                        goal_amount, 
+                        start_date, 
+                        frequency, 
+                        i_contribution=0,
+                        period=0,
+                        interest_type=1
+                        ):
+   
+    periods_per_year = FREQUENCY_MAP[frequency]
 
     total_balance = 0
     total_balance_xyz = 0
@@ -180,24 +196,19 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
     delta = get_delta(frequency)
     
     months_breakdown = []
-    balance = initial_amount
+    balance = initial_amount #start with starting amount
     
     current_date = start_date
-    
-    
-    interest_rate = annual_interest_rate / 100
-
-    # Adjust interest calculation for non-monthly contributions
-    daily_rate = interest_rate / 365  # Daily interest rate based on the annual rate
-
-    # Get the current date to stop if the current month is exceeded
-    #current_month_end = datetime.now().replace(day=1) + relativedelta(months=1) - relativedelta(days=1)
+        
+    interest_rate = annual_interest_rate / 100    
+    rate_per_period = (interest_rate / 100) / periods_per_year    
 
     next_contribution_date = current_date + delta
     progress = 0
     inc_contri=0
     contribution_i=0
     contribution_i_intrs=0
+    interest=0.0
     
     #less then current date
     current_datetime_now = datetime.now()
@@ -221,23 +232,27 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
 
         # Calculate next contribution date
         next_contribution_date = current_date + delta
-        
-        
-        days_in_period = (next_contribution_date - current_date).days
-        interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
-        
-        balance += interest + contribution
+                        
         period += 1
         #increase contribution by periodically
-        inc_contri = period * i_contribution
-        balance += inc_contri
+        inc_contri = period * i_contribution        
         #increase contribution end
 
         #contribution_with_increse
-        contribution_i =  contribution + inc_contri
+        contribution_i +=  contribution + inc_contri
         #end contribution_with_increase
+        if interest_type > 1:
 
-        contribution_i_intrs = interest + contribution_i
+            balance += contribution_i
+            contribution_i_intrs = contribution_i
+            interest = (balance * rate_per_period)
+            balance += interest
+
+        else:
+
+            interest = (contribution_i * rate_per_period)
+            contribution_i_intrs = interest + contribution_i
+            balance += contribution_i_intrs            
 
         
         # Calculate progress towards the goal
@@ -266,12 +281,13 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
         }
 
         if month == int(current_datetime_now.strftime('%Y%m')):
-            total_monthly_balance_xyz += (interest + contribution + (period * i_contribution) )
+            #total_monthly_balance_xyz += (interest + contribution + (period * i_contribution) )
+            total_monthly_balance_xyz+= contribution_i_intrs
             
         
 
 
-    # Calculate a date 3 years from the original current date
+    # Calculate a date 10 years from the original current date
     limit_years = current_date + relativedelta(years=10)
 
     if next_contribution_date <= current_datetime_now:
@@ -280,23 +296,28 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
             
             # Calculate next contribution date
             next_contribution_date = current_date + delta
-            
-            
-            days_in_period = (next_contribution_date - current_date).days
-            interest = balance * (daily_rate * days_in_period)  # Interest calculated based on the days between contributions
-            
-            balance += interest + contribution
+                                   
             period += 1
             #increase contribution by periodically
-            inc_contri = period * i_contribution
-            balance += inc_contri
+            inc_contri = period * i_contribution            
             #increase contribution end
 
             #contribution_with_increse
-            contribution_i =  contribution + inc_contri
+            contribution_i +=  contribution + inc_contri
             #end contribution_with_increase
 
-            contribution_i_intrs = interest + contribution_i
+            if interest_type > 1:
+
+                balance += contribution_i
+                contribution_i_intrs = contribution_i
+                interest = (balance * rate_per_period)
+                balance += interest
+
+            else:
+
+                interest = (contribution_i * rate_per_period)
+                contribution_i_intrs = interest + contribution_i
+                balance += contribution_i_intrs            
 
             
             # Calculate progress towards the goal
@@ -327,7 +348,8 @@ def calculate_breakdown(initial_amount, contribution, annual_interest_rate, goal
                 "next_contribution_date": next_contribution_date           
             })
             if month == int(current_datetime_now.strftime('%Y%m')):
-                total_monthly_balance_xyz += (interest + contribution + (period * i_contribution) )
+                #total_monthly_balance_xyz += (interest + contribution + (period * i_contribution) )
+                total_monthly_balance_xyz+= contribution_i_intrs
 
             # Stop if the next contribution date exceeds the current date
             if next_contribution_date > current_datetime_now:
@@ -366,11 +388,14 @@ def get_freq_month(balance,
                    interest_rate,
                    frequency,
                    start_date:date,
-                   i_contribution=0 
+                   i_contribution=0,
+                   interest_type=1 
                    ):
     
     if frequency < 1:
         raise ValueError("Frequency must be a positive integer.")
+    
+    periods_per_year = FREQUENCY_MAP[frequency]
     
     year, month = start_date.year, start_date.month
     last_day = calendar.monthrange(year, month)[1]
@@ -379,13 +404,22 @@ def get_freq_month(balance,
     days_remaining = (end_of_month - start_date).days + 1
     in_month_count = 1 + (days_remaining - 1) // frequency
 
+    interest_rate = interest_rate / 100
+    rate_per_period = interest_rate  / periods_per_year
+
     next_pay_date = start_date + timedelta(days=in_month_count * frequency)
 
-    total_contribution = round(in_month_count * contribution,2)
-    interest_rate = interest_rate / 100
-    total_interest = round(in_month_count * interest_rate,2)
+    total_contribution = round(in_month_count * contribution,2)    
+    total_interest = round(in_month_count * rate_per_period,2)
     total_i_contribution = round(in_month_count * i_contribution,2)
-    balance += total_contribution + total_interest + total_i_contribution
+    if interest_type > 1:
+        balance += total_contribution + total_i_contribution
+        interest = (balance * rate_per_period)
+        balance += interest
+    else:
+        balance += total_contribution + total_interest + total_i_contribution
+
+    #balance += total_contribution + total_interest + total_i_contribution
     return {
         #"count": in_month_count,
         "next_pay_date": next_pay_date,

@@ -41,7 +41,8 @@ def process_projections(results=None):
                     "starting_amount": row.starting_amount,
                     "goal_amount": row.goal_amount,
                     "increase_contribution_by": row.increase_contribution_by, 
-                    "interest": row.interest,                   
+                    "interest": row.interest,
+                    "interest_type":row.interest_type,                   
                     "total_balance": row.total_balance_xyz,
                     "period": row.period,
                     "starting_date": row.starting_date,
@@ -233,6 +234,7 @@ def generate_projection(data):
         contribution = acc['contribution']
         increase_contribution_by = acc['increase_contribution_by']
         interest = acc['interest']
+        interest_type = acc['interest_type']['value']
         balance = acc['total_balance']        
         goal_amount = acc['goal_amount']
         pay_date = acc["next_pay_date"].date()
@@ -262,7 +264,8 @@ def generate_projection(data):
                 interest,
                 freq,
                 pay_date,
-                increase_contribution_by
+                increase_contribution_by,
+                interest_type
             )
 
             pay_date = result["next_pay_date"]
@@ -438,7 +441,7 @@ def saving_contributions_next_pgu(user_id:int):
             Saving.goal_amount,
             Saving.starting_date,
             next_pay_date,
-
+            Saving.interest_type,
             Saving.repeat,            
             Saving.user_id,
             Saving.total_balance,

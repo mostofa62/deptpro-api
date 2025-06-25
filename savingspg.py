@@ -577,9 +577,10 @@ async def save_saving_pg():
         i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
         repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None        
         financial_freedom_target = round(float(data.get("financial_freedom_target", 0)),2)
-
+        interest_type = data['interest_type']['value']
         commit = datetime.now()            
-        goal_reached = None                    
+        goal_reached = None 
+        period = 0                   
 
         contribution_breakdown = calculate_breakdown(
             starting_amount,
@@ -588,7 +589,10 @@ async def save_saving_pg():
             goal_amount, 
             starting_date,
             repeat,
-            i_contribution)
+            i_contribution,
+            period,
+            interest_type
+            )
         breakdown = contribution_breakdown['breakdown']
         total_balance = contribution_breakdown['total_balance']
         total_balance_xyz = contribution_breakdown['total_balance_xyz']
