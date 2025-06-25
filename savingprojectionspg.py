@@ -257,6 +257,22 @@ def generate_projection(data):
 
         while balance < goal_amount:
 
+            month_label = int(f"{pay_date.year}{pay_date.month:02d}")
+            month_word = convertDateTostring(pay_date, "%b, %Y")
+
+
+            if 'data' not in month_wise_projection[month_label]:
+                month_wise_projection[month_label]['data'] = {}
+
+            if ac_id not in month_wise_projection[month_label]['data']:
+                month_wise_projection[month_label]['data'][ac_id] = {}
+
+            if 'month_word' not in month_wise_projection[month_label]:
+                month_wise_projection[month_label]['month_word'] = month_word
+
+            if ac_id not in month_wise_projection[month_label]:                
+                month_wise_projection[month_label][ac_id] = 0
+
             
             result = get_freq_month(
                 balance,
@@ -268,7 +284,7 @@ def generate_projection(data):
                 interest_type
             )
 
-            pay_date = result["next_pay_date"]
+            
             balance = result["balance"]
             period = result["period"]
             total_contribution = result['total_contribution']
@@ -277,33 +293,15 @@ def generate_projection(data):
             i_contribution = result['i_contribution']
             total_i_contribution = result['total_i_contribution']
 
-            
-
-            month_label = int(f"{pay_date.year}{pay_date.month:02d}")
-            month_word = convertDateTostring(pay_date, "%b, %Y")
-
-            if 'data' not in month_wise_projection[month_label]:
-                month_wise_projection[month_label]['data'] = {}
-
-            if ac_id not in month_wise_projection[month_label]['data']:
-                month_wise_projection[month_label]['data'][ac_id] = {}
-
-            if 'month_word' not in month_wise_projection[month_label]:
-                month_wise_projection[month_label]['month_word'] = month_word
-
-            if ac_id not in month_wise_projection[month_label]:
-                
-                month_wise_projection[month_label][ac_id] = 0
-
-            
-
             # Apply eligible boosts
             total_boost = 0
             for b in boost_states:
                 
                 
                 if b["freq"] == 0:
-                    if not b.get("applied", False) and b["next_date"] <= pay_date:
+                    month_label_n_d = int(f"{b['next_date'].year}{b['next_date'].month:02d}")
+                    #if not b.get("applied", False) and b["next_date"] <= pay_date:
+                    if not b.get("applied", False) and month_label_n_d == month_label:
                         if b["op_type"] < 2:
                             balance += b["amount"]
                             total_boost += b["amount"]
@@ -343,6 +341,8 @@ def generate_projection(data):
             month_wise_projection[month_label]['data'][ac_id]['total_period_contribution'] = total_i_contribution
             month_wise_projection[month_label]['data'][ac_id]['goal_amount'] = goal_amount
             month_wise_projection[month_label]['data'][ac_id]['frequency'] = acc["repeat"]["label"]
+
+            pay_date = result["next_pay_date"]
 
     
 
@@ -705,7 +705,7 @@ def saving_contributions_next_pg_data(user_id:int):
             Saving.goal_amount,
             Saving.starting_date,
             next_pay_date,
-
+            Saving.interest_type,
             Saving.repeat,            
             Saving.user_id,
             Saving.total_balance,
