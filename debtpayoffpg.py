@@ -5,7 +5,7 @@ from app import app
 from util import *
 from models import  DebtAccounts, DebtType, UserSettings
 from dbpg import db
-
+from sqlalchemy.dialects import postgresql
 from db import my_col
 debt_accounts_log = my_col('debt_accounts_log')
 
@@ -16,7 +16,18 @@ def debtpayoff_pg(user_id: int):
     page_size = data.get('pageSize', 10)
 
     # Query DebtAccounts and join DebtType
-    query = db.session.query(DebtAccounts, DebtType.name).join(
+    query = db.session.query(
+        DebtAccounts.id,
+        DebtAccounts.name,
+        DebtAccounts.payor,
+        DebtAccounts.balance,
+        DebtAccounts.interest_rate,
+        DebtAccounts.monthly_payment,
+        DebtAccounts.monthly_interest,
+        DebtAccounts.due_date,
+        DebtAccounts.custom_payoff_order,
+        DebtType.name
+        ).join(
         DebtType, DebtAccounts.debt_type_id == DebtType.id
     ).filter(
         DebtAccounts.user_id == user_id,
@@ -24,28 +35,42 @@ def debtpayoff_pg(user_id: int):
         DebtAccounts.closed_at == None
     ).order_by(DebtAccounts.custom_payoff_order)
 
+    compiled = query.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+    print(str(compiled))
+
     # Get total count of matching records
     total_count = query.count()
 
     # Paginate results
-    debts = query.offset(page_index * page_size).limit(page_size).all()
-
+    #debts = query.offset(page_index * page_size).limit(page_size).all()
+    debts = query.all()
     
 
     # Create a list of debt entries
     debt_entries = []
-    for debt, debt_type_name in debts:
+    for (
+        id,
+        name,
+        payor,
+        balance,
+        interest_rate,
+        monthly_payment,
+        monthly_interest,
+        due_date,
+        custom_payoff_order,
+        debt_type_name
+    ) in debts:
         debt_entry = {
-            "id": debt.id,
-            "name": debt.name,
+            "id": id,
+            "name": name,
             "debt_type": debt_type_name,  # Directly from the join
-            "payor": debt.payor,
-            "balance": round(debt.balance, 2),
-            "interest_rate": debt.interest_rate,
-            "monthly_payment": round(debt.monthly_payment, 2),
-            "monthly_interest": round(debt.monthly_interest, 2),
-            "due_date": convertDateTostring(debt.due_date),
-            "custom_payoff_order": debt.custom_payoff_order
+            "payor": payor,
+            "balance": round(balance, 2),
+            "interest_rate": interest_rate,
+            "monthly_payment": round(monthly_payment, 2),
+            "monthly_interest": round(monthly_interest, 2),
+            "due_date": convertDateTostring(due_date),
+            "custom_payoff_order": custom_payoff_order
         }
         debt_entries.append(debt_entry)
 
@@ -60,7 +85,7 @@ def debtpayoff_pg(user_id: int):
 
 
 
-from sqlalchemy import case
+from sqlalchemy import case, update
 
 @app.route('/api/update-payoff-orderpg', methods=['POST'])
 def update_payoff_order_pg():
@@ -70,18 +95,45 @@ def update_payoff_order_pg():
         return jsonify({'message': 'No data provided'}), 400
 
     try:
+        
         # Prepare the case expressions for each `id` and `custom_payoff_order`
+        '''
         update_cases = [
             (DebtAccounts.id == item["id"], item["custom_payoff_order"]) for item in data
         ]
 
+    
         # Create the case statement, using the unpacking operator (*) to pass conditions as positional arguments
         custom_payoff_case = case(*update_cases, else_=DebtAccounts.custom_payoff_order)
+        '''
+
+       
+
+        conditions = [
+            (DebtAccounts.id == item["id"], item["custom_payoff_order"]) for item in data
+        ]
+        custom_payoff_case = case(*conditions)
+
+        ids_to_update = [item["id"] for item in data]
+
+        # Build the UPDATE statement
+        stmt = (
+            update(DebtAccounts)
+            .where(DebtAccounts.id.in_(ids_to_update))
+            .values(custom_payoff_order=custom_payoff_case)
+        )
+        # Print the raw SQL
+        compiled = stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+        print(str(compiled))
+
+
+        db.session.execute(stmt)
 
         # Perform the update using a single query
-        db.session.query(DebtAccounts).update({
-            DebtAccounts.custom_payoff_order: custom_payoff_case
-        })
+        # db.session.query(DebtAccounts).update({
+        #     DebtAccounts.custom_payoff_order: custom_payoff_case
+        # })        
+
 
         operations = [
             UpdateOne(
@@ -103,6 +155,7 @@ def update_payoff_order_pg():
         return jsonify({'message': message}), 200
 
     except Exception as e:
+        print('exceptio',e)
         db.session.rollback()  # Rollback in case of error
         return jsonify({'message': f'An error occurred: {str(e)}'}), 200
 

@@ -181,7 +181,8 @@ def calculate_breakdown(initial_amount,
                         frequency, 
                         i_contribution=0,
                         period=0,
-                        interest_type=1
+                        interest_type=1,
+                        savings_strategy=2
                         ):
    
     periods_per_year = FREQUENCY_MAP[frequency]
@@ -312,6 +313,7 @@ def calculate_breakdown(initial_amount,
                 contribution_i_intrs = contribution_i
                 interest = (balance * rate_per_period)
                 balance += interest
+                contribution_i_intrs += interest
 
             else:
 
