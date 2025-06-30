@@ -171,6 +171,118 @@ FREQUENCY_MAP = {
     90: 4,     # every 3 months
     365:1
 }
+
+def calculate_breakdown_ontime(initial_amount, 
+                        contribution, 
+                        annual_interest_rate, 
+                        goal_amount, 
+                        start_date,                                                 
+                        period=0,
+                        interest_type=1,
+                        savings_strategy=2,
+                        op_type=1
+                        ):
+    
+    periods_per_year = FREQUENCY_MAP[1]
+    
+    total_balance = 0
+    total_balance_xyz = 0
+    goal_reached = None
+    contribution = -contribution if op_type > 1 else contribution
+    total_monthly_balance_xyz = 0
+    months_breakdown = []
+    balance = initial_amount #start with starting amount    
+    current_date = start_date        
+    interest_rate = annual_interest_rate / 100
+    rate_per_period = (interest_rate / 100) / periods_per_year 
+
+    progress = 0
+    inc_contri=0
+    contribution_i=0
+    contribution_i_intrs=0
+    interest=0.0
+    
+    #less then current date
+    current_datetime_now = datetime.now()
+    is_single = 1
+
+    if current_date > current_datetime_now:
+        return ({
+        'breakdown':months_breakdown,
+        'next_contribution_date':None,
+        'progress':progress,
+        'total_balance':total_balance,
+        'total_balance_xyz':total_balance_xyz,
+        'goal_reached':goal_reached,
+        'period':period,
+        'is_single':is_single,
+        'total_monthly_balance_xyz':total_monthly_balance_xyz
+    })
+
+    period += 1
+    next_contribution_date = None
+    if interest_type > 1:
+
+        balance += contribution
+        contribution_i_intrs = contribution
+        interest = (balance * rate_per_period)
+        balance += interest
+
+    else:
+
+        interest = (contribution * rate_per_period)
+        contribution_i_intrs = interest + contribution
+        balance += contribution_i_intrs
+
+    progress = ((balance / goal_amount) * 100) if savings_strategy > 1 else 100
+
+    month = int(current_date.strftime("%Y%m"))
+
+    months_breakdown = {
+            "period": period,
+            "month": month,            
+            "interest": round(interest, 2),
+            'interest_xyz':round(interest, 2),
+            "contribution": contribution,
+            "contribution_i":contribution_i,
+            "contribution_i_intrs":round(contribution_i_intrs,2),
+            'contribution_i_intrs_xyz':round(contribution_i_intrs,2),
+            "increase_contribution":0,
+            "increase_contribution_prd":inc_contri,
+            "total_balance": round(balance, 2),
+            "total_balance_xyz": round(balance, 2),
+            "progress": round(progress, 2),
+            "progress_xyz": round(progress, 2),
+            "contribution_date":current_date,
+            "next_contribution_date": next_contribution_date           
+        }
+    
+    if month == int(current_datetime_now.strftime('%Y%m')):
+            total_monthly_balance_xyz+= contribution_i_intrs
+
+    total_balance = balance
+    total_balance_xyz = balance
+
+    if savings_strategy > 1 and balance >= goal_amount:
+        progress = round(100,2)
+        goal_reached = current_datetime_now
+        next_contribution_date = None
+
+    return ({
+        'breakdown':months_breakdown,
+        'next_contribution_date':next_contribution_date,
+        'progress':math.floor(progress),
+        'total_balance':round(total_balance, 2),
+        'total_balance_xyz':round(total_balance_xyz,2),
+        'goal_reached':goal_reached,
+        'period':period,
+        'is_single':is_single,
+        'total_monthly_balance_xyz':round(total_monthly_balance_xyz,2)
+    })
+    
+    
+
+
 #compount breakdown
 # Function to calculate breakdown based on frequency
 def calculate_breakdown(initial_amount, 
@@ -182,7 +294,8 @@ def calculate_breakdown(initial_amount,
                         i_contribution=0,
                         period=0,
                         interest_type=1,
-                        savings_strategy=2
+                        savings_strategy=2,
+                        op_type=1
                         ):
    
     periods_per_year = FREQUENCY_MAP[frequency]
@@ -190,6 +303,8 @@ def calculate_breakdown(initial_amount,
     total_balance = 0
     total_balance_xyz = 0
     goal_reached = None
+
+    contribution = -contribution if op_type > 1 else contribution
     
     total_monthly_balance_xyz = 0
     

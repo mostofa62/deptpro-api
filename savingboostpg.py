@@ -2,7 +2,7 @@ import os
 from flask import request,jsonify, json
 from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
-from savingutil import calculate_breakdown, get_next_contribution_date
+from savingutil import calculate_breakdown, calculate_breakdown_ontime, get_next_contribution_date
 from pgutils import new_entry_option_data
 from app import app
 import re
@@ -177,15 +177,15 @@ async def save_saving_boost_pg():
 
         # Retrieve the Saving record using SQLAlchemy query
         saving_entry = db.session.query(
-            Saving.total_balance_xyz,            
+            Saving.total_balance,
+            Saving.total_balance_xyz,
+            Saving.total_monthly_balance,            
             Saving.commit, 
             Saving.user_id,
-            Saving.next_contribution_date,
+            Saving.goal_amount,
             Saving.interest,
             Saving.interest_type,
-            Saving.savings_strategy,
-            Saving.goal_amount,
-            Saving.period
+            Saving.savings_strategy
         ).filter_by(
             id=saving_id           
         ).first()
@@ -193,23 +193,20 @@ async def save_saving_boost_pg():
         total_balance,total_balance_xyz, total_monthly_balance, commit, user_id,\
         goal_amount, interest, interest_type, savings_strategy = saving_entry
 
-        starting_date = data['pay_date_boost']
-        goal_amount = goal_amount
-        interest = interest
+
         starting_amount = total_balance_xyz
         contribution = round(float(data.get("saving_boost", 0)),2)
         i_contribution = 0
         repeat = data['repeat_boost']['value']
-        interest_type = interest_type
-        savings_strategy= savings_strategy
-        commit = commit
         goal_reached = None 
-        period = 0        
+        period = 0
+        op_type = data['boost_operation_type']['value']        
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-        pay_date_boost = data['pay_date_boost']              
-        saving_boost = float(data.get("saving_boost", 0))            
-
+        pay_date_boost = convertStringTodate(data['pay_date_boost'])
+        interest_type = interest_type['value']
+        savings_strategy = savings_strategy['value']            
+        
         merge_data = {    
             'saving_id': saving_id,            
             'saving_boost_source_id': new_entry_option_data(data['saving_boost_source'], SavingBoostType, user_id),                
@@ -217,7 +214,7 @@ async def save_saving_boost_pg():
             'saver':data['saver'],
             'repeat_boost':data['repeat_boost'], 
             'boost_operation_type':data['boost_operation_type'],   
-            'saving_boost': saving_boost,         
+            'saving_boost': contribution,         
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
             "deleted_at": None,
@@ -243,12 +240,13 @@ async def save_saving_boost_pg():
                     contribution,
                     interest, 
                     goal_amount, 
-                    starting_date,
+                    pay_date_boost,
                     repeat,
                     i_contribution,
                     period,
                     interest_type,
-                    savings_strategy                    
+                    savings_strategy,
+                    op_type                    
                     )
                 breakdown = contribution_breakdown['breakdown']
                 total_balance = contribution_breakdown['total_balance']
@@ -306,7 +304,7 @@ async def save_saving_boost_pg():
                                     user_id=user_id,
                                     **breakdown
                                 )
-                            db.session.add(contribution_data)
+                            session.add(contribution_data)
                         else:
                             contribution_data = [
                                     SavingContribution(
@@ -317,7 +315,7 @@ async def save_saving_boost_pg():
                                         **todo
                                     ) for todo in breakdown
                                 ]
-                            db.session.bulk_save_objects(contribution_data)
+                            session.bulk_save_objects(contribution_data)
 
                         session.query(SavingBoost).filter_by(id=boost_status['id']).update({
                             'next_contribution_date': boost_status['next_contribution_date'],
@@ -352,7 +350,104 @@ async def save_saving_boost_pg():
 
             else:
 
-                print()
+                contribution_breakdown = calculate_breakdown_ontime(
+                    starting_amount,
+                    contribution,
+                    interest, 
+                    goal_amount, 
+                    pay_date_boost,                    
+                    period,
+                    interest_type,
+                    savings_strategy,
+                    op_type                    
+                    )
+                breakdown = contribution_breakdown['breakdown']
+                total_balance = contribution_breakdown['total_balance']
+                total_balance_xyz= contribution_breakdown['total_balance_xyz']
+                progress  = contribution_breakdown['progress']
+                next_contribution_date_b = contribution_breakdown['next_contribution_date']
+                goal_reached = contribution_breakdown['goal_reached']
+                period = contribution_breakdown['period']
+                is_single = contribution_breakdown['is_single']
+                total_monthly_balance_b = contribution_breakdown['total_monthly_balance_xyz']
+
+                len_breakdown = len(breakdown)
+
+                if next_contribution_date_b == None:
+                    goal_reached = goal_reached if len_breakdown > 0 else None
+
+                if len_breakdown < 1:
+                    session.commit()
+                    saving_boost_id = saving_boost_entry.id                    
+                    message = 'Saving boost added Succefull'
+
+                else:
+
+                    
+                    session.flush()
+                    saving_boost_id = saving_boost_entry.id 
+
+                    boost_status = {
+                        'id': saving_boost_id,
+                        'next_contribution_date': next_contribution_date_b,
+                        'total_balance': total_balance_xyz,
+                        'total_monthly_balance':total_monthly_balance_b,                    
+                        'closed_at': goal_reached
+                    }
+                    total_monthly_balance = total_monthly_balance + total_monthly_balance_b
+
+                    update_data = {
+                        "total_balance": total_balance,            
+                        'total_balance_xyz': total_balance_xyz, 
+                        'total_monthly_balance' :total_monthly_balance,                    
+                        'progress':progress,
+                        'updated_at': datetime.now()              
+                    }
+
+                    try:
+
+                        contribution_data = SavingContribution(
+                                    saving_id=saving_id,
+                                    saving_boost_id=saving_boost_id,                            
+                                    commit=commit,
+                                    user_id=user_id,
+                                    **breakdown
+                                )
+                        session.add(contribution_data)
+
+                        session.query(SavingBoost).filter_by(id=boost_status['id']).update({
+                            'next_contribution_date': boost_status['next_contribution_date'],
+                            'total_balance': boost_status['total_balance'],
+                            'total_monthly_balance': boost_status['total_monthly_balance'],                            
+                            'closed_at': boost_status['closed_at']
+                        })
+
+                        session.query(Saving).filter_by(id=saving_id).update(update_data)
+                        
+                        app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+
+                                          
+                        app_data.total_monthly_saving += total_monthly_balance_b                    
+                        app_data.saving_updated_at = None
+                            
+                            
+                        
+
+                        session.add(app_data)
+                        session.commit()
+                        message = 'Saving boost added Succefull'
+                        result = 1
+
+                    except Exception as ex:
+
+                        saving_boost_id = None
+                        print('Saving Save Exception: ',ex)
+                        result = 0
+                        message = 'Saving boost addition Failed'
+                        session.rollback()
+                
+
+                
 
         else:
 
