@@ -161,7 +161,7 @@ def savingcategory_dropdown_pg(user_id: int, boost:str=None):
         ]
 
         savings = (
-        db.session.query(Saving.id, Saving.saver, Saving.repeat, Saving.next_contribution_date)
+        db.session.query(Saving.id, Saving.saver, Saving.repeat, Saving.starting_date)
         .filter(Saving.user_id == user_id, Saving.deleted_at == None, Saving.closed_at == None)
         .all()
         )
@@ -171,7 +171,7 @@ def savingcategory_dropdown_pg(user_id: int, boost:str=None):
                 "value": str(inc.id),
                 "label": inc.saver,
                 "repeat_boost": inc.repeat,  # Enum value as name
-                "pay_date_boost": convertDateTostring(inc.next_contribution_date,"%Y-%m-%d")
+                "pay_date_boost": convertDateTostring(inc.starting_date,"%Y-%m-%d")
             }
             for inc in savings
         ] 
