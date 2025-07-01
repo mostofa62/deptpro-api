@@ -9,7 +9,7 @@ from util import *
 from datetime import datetime,timedelta
 
 
-from models import Saving,  SavingCategory, SavingContribution
+from models import Saving, SavingBoost,  SavingCategory, SavingContribution
 from dbpg import db
 
 def transaction_previous(id: int, column: str = 'saving_id'):
@@ -234,26 +234,34 @@ def list_saving_boost_contributions_pg(saving_id: int):
         SavingContribution.contribution_i_intrs_xyz,
         SavingContribution.interest_xyz,
         SavingContribution.contribution_date,
-        SavingContribution.next_contribution_date
+        SavingContribution.next_contribution_date,
+        SavingBoost.saver
     )\
-    .join(Saving, 
-          and_(
-          Saving.id == SavingContribution.saving_id,
-          Saving.commit == SavingContribution.commit
-          )
+    .outerjoin(
+        Saving, 
+        and_(
+            Saving.id == SavingContribution.saving_id,
+            Saving.commit == SavingContribution.commit
+        )
+    )\
+    .outerjoin(
+        SavingBoost,
+        SavingBoost.id == SavingContribution.saving_boost_id
     )\
     .filter(
         SavingContribution.saving_id == saving_id,
         SavingContribution.saving_boost_id != None,
         Saving.deleted_at == None,
-        Saving.closed_at == None
+        Saving.closed_at == None,
+        SavingBoost.deleted_at ==None,
+        SavingBoost.closed_at == None
     )
 
     # Get the total count of records matching the query
     total_count = query.count()
 
     # Sorting parameters: Here we're sorting by 'pay_date' in descending order
-    query = query.order_by(SavingContribution.contribution_date.desc())
+    query = query.order_by(SavingContribution.contribution_date.desc(),SavingContribution.id.desc())
 
     # Pagination
     query = query.offset(page_index * page_size).limit(page_size)
@@ -275,6 +283,7 @@ def list_saving_boost_contributions_pg(saving_id: int):
             'contribution_date_word': convertDateTostring(todo.contribution_date),
             'interest_xyz':todo.interest_xyz ,
             'next_contribution_date_word': convertDateTostring(todo.next_contribution_date),
+            'saving_boost':todo.saver
             #'next_pay_date': convertDateTostring(todo.next_pay_date, "%Y-%m-%d"),
            
         }

@@ -28,19 +28,19 @@ def delete_saving_pg():
     deleted_done = 0
 
     try:
+        if key < 2:
+            stmt = select(
+                Saving.id,                                         
+                Saving.total_monthly_balance,                       
+            ).where(Saving.id == saving_id)
 
-        stmt = select(
-            Saving.id,                                         
-            Saving.total_monthly_balance,                       
-        ).where(Saving.id == saving_id)
+            previous_saving = db.session.execute(stmt).mappings().first()
 
-        previous_saving = db.session.execute(stmt).mappings().first()
+            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
 
-        app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-
-        app_data.total_monthly_saving -= previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
-        app_data.saving_updated_at = None
-        db.session.add(app_data)
+            app_data.total_monthly_saving -= previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
+            app_data.saving_updated_at = None
+            db.session.add(app_data)
 
                 
         # Update the Saving record
@@ -145,6 +145,7 @@ def list_saving_pg(user_id: int):
             'nickname': saving.nickname,
             'goal_amount': saving.goal_amount,
             'interest': saving.interest,
+            'interest_type': saving.interest_type,
             'savings_strategy':saving.savings_strategy,
             'starting_amount':saving.starting_amount,
             'contribution':saving.contribution,

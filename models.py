@@ -750,7 +750,7 @@ class SavingContribution(db.Model):
     progress = Column(Float, nullable=False)
     progress_xyz = Column(Float, nullable=False)
     contribution_date = Column(DateTime, nullable=False)
-    next_contribution_date = Column(DateTime, nullable=False)    
+    next_contribution_date = Column(DateTime, nullable=True)    
     commit = Column(DateTime, nullable=True,index=True)
 
     saving = db.relationship(

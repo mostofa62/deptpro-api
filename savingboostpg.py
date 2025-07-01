@@ -1,6 +1,6 @@
 import os
 from flask import request,jsonify, json
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 #from flask_cors import CORS, cross_origin
 from savingutil import calculate_breakdown, calculate_breakdown_ontime, get_next_contribution_date
 from pgutils import new_entry_option_data
@@ -18,11 +18,11 @@ def delete_saving_boost_pg():
     if request.method == 'POST':
         data = json.loads(request.data)
 
-        id = data['id']
+        id = data['id']             
         key = data['key']
         action = 'Deleted' if key < 2 else 'Closed'
         field = SavingBoost.deleted_at if key < 2 else SavingBoost.closed_at
-        saving_boost_id = None
+        saving_boost_id = id
         
         message = None
         error = 0
@@ -30,16 +30,33 @@ def delete_saving_boost_pg():
 
         try:
             with db.session.begin():
+                if key < 2:
+                    stmt = select(
+                        SavingBoost.id,                                         
+                        SavingBoost.total_monthly_balance,
+                        SavingBoost.user_id                       
+                    ).where(SavingBoost.id == saving_boost_id)
+
+                    previous_saving = db.session.execute(stmt).mappings().first()
+                    user_id =previous_saving['user_id']
+
+                    app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+
+                    app_data.total_monthly_saving -= previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
+                    app_data.saving_updated_at = None
+                    db.session.add(app_data)
                 # Update the SavingBoost record
                 saving_boost_update = db.session.query(SavingBoost).filter(SavingBoost.id == saving_boost_id).update(
                     {field: datetime.now()}, synchronize_session=False
                 )
 
+                '''
                 saving_contribution_update = db.session.query(SavingContribution).filter(SavingContribution.id == saving_boost_id).update(
                     {field: datetime.now()}, synchronize_session=False
                 )
+                '''
 
-                if saving_boost_update and saving_contribution_update:
+                if saving_boost_update:
                     message = f'SavingBoost boost {action} Successfully'
                     deleted_done = 1
                     db.session.commit()
@@ -173,7 +190,8 @@ async def save_saving_boost_pg():
         result = 0
         total_balance = \
         total_balance_xyz = \
-        total_monthly_balance = 0.0
+        total_monthly_balance =\
+        total_monthly_balance_boost= 0.0
 
         # Retrieve the Saving record using SQLAlchemy query
         saving_entry = db.session.query(
@@ -251,12 +269,13 @@ async def save_saving_boost_pg():
                 breakdown = contribution_breakdown['breakdown']
                 total_balance = contribution_breakdown['total_balance']
                 total_balance_xyz= contribution_breakdown['total_balance_xyz']
+                total_balance_boost = contribution_breakdown['total_balance_boost']
                 progress  = contribution_breakdown['progress']
                 next_contribution_date_b = contribution_breakdown['next_contribution_date']
                 goal_reached = contribution_breakdown['goal_reached']
                 period = contribution_breakdown['period']
-                is_single = contribution_breakdown['is_single']
-                total_monthly_balance_b = contribution_breakdown['total_monthly_balance_xyz']
+                is_single = contribution_breakdown['is_single']                
+                total_monthly_balance_boost = contribution_breakdown['total_monthly_balance_boost']
 
                 len_breakdown = len(breakdown)
 
@@ -277,11 +296,11 @@ async def save_saving_boost_pg():
                     boost_status = {
                         'id': saving_boost_id,
                         'next_contribution_date': next_contribution_date_b,
-                        'total_balance': total_balance_xyz,
-                        'total_monthly_balance':total_monthly_balance_b,                    
+                        'total_balance': total_balance_boost,
+                        'total_monthly_balance':total_monthly_balance_boost,                    
                         'closed_at': goal_reached
                     }
-                    total_monthly_balance = total_monthly_balance + total_monthly_balance_b
+                    total_monthly_balance = total_monthly_balance + total_monthly_balance_boost
 
                     update_data = {
                         "total_balance": total_balance,            
@@ -329,7 +348,7 @@ async def save_saving_boost_pg():
                         app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
 
                                           
-                        app_data.total_monthly_saving += total_monthly_balance_b                    
+                        app_data.total_monthly_saving += total_monthly_balance_boost                    
                         app_data.saving_updated_at = None
                             
                             
@@ -364,12 +383,13 @@ async def save_saving_boost_pg():
                 breakdown = contribution_breakdown['breakdown']
                 total_balance = contribution_breakdown['total_balance']
                 total_balance_xyz= contribution_breakdown['total_balance_xyz']
+                total_balance_boost = contribution_breakdown['total_balance_boost']
                 progress  = contribution_breakdown['progress']
                 next_contribution_date_b = contribution_breakdown['next_contribution_date']
                 goal_reached = contribution_breakdown['goal_reached']
                 period = contribution_breakdown['period']
                 is_single = contribution_breakdown['is_single']
-                total_monthly_balance_b = contribution_breakdown['total_monthly_balance_xyz']
+                total_monthly_balance_boost = contribution_breakdown['total_monthly_balance_boost']
 
                 len_breakdown = len(breakdown)
 
@@ -390,11 +410,11 @@ async def save_saving_boost_pg():
                     boost_status = {
                         'id': saving_boost_id,
                         'next_contribution_date': next_contribution_date_b,
-                        'total_balance': total_balance_xyz,
-                        'total_monthly_balance':total_monthly_balance_b,                    
+                        'total_balance': total_balance_boost,
+                        'total_monthly_balance':total_monthly_balance_boost,                    
                         'closed_at': goal_reached
                     }
-                    total_monthly_balance = total_monthly_balance + total_monthly_balance_b
+                    total_monthly_balance = total_monthly_balance + total_monthly_balance_boost
 
                     update_data = {
                         "total_balance": total_balance,            
@@ -427,7 +447,7 @@ async def save_saving_boost_pg():
                         app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
 
                                           
-                        app_data.total_monthly_saving += total_monthly_balance_b                    
+                        app_data.total_monthly_saving += total_monthly_balance_boost                    
                         app_data.saving_updated_at = None
                             
                             
