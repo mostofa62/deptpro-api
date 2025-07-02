@@ -38,7 +38,7 @@ def transaction_previous(id: int, column: str = 'saving_id'):
             Saving.deleted_at == None,
             Saving.closed_at == None,
             SavingBoost.deleted_at == None,
-            SavingBoost.closed_at == None,
+            #SavingBoost.closed_at == None,
             SavingContribution.user_id == id  # Here we filter by user_id
         ).group_by(
             SavingContribution.month,
@@ -82,7 +82,7 @@ def transaction_previous(id: int, column: str = 'saving_id'):
             Saving.deleted_at == None,
             Saving.closed_at == None,
             SavingBoost.deleted_at == None,
-            SavingBoost.closed_at == None,
+            #SavingBoost.closed_at == None,
             SavingContribution.saving_id == id  # Filter dynamically by saving_id
         ).group_by(
             SavingContribution.month,
@@ -268,7 +268,7 @@ def list_saving_boost_contributions_pg(saving_id: int):
         Saving.deleted_at == None,
         Saving.closed_at == None,
         SavingBoost.deleted_at ==None,
-        SavingBoost.closed_at == None
+        #SavingBoost.closed_at == None
     )
 
     # Get the total count of records matching the query

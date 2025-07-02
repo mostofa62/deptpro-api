@@ -141,13 +141,14 @@ def list_saving_boost_pg(saving_id:int):
     SavingBoost.saving_boost,    
     SavingBoost.repeat_boost,
     SavingBoost.total_balance,
+    SavingBoost.closed_at,
     SavingBoost.boost_operation_type,
     Saving.saver.label('saving_ac'),
     SavingBoostType.name.label("saving_boost_source")
     ).filter(
         SavingBoost.saving_id == saving_id,
         SavingBoost.deleted_at.is_(None),
-        SavingBoost.closed_at.is_(None)
+        #SavingBoost.closed_at.is_(None)
     )\
     .join(Saving, SavingBoost.saving_id == Saving.id, isouter=True)\
     .join(SavingBoostType, SavingBoost.saving_boost_source_id == SavingBoostType.id, isouter=True)
@@ -190,7 +191,8 @@ def list_saving_boost_pg(saving_id:int):
             'saver': entry.saver,
             'saving_boost_source':entry.saving_boost_source if entry.saving_boost_source else None,
             'pay_date_boost': convertDateTostring(entry.pay_date_boost),
-            'next_contribution_date': convertDateTostring(entry.next_contribution_date),            
+            'next_contribution_date': convertDateTostring(entry.next_contribution_date),
+            'closed_at':convertDateTostring(entry.closed_at),
             'saving_boost': entry.saving_boost,
             'repeat_boost':entry.repeat_boost,
             'total_balance':entry.total_balance,
@@ -347,7 +349,7 @@ async def save_saving_boost_pg():
                         'next_contribution_date': next_contribution_date_b,
                         'total_balance': total_balance_boost,
                         'total_monthly_balance':total_monthly_balance_boost,                    
-                        'closed_at': datetime.now() if goal_reached else None
+                        'closed_at': goal_reached
                     }
                     total_monthly_balance = total_monthly_balance + total_monthly_balance_boost
 
@@ -473,6 +475,8 @@ async def save_saving_boost_pg():
                         'total_balance_xyz': total_balance_xyz, 
                         'total_monthly_balance' :total_monthly_balance,                    
                         'progress':progress,
+                        'goal_reached':goal_reached,
+                        'current_month':current_month,
                         'updated_at': datetime.now()              
                     }
 
@@ -497,15 +501,13 @@ async def save_saving_boost_pg():
                         session.query(Saving).filter_by(id=saving_id).update(update_data)
                         
                         app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-
+                        if app_data.current_saving_month == current_month:
+                            app_data.current_saving_month = current_month                  
+                            app_data.total_monthly_saving += total_monthly_balance_boost                    
+                            app_data.saving_updated_at = None
+                            session.add(app_data)
                                           
-                        app_data.total_monthly_saving += total_monthly_balance_boost                    
-                        app_data.saving_updated_at = None
-                            
-                            
                         
-
-                        session.add(app_data)
                         session.commit()
                         message = 'Saving boost added Succefull'
                         result = 1
