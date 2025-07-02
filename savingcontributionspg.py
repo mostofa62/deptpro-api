@@ -23,15 +23,22 @@ def transaction_previous(id: int, column: str = 'saving_id'):
             SavingContribution.saving_id,
             func.max(SavingContribution.total_balance_xyz).label('max_total_balance'),
             #func.min(SavingContribution.month_word).label('month_word')
-        ).join(Saving, 
+        ).outerjoin(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
-          Saving.commit == SavingContribution.commit
+          #Saving.commit == SavingContribution.commit
+          )
+    ).outerjoin(SavingBoost, 
+          and_(
+          SavingBoost.id == SavingContribution.saving_boost_id,
+          #Saving.commit == SavingContribution.commit
           )
     ).filter(
             SavingContribution.contribution_date >= twelve_months_ago,
             Saving.deleted_at == None,
             Saving.closed_at == None,
+            SavingBoost.deleted_at == None,
+            SavingBoost.closed_at == None,
             SavingContribution.user_id == id  # Here we filter by user_id
         ).group_by(
             SavingContribution.month,
@@ -60,15 +67,22 @@ def transaction_previous(id: int, column: str = 'saving_id'):
             SavingContribution.saving_id,
             func.max(SavingContribution.total_balance_xyz).label('total_balance'),
             #func.min(SavingContribution.month_word).label('month_word')
-        ).join(Saving, 
+        ).outerjoin(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
-          Saving.commit == SavingContribution.commit
+          #Saving.commit == SavingContribution.commit
+          )
+    ).outerjoin(SavingBoost, 
+          and_(
+          SavingBoost.id == SavingContribution.saving_boost_id,
+          #Saving.commit == SavingContribution.commit
           )
     ).filter(
             SavingContribution.contribution_date >= twelve_months_ago,
             Saving.deleted_at == None,
             Saving.closed_at == None,
+            SavingBoost.deleted_at == None,
+            SavingBoost.closed_at == None,
             SavingContribution.saving_id == id  # Filter dynamically by saving_id
         ).group_by(
             SavingContribution.month,
@@ -162,10 +176,10 @@ def list_saving_contributions_pg(saving_id: int):
         SavingContribution.contribution_date,
         SavingContribution.next_contribution_date
     )\
-    .join(Saving, 
+    .outerjoin(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
-          Saving.commit == SavingContribution.commit
+          #Saving.commit == SavingContribution.commit
           )
     )\
     .filter(
@@ -241,7 +255,7 @@ def list_saving_boost_contributions_pg(saving_id: int):
         Saving, 
         and_(
             Saving.id == SavingContribution.saving_id,
-            Saving.commit == SavingContribution.commit
+           # Saving.commit == SavingContribution.commit
         )
     )\
     .outerjoin(
@@ -315,18 +329,24 @@ def get_typewise_saving_info_pg(user_id:int):
         SavingCategory.name.label("name"),
         func.sum(SavingContribution.contribution_i_intrs_xyz).label("balance"),
         func.count(Saving.category_id).label('count'),
-    ).join(Saving, 
+    ).outerjoin(Saving, 
           and_(
           Saving.id == SavingContribution.saving_id,
-          Saving.commit == SavingContribution.commit
+          #Saving.commit == SavingContribution.commit
           )
     )\
-     .join(SavingCategory, Saving.category_id == SavingCategory.id) \
+    .outerjoin(
+        SavingBoost,
+        SavingBoost.id == SavingContribution.saving_boost_id
+    )\
+     .outerjoin(SavingCategory, Saving.category_id == SavingCategory.id) \
      .filter(
          SavingContribution.month == current_month,
          Saving.user_id == user_id,  # Filter by user_id
          Saving.deleted_at == None,
-         Saving.closed_at == None
+         Saving.closed_at == None,
+         SavingBoost.deleted_at == None,
+         SavingBoost.closed_at == None
      ) \
      .group_by(
          Saving.category_id,

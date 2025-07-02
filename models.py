@@ -78,6 +78,7 @@ class AppData(db.Model):
     total_current_net_income = Column(Float, nullable=True, default=0.0)
     financial_freedom_month = Column(Integer, nullable=True)
     financial_freedom_target = Column(BigInteger, nullable=True)
+    current_saving_month = Column(Integer, nullable=True)
 
     # Relationship with the user
     user = relationship("User", backref="app_data", lazy="joined")
@@ -647,7 +648,7 @@ class Saving(db.Model):
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
-    goal_reached = Column(Boolean, nullable=True)
+    goal_reached = Column(DateTime, nullable=True)
     next_contribution_date = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=False, default=0)
     total_balance_xyz = Column(Float, nullable=False, default=0)
@@ -657,6 +658,7 @@ class Saving(db.Model):
     calender_at = Column(DateTime, nullable=True)
     total_monthly_balance = Column(Float, nullable=False, default=0)
     financial_freedom_target = Column(Float, nullable=True, default=0)
+    current_month = Column(Integer,nullable=True)
 
     category = db.relationship(
         'SavingCategory', 
@@ -670,6 +672,15 @@ class Saving(db.Model):
         return f"<Saving(nickname={self.nickname}, goal_amount={self.goal_amount}, total_balance={self.total_balance})>"
 
 
+class SavingLog(db.Model):
+    __tablename__ = 'saving_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    admin_id = Column(Integer, nullable=True)
+    saving_id = Column(Integer, ForeignKey('savings.id'), nullable=False)
+    commit = Column(DateTime, nullable=False, default=datetime.now)
+    data = Column(JSON, nullable=True)
 
 class SavingBoostType(db.Model):
     __tablename__ = 'saving_boost_types'
@@ -708,6 +719,7 @@ class SavingBoost(db.Model):
     next_contribution_date = Column(DateTime, nullable=True)
     total_balance = Column(Float, nullable=False, default=0)
     total_monthly_balance = Column(Float, nullable=False, default=0)
+    current_month = Column(Integer,nullable=True)
 
     saving = db.relationship(
         'Saving',

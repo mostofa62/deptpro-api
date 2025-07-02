@@ -5,7 +5,7 @@ from app import app
 import re
 from util import *
 from datetime import datetime
-from models import AppData, Saving,SavingBoost, SavingCategory, SavingContribution
+from models import AppData, Saving,SavingBoost, SavingCategory, SavingContribution, SavingLog
 from dbpg import db
 from pgutils import new_entry_option_data
 from sqlalchemy.orm import joinedload
@@ -31,16 +31,25 @@ def delete_saving_pg():
         if key < 2:
             stmt = select(
                 Saving.id,                                         
-                Saving.total_monthly_balance,                       
+                Saving.total_monthly_balance,
+                Saving.current_month                       
             ).where(Saving.id == saving_id)
 
             previous_saving = db.session.execute(stmt).mappings().first()
 
             app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+            if app_data.current_saving_month == previous_saving['current_month']:
+                total_monthly_saving = app_data.total_monthly_saving
+                if total_monthly_saving >= previous_saving['total_monthly_balance']:
+                   total_monthly_saving -=  previous_saving['total_monthly_balance']
+                else:
+                    total_monthly_saving = 0
 
-            app_data.total_monthly_saving -= previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
-            app_data.saving_updated_at = None
-            db.session.add(app_data)
+                #app_data.total_monthly_saving = previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
+                app_data.total_monthly_saving = total_monthly_saving
+                
+                app_data.saving_updated_at = None
+                db.session.add(app_data)
 
                 
         # Update the Saving record
@@ -329,6 +338,168 @@ async def edit_saving_pg(id:int):
     if request.method == 'POST':
         data = json.loads(request.data)
         user_id = data['user_id']
+        admin_id = data['admin_id']        
+        message = ''
+        result = 0
+        saving_id = id
+
+        session = db.session
+
+        stmt = select(
+            Saving.id,
+            Saving.category_id,
+            Saving.interest,
+            Saving.interest_type,
+            Saving.savings_strategy,
+            Saving.contribution,
+            Saving.increase_contribution_by,                                    
+            Saving.starting_amount,
+            Saving.starting_date,
+            Saving.goal_amount,
+            Saving.total_balance,
+            Saving.total_balance_xyz,
+            Saving.total_monthly_balance,
+            Saving.repeat,  
+            Saving.commit                     
+        ).where(Saving.id == saving_id)
+
+        goal_amount = round(float(data.get("goal_amount", 0)),2)
+        interest = round(float(data.get("interest", 0)),2)
+        interest_type = data['interest_type']['value']
+        starting_amount = round(float(data.get("starting_amount", 0)),2)
+        contribution = round(float(data.get("contribution", 0)),2)
+        i_contribution = round(float(data.get("increase_contribution_by", 0)),2)
+        repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+        financial_freedom_target = round(float(data.get("financial_freedom_target", 0)),2)
+
+        previous_saving = session.execute(stmt).mappings().first()
+
+        previous_commit = previous_saving['commit']
+        previous_category_id = previous_saving['category_id']
+        
+        
+        category_id = data['category']['value']
+        if category_id == previous_category_id:
+            category_id = previous_category_id
+        else:    
+            category_id = new_entry_option_data(data['category'], SavingCategory, user_id)
+
+
+        previous_starting_amount = float(previous_saving['starting_amount'])
+        previous_goal_amount = float(previous_saving['goal_amount'])
+        previous_repeat = previous_saving['repeat']['value'] if previous_saving['repeat']['value'] > 0 else None
+        previous_interest = float(previous_saving['interest'])
+        previous_contribution = float(previous_saving['contribution'])
+        previous_i_contribution = float(previous_saving['increase_contribution_by'])
+        previous_interest_type =  previous_saving['interest_type']['value']
+
+        
+
+        change_found_goal_amount = False if are_floats_equal(previous_goal_amount, goal_amount) else True
+        change_found_interest = False if are_floats_equal(previous_interest, interest) else True
+        change_found_starting_amount = False if are_floats_equal(previous_starting_amount, starting_amount) else True
+        change_found_previous_contribution = False if are_floats_equal(previous_contribution, contribution) else True
+        change_found_previous_i_contribution = False if are_floats_equal(previous_i_contribution, i_contribution) else True
+        change_found_repeat = False if previous_repeat == repeat else True
+        change_found_interest_type= False if previous_interest_type == interest_type else True
+
+
+        any_change = change_found_goal_amount or change_found_interest or \
+        change_found_starting_amount or \
+        change_found_previous_contribution or \
+        change_found_repeat or \
+        change_found_previous_i_contribution or \
+        change_found_interest_type
+
+        append_data = {
+            'category_id': category_id,
+            'user_id': user_id,
+            'admin_id':admin_id,
+            'goal_amount': goal_amount,
+            'starting_amount': starting_amount,
+            'contribution':contribution,
+            'increase_contribution_by':i_contribution,
+            'interest':interest,                                                       
+            "updated_at": datetime.now(),
+            "financial_freedom_target":financial_freedom_target                                                                                   
+        }
+
+        merge_data = data | append_data
+
+        del merge_data['category']
+        del merge_data['starting_date']
+        del merge_data['savings_strategy']
+
+        try:
+
+            if any_change:
+
+                commit = datetime.now()
+
+                stmt_update = update(Saving).where(Saving.id == saving_id).values(                                            
+                        calender_at=None,
+                        commit=commit,  # Replace with the actual commit value
+                        **merge_data  # This unpacks additional fields to update
+                    )
+                session.execute(stmt_update)
+
+                existing_log = db.session.query(SavingLog).filter_by(
+                    saving_id=saving_id,
+                    commit=previous_commit
+                ).first()
+
+                if not existing_log:
+                    previous_saving_row = dict(previous_saving)
+                    previous_saving_row['starting_date'] = convertDateTostring(previous_saving['starting_date'],"%Y-%m-%d %H:%M:%S.%f")
+                    previous_saving_row['commit'] = convertDateTostring(previous_commit,"%Y-%m-%d %H:%M:%S.%f")
+                    print('previous_saving_row',previous_saving_row)
+                    new_log = SavingLog(
+                        saving_id=saving_id,
+                        user_id=user_id,           # supply actual user_id
+                        admin_id=admin_id,       # or actual admin_id if available
+                        commit=previous_commit,
+                        data=previous_saving_row  # or actual data dict
+                    )
+
+                    session.add(new_log)
+                
+                session.commit()
+                message = 'Saving account updated successfully'
+                result = 1
+            else:
+                
+                stmt_update = update(Saving).where(Saving.id == saving_id).values(merge_data)
+                session.execute(stmt_update)
+                session.commit()
+                message = 'Saving account updated successfully'
+                result = 1
+
+
+
+        except Exception as ex:
+            saving_id = None
+            print('Saving Save Exception: ',ex)
+            result = 0
+            message = 'Saving account addition Failed'
+            session.rollback()
+
+        finally:            
+            session.close()
+
+
+        return jsonify({
+            "saving_id": saving_id,
+            "message": message,
+            "result": result
+        })
+
+
+'''
+@app.route('/api/edit-saving-accountpg/<int:id>', methods=['POST'])
+async def edit_saving_pg(id:int):
+    if request.method == 'POST':
+        data = json.loads(request.data)
+        user_id = data['user_id']
         saving_id = id
         message = ''
         result = 0
@@ -560,13 +731,14 @@ async def edit_saving_pg(id:int):
             "result": result
         })
 
-        
+'''       
 
 @app.route('/api/save-saving-accountpg', methods=['POST'])
 async def save_saving_pg():
     if request.method == 'POST':
         data = json.loads(request.data)
         user_id = data['user_id']
+        admin_id = data['admin_id'] 
         saving_id = None
         message = ''
         result = 0
@@ -582,7 +754,8 @@ async def save_saving_pg():
         savings_strategy= data['savings_strategy']['value']
         commit = datetime.now()            
         goal_reached = None 
-        period = 0                   
+        period = 0
+        current_saving_month = int(convertDateTostring(datetime.now(),'%Y%m'))                   
 
         contribution_breakdown = calculate_breakdown(
             starting_amount,
@@ -625,6 +798,7 @@ async def save_saving_pg():
 
                     category_id=new_entry_option_data(data['category'], SavingCategory, user_id),
                     user_id=user_id,
+                    admin_id=admin_id,
                     goal_amount=goal_amount,
                     interest=interest,
                     starting_amount=starting_amount,
@@ -644,7 +818,8 @@ async def save_saving_pg():
                     commit=commit,
                     total_monthly_balance = total_monthly_balance_xyz,
                     calender_at=None,
-                    financial_freedom_target=financial_freedom_target
+                    financial_freedom_target=financial_freedom_target,
+                    current_month = current_saving_month
                 )
             db.session.add(saving_data)
             db.session.commit()
@@ -673,6 +848,7 @@ async def save_saving_pg():
 
                     category_id=new_entry_option_data(data['category'], SavingCategory, user_id),
                     user_id=user_id,
+                    admin_id=admin_id,
                     goal_amount=goal_amount,
                     interest=interest,
                     starting_amount=starting_amount,
@@ -692,7 +868,8 @@ async def save_saving_pg():
                     commit=commit,
                     calender_at=None,
                     total_monthly_balance=total_monthly_balance_xyz,
-                    financial_freedom_target=financial_freedom_target
+                    financial_freedom_target=financial_freedom_target,
+                    current_month = current_saving_month
                 )
 
                 db.session.add(saving_data)
@@ -727,8 +904,14 @@ async def save_saving_pg():
                 app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 if app_data:
-                    # Update the existing record                    
-                    app_data.total_monthly_saving += total_monthly_balance_xyz                    
+                    # Update the existing record
+                                        
+                    app_data.current_saving_month = current_saving_month
+                    
+                    if app_data.current_saving_month == current_saving_month:
+                        app_data.total_monthly_saving += total_monthly_balance_xyz
+                    else:
+                        app_data.total_monthly_saving =  total_monthly_balance_xyz                   
                     app_data.saving_updated_at = None
                     
                     
@@ -736,6 +919,7 @@ async def save_saving_pg():
                     # Insert a new record if the user doesn't exist
                     app_data = AppData(
                         user_id=user_id,
+                        current_saving_month = current_saving_month,
                         total_monthly_saving=total_monthly_balance_xyz,                        
                         saving_updated_at=None
                     )
