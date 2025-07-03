@@ -198,7 +198,7 @@ def calculate_breakdown_ontime(initial_amount,
     balance_boost = initial_amount_boost 
     current_date = start_date        
     interest_rate = annual_interest_rate / 100
-    rate_per_period = (interest_rate / 100) / periods_per_year 
+    rate_per_period = interest_rate / periods_per_year 
 
     progress = 0
     inc_contri=0
@@ -332,7 +332,7 @@ def calculate_breakdown(initial_amount,
     current_date = start_date
         
     interest_rate = annual_interest_rate / 100    
-    rate_per_period = (interest_rate / 100) / periods_per_year    
+    rate_per_period = interest_rate  / periods_per_year    
 
     next_contribution_date = current_date + delta
     progress = 0
@@ -376,17 +376,17 @@ def calculate_breakdown(initial_amount,
         #end contribution_with_increase
         if interest_type > 1:
 
-            balance += contribution
-            balance_boost+= contribution
-            contribution_i_intrs = contribution
+            balance += contribution_i
+            balance_boost+= contribution_i
+            contribution_i_intrs = contribution_i
             interest = (balance * rate_per_period)
             balance += interest
             balance_boost+= interest
 
         else:
 
-            interest = (contribution * rate_per_period)
-            contribution_i_intrs = interest + contribution
+            interest = (contribution_i * rate_per_period)
+            contribution_i_intrs = interest + contribution_i
             balance += contribution_i_intrs
             balance_boost+= contribution_i_intrs            
 
@@ -441,17 +441,17 @@ def calculate_breakdown(initial_amount,
                 #end contribution_with_increase
                 if interest_type > 1:
 
-                    balance += contribution
-                    balance_boost+= contribution
-                    contribution_i_intrs = contribution
+                    balance += contribution_i
+                    balance_boost+= contribution_i
+                    contribution_i_intrs = contribution_i
                     interest = (balance * rate_per_period)
                     balance += interest
                     balance_boost+= interest
 
                 else:
 
-                    interest = (contribution * rate_per_period)
-                    contribution_i_intrs = interest + contribution
+                    interest = (contribution_i * rate_per_period)
+                    contribution_i_intrs = interest + contribution_i
                     balance += contribution_i_intrs
                     balance_boost+= contribution_i_intrs       
                 
@@ -524,9 +524,9 @@ def calculate_breakdown(initial_amount,
                 #end contribution_with_increase
                 if interest_type > 1:
 
-                    balance += contribution
-                    balance_boost+= contribution
-                    contribution_i_intrs = contribution
+                    balance += contribution_i
+                    balance_boost+= contribution_i
+                    contribution_i_intrs = contribution_i
                     interest = (balance * rate_per_period)
                     balance += interest
                     balance_boost+= interest
@@ -534,7 +534,7 @@ def calculate_breakdown(initial_amount,
                 else:
 
                     interest = (contribution * rate_per_period)
-                    contribution_i_intrs = interest + contribution
+                    contribution_i_intrs = interest + contribution_i
                     balance += contribution_i_intrs
                     balance_boost+= contribution_i_intrs         
                 
@@ -608,9 +608,12 @@ def get_freq_month(balance,
     year, month = start_date.year, start_date.month
     last_day = calendar.monthrange(year, month)[1]
     end_of_month = date(year, month, last_day)
+    
 
     days_remaining = (end_of_month - start_date).days + 1
     in_month_count = 1 + (days_remaining - 1) // frequency
+
+    print('year, month, last_day, end_of_month, days_remaining, in_month_count',year, month,last_day,end_of_month, days_remaining,in_month_count,(end_of_month - start_date).days, start_date)
 
     interest_rate = interest_rate / 100
     rate_per_period = interest_rate  / periods_per_year
