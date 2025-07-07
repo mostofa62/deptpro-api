@@ -1,6 +1,6 @@
 from flask import request,jsonify, json
 from sqlalchemy import func, or_, select, update
-from savingutil import calculate_breakdown
+from savingutil import calculate_breakdown, calculate_intial_balance
 from app import app
 import re
 from util import *
@@ -756,6 +756,24 @@ async def save_saving_pg():
         goal_reached = None 
         period = 0
         current_saving_month = int(convertDateTostring(datetime.now(),'%Y%m'))                   
+        total_monthly_balance = 0
+        starting_breakdown = None
+
+
+        if starting_amount > 0:
+            get_initial = calculate_intial_balance(
+                starting_amount,
+                interest,
+                starting_date,
+                period,
+                interest_type
+            )
+            starting_amount = get_initial['total_balance_xyz']
+            total_monthly_balance = get_initial['total_monthly_balance_xyz']
+            starting_breakdown = get_initial['breakdown']
+
+
+
 
         contribution_breakdown = calculate_breakdown(
             starting_amount,
@@ -767,7 +785,10 @@ async def save_saving_pg():
             i_contribution,
             period,
             interest_type,
-            savings_strategy
+            savings_strategy,
+            1,
+            0,
+            total_monthly_balance
             )
         breakdown = contribution_breakdown['breakdown']
         total_balance = contribution_breakdown['total_balance']
@@ -879,21 +900,56 @@ async def save_saving_pg():
                 contribution_data = None                
                 
                 if is_single > 0:
-                    contribution_data = SavingContribution(
-                            saving_id=saving_id,                            
-                            commit=commit,
-                            user_id=user_id,
-                            **breakdown
-                        )
-                    db.session.add(contribution_data)
+                    if starting_breakdown == None:
+                        contribution_data = SavingContribution(
+                                saving_id=saving_id,                            
+                                commit=commit,
+                                user_id=user_id,
+                                **breakdown
+                            )
+                        db.session.add(contribution_data)
+                    else:
+                        contribution_data = [
+                            SavingContribution(
+                                saving_id=saving_id,                            
+                                commit=commit,
+                                user_id=user_id,
+                                **starting_breakdown
+                            ),
+                            SavingContribution(
+                                saving_id=saving_id,                            
+                                commit=commit,
+                                user_id=user_id,
+                                **breakdown
+                            )
+                        ]
+                        db.session.bulk_save_objects(contribution_data)
                 else:
-                    contribution_data = [
+                    if starting_breakdown == None:
+                        contribution_data = [
                             SavingContribution(
                                 saving_id=saving_id,                                
                                 commit=commit,
                                 user_id=user_id,
                                 **todo
                             ) for todo in breakdown
+                        ]
+                    else:
+                        contribution_data = [
+                            SavingContribution(
+                                saving_id=saving_id,                            
+                                commit=commit,
+                                user_id=user_id,
+                                **starting_breakdown
+                            ),
+                            *[
+                            SavingContribution(
+                                saving_id=saving_id,                                
+                                commit=commit,
+                                user_id=user_id,
+                                **todo
+                            ) for todo in breakdown
+                            ]
                         ]
                     db.session.bulk_save_objects(contribution_data)                                
                 

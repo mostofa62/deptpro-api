@@ -172,6 +172,86 @@ FREQUENCY_MAP = {
     365:1
 }
 
+def calculate_intial_balance(
+        contribution, 
+                        annual_interest_rate,  
+                        start_date,                                                 
+                        period=0,
+                        interest_type=1
+):
+    periods_per_year = FREQUENCY_MAP[1]
+    
+    total_balance = 0
+    total_balance_xyz = 0
+
+    total_monthly_balance_xyz = 0
+    current_date = start_date        
+    interest_rate = annual_interest_rate / 100
+    rate_per_period = (interest_rate / 100) / periods_per_year
+
+    months_breakdown = [] 
+
+    progress = 0
+    inc_contri=0
+    contribution_i=contribution
+    contribution_i_intrs=contribution
+    interest=0.0
+    next_contribution_date = None
+    balance = 0
+    
+    #less then current date
+    current_datetime_now = datetime.now()
+
+    if interest_type > 1:
+
+        balance += contribution
+        contribution_i_intrs = contribution
+        interest = (balance * rate_per_period)
+        balance += interest
+
+    else:
+
+        interest = (contribution * rate_per_period)
+        contribution_i_intrs = interest + contribution
+        balance += contribution_i_intrs
+
+    month = int(current_date.strftime("%Y%m"))
+
+    months_breakdown = {
+            "period": period,
+            "month": month,            
+            "interest": interest,
+            'interest_xyz':interest,
+            "contribution": contribution,
+            "contribution_i":contribution_i,
+            "contribution_i_intrs":contribution_i_intrs,
+            'contribution_i_intrs_xyz':contribution_i_intrs,
+            "increase_contribution":0,
+            "increase_contribution_prd":inc_contri,
+            "total_balance": balance,
+            "total_balance_xyz": balance,
+            "progress": progress,
+            "progress_xyz": progress,
+            "contribution_date":current_date,
+            "next_contribution_date": next_contribution_date           
+        }
+    
+    if month == int(current_datetime_now.strftime('%Y%m')):
+            total_monthly_balance_xyz+= contribution_i_intrs
+
+    total_balance = balance
+    total_balance_xyz = balance
+    
+    
+    return ({
+        'breakdown':months_breakdown,
+        'progress':math.floor(progress),
+        'total_balance':total_balance,
+        'total_balance_xyz':total_balance_xyz,        
+        'period':period,
+        'total_monthly_balance_xyz':total_monthly_balance_xyz        
+    })
+
 def calculate_breakdown_ontime(initial_amount, 
                         contribution, 
                         annual_interest_rate, 
@@ -309,7 +389,8 @@ def calculate_breakdown(initial_amount,
                         interest_type=1,
                         savings_strategy=2,
                         op_type=1,
-                        initial_amount_boost=0
+                        initial_amount_boost=0,
+                        total_monthly_balance_xyz=0
                         ):
    
     periods_per_year = FREQUENCY_MAP[frequency]
@@ -321,7 +402,7 @@ def calculate_breakdown(initial_amount,
 
     contribution = -contribution if op_type > 1 else contribution
     
-    total_monthly_balance_xyz = 0
+    
     total_monthly_balance_boost = 0
     
     delta = get_delta(frequency)
