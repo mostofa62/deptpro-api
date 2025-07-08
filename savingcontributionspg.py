@@ -171,7 +171,8 @@ def list_saving_contributions_pg(saving_id: int):
         SavingContribution.total_balance,
         SavingContribution.total_balance_xyz,
         SavingContribution.month,
-        SavingContribution.contribution_i,
+        SavingContribution.contribution,
+        SavingContribution.contribution_i_intrs_xyz,
         SavingContribution.interest_xyz,
         SavingContribution.contribution_date,
         SavingContribution.next_contribution_date
@@ -193,7 +194,7 @@ def list_saving_contributions_pg(saving_id: int):
     total_count = query.count()
 
     # Sorting parameters: Here we're sorting by 'pay_date' in descending order
-    query = query.order_by(SavingContribution.contribution_date.desc())
+    query = query.order_by(SavingContribution.contribution_date.desc(),SavingContribution.id.desc())
 
     # Pagination
     query = query.offset(page_index * page_size).limit(page_size)
@@ -211,7 +212,8 @@ def list_saving_contributions_pg(saving_id: int):
             'total_balance_xyz':todo.total_balance_xyz,
             'total_balance':todo.total_balance,
             'month_word':convertNumberToDate(todo.month),
-            'contribution':todo.contribution_i,
+            'contribution':todo.contribution,
+            'total_contribution':todo.contribution_i_intrs_xyz,
             'contribution_date_word': convertDateTostring(todo.contribution_date),
             'interest_xyz':todo.interest_xyz ,
             'next_contribution_date_word': convertDateTostring(todo.next_contribution_date),
@@ -245,6 +247,7 @@ def list_saving_boost_contributions_pg(saving_id: int):
         SavingContribution.total_balance,
         SavingContribution.total_balance_xyz,
         SavingContribution.month,
+        SavingContribution.contribution,
         SavingContribution.contribution_i_intrs_xyz,
         SavingContribution.interest_xyz,
         SavingContribution.contribution_date,
@@ -293,7 +296,8 @@ def list_saving_boost_contributions_pg(saving_id: int):
             'total_balance_xyz':todo.total_balance_xyz,
             'total_balance':todo.total_balance,
             'month_word':convertNumberToDate(todo.month),
-            'contribution':todo.contribution_i_intrs_xyz,
+            'contribution':todo.contribution,
+            'total_contribution':todo.contribution_i_intrs_xyz,
             'contribution_date_word': convertDateTostring(todo.contribution_date),
             'interest_xyz':todo.interest_xyz ,
             'next_contribution_date_word': convertDateTostring(todo.next_contribution_date),

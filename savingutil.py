@@ -194,7 +194,7 @@ def calculate_intial_balance(
     progress = 0
     inc_contri=0
     contribution_i=contribution
-    contribution_i_intrs=contribution
+    contribution_i_intrs=0
     interest=0.0
     next_contribution_date = None
     balance = 0
@@ -282,7 +282,7 @@ def calculate_breakdown_ontime(initial_amount,
 
     progress = 0
     inc_contri=0
-    contribution_i=0
+    contribution_i=contribution
     contribution_i_intrs=0
     interest=0.0
     
