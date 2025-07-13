@@ -1,5 +1,5 @@
 
-from sqlalchemy import BigInteger, Column, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
+from sqlalchemy import BigInteger, Column, Float, Integer, String, Boolean, DateTime, ForeignKey, Index, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from dbpg import db
@@ -161,6 +161,16 @@ class Income(db.Model):
     def __repr__(self):
         return f"<Income id={self.id} user_id={self.user_id} income_source_id={self.income_source_id} gross_income={self.gross_income}>"
     
+
+class IncomeLog(db.Model):
+    __tablename__ = 'income_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    admin_id = Column(Integer, nullable=True)
+    income_id = Column(Integer, ForeignKey('incomes.id'), nullable=False)
+    commit = Column(DateTime, nullable=False, default=datetime.now)
+    data = Column(JSON, nullable=True)
 
 class IncomeBoost(db.Model):
     __tablename__ = "income_boosts"
@@ -782,6 +792,19 @@ class SavingContribution(db.Model):
     def __repr__(self):
         return f"<SavingContribution(month={self.month}, contribution={self.contribution}, total_balance={self.total_balance})>"
 
+
+class CashFlow(db.Model):
+    __tablename__ = "cashflow"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    month = Column(Integer, nullable=False, index=True)
+    amount = Column(Float, nullable=False, default=0.0)    
+    updated_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'month', name='uq_user_month'),
+    )
 
 '''
 class SavingMonthlyLog(db.Model):

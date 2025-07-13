@@ -29,7 +29,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
-                Income.commit == IncomeTransaction.commit,
+                #Income.commit == IncomeTransaction.commit,
                 )
                 ).filter(
                 IncomeTransaction.pay_date >= twelve_months_ago,            
@@ -68,7 +68,7 @@ def transaction_previous(id: int, column: str = 'income_id'):
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
-                Income.commit == IncomeTransaction.commit,
+                #Income.commit == IncomeTransaction.commit,
                 )
                 ).filter(
                 IncomeTransaction.pay_date >= twelve_months_ago,            
@@ -174,7 +174,7 @@ def list_income_transactions_pg(income_id: int):
         .join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
-                Income.commit == IncomeTransaction.commit,
+                #Income.commit == IncomeTransaction.commit,
                 )
                 )\
         .filter(
@@ -255,7 +255,7 @@ def list_income_boost_transactions_pg(income_id:int):
             ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
-                Income.commit == IncomeTransaction.commit,
+                #Income.commit == IncomeTransaction.commit,
                 )
                 ).filter(
             IncomeTransaction.income_id == income_id,
@@ -337,7 +337,7 @@ def get_typewise_income_info_pg(user_id:int):
         ).join(Income, 
                 and_(
                 Income.id == IncomeTransaction.income_id,
-                Income.commit == IncomeTransaction.commit,
+                #Income.commit == IncomeTransaction.commit,
                 )
                 ) \
         .join(IncomeSourceType, Income.income_source_id == IncomeSourceType.id) \

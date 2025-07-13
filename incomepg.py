@@ -5,7 +5,7 @@ from app import app
 from bson.json_util import dumps
 from util import *
 from datetime import datetime
-from models import AppData, Income, IncomeBoost, IncomeTransaction, IncomeSourceType
+from models import AppData, Income, IncomeBoost, IncomeLog, IncomeTransaction, IncomeSourceType
 from dbpg import db
 from pgutils import *
 from sqlalchemy import func, insert, select, update
@@ -474,7 +474,7 @@ def create_income():
             income_id = None
             message = 'Income account addition failed'
             session.rollback()  # Rollback on error
-            print(f"Error saving income data: {str(e)}")
+            print(f"Error income income data: {str(e)}")
             result = 0
         finally:
             session.close()            
@@ -502,7 +502,133 @@ def income_accounts_log_entry(
     income_account_data = income_accounts_logs.update_one(income_acc_query,newvalues,upsert=True)
     return income_account_data
 
+@app.route('/api/edit-income/<int:id>', methods=['POST'])
+def edit_income(id: int):
 
+    if request.method == 'POST':
+        data = json.loads(request.data)
+        user_id = data['user_id']
+        admin_id = data['admin_id']
+        income_id = id
+        message = ''
+        result = 0
+        session = db.session
+        stmt = select(
+            Income.id,
+            Income.earner,
+            Income.income_source,
+            Income.income_source_id,                              
+            Income.gross_income,
+            Income.net_income,
+            Income.pay_date,
+            Income.total_net_income,
+            Income.total_gross_income,           
+            Income.total_yearly_gross_income,
+            Income.total_yearly_net_income,
+            Income.total_monthly_gross_income,
+            Income.total_monthly_net_income,
+            Income.repeat,  
+            Income.commit,                     
+        ).where(Income.id == income_id)
+        previous_income = session.execute(stmt).mappings().first()       
+        net_income = float(data.get("net_income", 0))
+        gross_income = float(data.get("gross_income", 0))
+        
+        repeat = data['repeat']['value'] if data['repeat']['value'] > 0 else None
+
+        previous_gross_income = float(previous_income['gross_income'])
+        previous_net_income = float(previous_income['net_income'])
+        previous_repeat = previous_income['repeat']['value'] if previous_income['repeat']['value'] > 0 else None
+        previous_commit = previous_income['commit']
+        previous_income_source_id = previous_income['income_source_id']
+
+        income_source_id = data['income_source']['value']
+        if income_source_id == previous_income_source_id:
+            income_source_id = previous_income_source_id
+        else:    
+            income_source_id = new_entry_option_data(data['income_source'], IncomeSourceType, user_id)  # Removed the comma
+
+        change_found_gross = False if are_floats_equal(previous_gross_income, gross_income) else True
+        change_found_net = False if are_floats_equal(previous_net_income, net_income) else True
+        change_found_repat = False if previous_repeat == repeat else True
+
+        any_change = change_found_gross or change_found_net or change_found_repat
+        append_data = {
+            'income_source_id': income_source_id,
+            'user_id': user_id,
+            'admin_id':admin_id,
+            'net_income': net_income,
+            'gross_income': gross_income,                                                       
+            "updated_at": datetime.now(),                                                                                   
+        }
+
+        merge_data = data | append_data
+
+        del merge_data['income_source']
+        del merge_data['pay_date']
+        del merge_data['total_gross_income']
+        del merge_data['total_net_income']
+        try:
+
+            if any_change:
+                commit = datetime.now()
+
+                stmt_update = update(Income).where(Income.id == income_id).values(                                            
+                        calender_at=None,
+                        commit=commit,  # Replace with the actual commit value
+                        **merge_data  # This unpacks additional fields to update
+                    )
+                session.execute(stmt_update)
+                existing_log = db.session.query(IncomeLog).filter_by(
+                    income_id=income_id,
+                    commit=previous_commit
+                ).first()
+
+                if not existing_log:
+                    previous_income_row = dict(previous_income)
+                    previous_income_row['pay_date'] = convertDateTostring(previous_income['pay_date'],"%Y-%m-%d %H:%M:%S.%f")
+                    previous_income_row['commit'] = convertDateTostring(previous_commit,"%Y-%m-%d %H:%M:%S.%f")
+                    print('previous_income_row',previous_income_row)
+                    new_log = IncomeLog(
+                        income_id=income_id,
+                        user_id=user_id,           # supply actual user_id
+                        admin_id=admin_id,       # or actual admin_id if available
+                        commit=previous_commit,
+                        data=previous_income_row  # or actual data dict
+                    )
+
+                    session.add(new_log)
+                
+                session.commit()
+                message = 'Income account updated successfully'
+                result = 1
+            else:
+                
+                stmt_update = update(Income).where(Income.id == income_id).values(merge_data)
+                session.execute(stmt_update)
+                session.commit()
+                message = 'Income account updated successfully'
+                result = 1
+
+
+
+        except Exception as ex:
+            income_id = None
+            print('Income Save Exception: ',ex)
+            result = 0
+            message = 'Income account addition Failed'
+            session.rollback()
+
+        finally:            
+            session.close()
+
+    return jsonify({
+        "income_id": income_id,
+        "message": message,
+        "result": result
+    })
+
+'''
 @app.route('/api/edit-income/<int:id>', methods=['POST'])
 def edit_income(id: int):
 
@@ -712,5 +838,5 @@ def edit_income(id: int):
             "message": message,
             "result": result
         })
-
+'''
 
