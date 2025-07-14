@@ -79,6 +79,10 @@ class AppData(db.Model):
     financial_freedom_month = Column(Integer, nullable=True)
     financial_freedom_target = Column(BigInteger, nullable=True)
     current_saving_month = Column(Integer, nullable=True)
+    total_monthly_bill_paid = Column(Float, nullable=True, default=0.0)
+    current_billing_month = Column(Integer, nullable=True)
+    total_monthly_debt_boost = Column(Float, nullable=True, default=0.0)
+    current_debt_boost_month = Column(Integer, nullable=True)
 
     # Relationship with the user
     user = relationship("User", backref="app_data", lazy="joined")

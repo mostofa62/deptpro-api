@@ -4,8 +4,8 @@ from flask import Flask,request,jsonify, json
 from app import app
 from util import *
 from pgutils import ExtraType
-from models import *
-
+from models import AppData,BillAccounts, BillTransactions, BillPayments, CashFlow
+from dbpg import db
 @app.route('/api/bill-paymentspg/<int:tranid>', methods=['GET'])
 def get_bill_trans_paymentspg(tranid: int):
     # Query the BillPayments model with the necessary filters and sorting
@@ -119,6 +119,7 @@ def pay_bill_transaction_pg(accntid: int):
         trans_payment_id = None
         message = ''
         result = 0
+        current_billing_month = int(convertDateTostring(datetime.now(),'%Y%m'))
 
         try:
             # Start transaction
@@ -176,6 +177,37 @@ def pay_bill_transaction_pg(accntid: int):
             bill_account.paid_total = paid_total
             bill_account.updated_at = datetime.now()
             db.session.add(bill_account)
+
+            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+            if app_data:                
+                if app_data.current_billing_month != None and app_data.current_billing_month == current_billing_month:
+                    app_data.total_monthly_bill_paid += amount
+                else:
+                    app_data.total_monthly_bill_paid =  amount
+                    app_data.current_billing_month = current_billing_month
+            else:
+                app_data = AppData(
+                        user_id=user_id,
+                        current_billing_month = current_billing_month,
+                        total_monthly_bill_paid=amount                        
+                    )
+            db.session.add(app_data)
+
+            cashflow_data = db.session.query(CashFlow).filter(
+                        CashFlow.user_id == user_id,
+                        CashFlow.month == current_billing_month
+                    ).first()
+            if not cashflow_data:
+                cashflow_data = CashFlow(
+                    user_id = user_id,
+                    amount = 0,
+                    month = current_billing_month,
+                    updated_at = None
+                )
+            else:
+                cashflow_data.updated_at = None
+                
+            db.session.add(cashflow_data)    
 
             # Commit transaction
             db.session.commit()

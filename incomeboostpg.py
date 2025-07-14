@@ -2,7 +2,7 @@ from flask import request,jsonify, json
 from sqlalchemy import func, or_
 #from flask_cors import CORS, cross_origin
 from pgutils import new_entry_option_data
-from models import AppData, Income, IncomeBoost, IncomeBoostType, IncomeTransaction
+from models import AppData, CashFlow, Income, IncomeBoost, IncomeBoostType, IncomeTransaction
 from incomeutil import generate_new_transaction_data_for_income_boost, get_single_boost
 from app import app
 import re
@@ -214,6 +214,8 @@ async def save_income_boost_pg():
         total_monthly_net_income=\
         total_yearly_gross_income=\
         total_yearly_net_income = 0.0
+
+        current_month = int(convertDateTostring(datetime.now(),'%Y%m'))
         
 
         # Retrieve the Income record using SQLAlchemy query
@@ -346,18 +348,17 @@ async def save_income_boost_pg():
                     app_data.total_yearly_net_income += total_yearly_net_income_b
                     app_data.total_monthly_gross_income += total_monthly_gross_income_b
                     app_data.total_monthly_net_income += total_monthly_net_income_b
-                    app_data.income_updated_at = None
-
-                    # # Log the monthly and yearly logs (if needed)
-                    # db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).update({
-                    #     'updated_at': None
-                    # })
-                    # db.session.query(IncomeYearlyLog).filter_by(income_id=income_id).update({
-                    #     'updated_at': None
-                    # })
-
-                   
+                    app_data.income_updated_at = None                   
                     session.add(app_data)
+
+                    cashflow_data = session.query(CashFlow).filter(
+                        CashFlow.user_id == user_id,
+                        CashFlow.month == current_month
+                    ).first()
+                    cashflow_data.updated_at = None
+
+                    session.add(cashflow_data)
+                    
                     session.commit()
 
                     result = 1
@@ -452,16 +453,16 @@ async def save_income_boost_pg():
                     app_data.total_monthly_gross_income += total_monthly_gross_income_b
                     app_data.total_monthly_net_income += total_monthly_net_income_b
                     app_data.income_updated_at = None
-
-                    # Log the monthly and yearly logs (if needed)
-                    # db.session.query(IncomeMonthlyLog).filter_by(income_id=income_id).update({
-                    #     'updated_at': None
-                    # })
-                    # db.session.query(IncomeYearlyLog).filter_by(income_id=income_id).update({
-                    #     'updated_at': None
-                    # })
-
+                    
                     session.add(app_data)
+
+                    cashflow_data = session.query(CashFlow).filter(
+                        CashFlow.user_id == user_id,
+                        CashFlow.month == current_month
+                    ).first()
+                    cashflow_data.updated_at = None
+
+                    session.add(cashflow_data)
 
                     session.commit()
 

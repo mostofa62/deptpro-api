@@ -4,7 +4,7 @@ from app import app
 import re
 from util import *
 from datetime import datetime
-from models import PaymentBoost
+from models import AppData, CashFlow, PaymentBoost
 from dbpg import db
 
 
@@ -82,10 +82,13 @@ def save_boost_pg():
         boost_id = None
         message = ''
         result = 0
+        current_datetime = datetime.now()
+        current_boost_month = int(convertDateTostring(current_datetime,'%Y%m'))
 
         try:
             # Convert string to date (assuming the helper functions are present)
             pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            pay_date_boost_month = int(convertDateTostring(pay_date_boost,'%Y%m'))
             month = convertDateTostring(pay_date_boost, "%b %Y")
             amount = float(data['amount'])
             comment = data['comment'] if data['comment']!="" else None
@@ -98,13 +101,46 @@ def save_boost_pg():
                 pay_date_boost=pay_date_boost,
                 month=month,
                 comment=comment,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=current_datetime,
+                updated_at=current_datetime,
                 deleted_at=None
             )
 
             # Add the new record to the session and commit to the database
             db.session.add(new_boost)
+
+            if pay_date_boost_month == current_boost_month:
+                app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+                if app_data:                
+                    if app_data.current_debt_boost_month != None and app_data.current_debt_boost_month == current_boost_month:
+                        app_data.total_monthly_debt_boost += amount
+                    else:
+                        app_data.total_monthly_debt_boost =  amount
+                        app_data.current_debt_boost_month = current_boost_month
+                else:
+                    app_data = AppData(
+                            user_id=user_id,
+                            current_debt_boost_month = current_boost_month,
+                            total_monthly_debt_boost=amount                        
+                        )
+                db.session.add(app_data)
+
+                cashflow_data = db.session.query(CashFlow).filter(
+                            CashFlow.user_id == user_id,
+                            CashFlow.month == current_boost_month
+                        ).first()
+                if not cashflow_data:
+                    cashflow_data = CashFlow(
+                        user_id = user_id,
+                        amount = 0,
+                        month = current_boost_month,
+                        updated_at = None
+                    )
+                else:
+                    cashflow_data.updated_at = None                    
+                db.session.add(cashflow_data)
+            
+            
             db.session.commit()
 
             # Get the ID of the inserted record
@@ -135,26 +171,62 @@ def update_boost_pg():
         boost_id = data.get('id')
         message = ''
         result = 0
-
+        current_datetime = datetime.now()
+        current_boost_month = int(convertDateTostring(current_datetime,'%Y%m'))
+        
         try:
             # Convert string to date (assuming the helper functions are present)
             pay_date_boost = convertStringTodate(data['pay_date_boost'])
+            pay_date_boost_month = int(convertDateTostring(pay_date_boost,'%Y%m'))
+            month = convertDateTostring(pay_date_boost,"%b %Y")
 
             # Fetch the existing PaymentBoost record
-            boost = PaymentBoost.query.filter_by(id=boost_id).first()
+            boost = db.session.query(PaymentBoost).filter(PaymentBoost.id==boost_id).first()
+            # print('boost',boost)
 
             amount = float(data['amount'])
             comment = data['comment'] if data['comment']!="" else None
-
             if boost:
+                previous_amount = boost.amount
+                previous_pay_date_boost = boost.pay_date_boost
+                change_found_amount = False if are_floats_equal(previous_amount, amount) else True
+                change_found_pay_date_boost = False if previous_pay_date_boost == pay_date_boost else True
+                any_change = change_found_amount or change_found_pay_date_boost
+                
                 # Update the fields
-                boost.user_id = user_id
-                boost.admin_id = admin_id
-                boost.pay_date_boost = pay_date_boost
-                boost.updated_at = datetime.now()
-                boost.amount = amount
+                boost.user_id = user_id                
+                boost.admin_id = admin_id                
+                boost.updated_at = current_datetime
+                if change_found_pay_date_boost:
+                    boost.pay_date_boost = pay_date_boost
+                    boost.month = month
+                if change_found_amount:
+                    boost.amount = amount
                 boost.comment = comment
+
+                db.session.add(boost)
                 # Commit the changes to the database
+                if any_change and pay_date_boost_month == current_boost_month:                    
+
+                    app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first() 
+                    if app_data:                        
+                        if app_data.current_debt_boost_month == current_boost_month:
+                            app_data.total_monthly_debt_boost -= previous_amount
+                            app_data.total_monthly_debt_boost += amount
+                        else:
+                            app_data.total_monthly_debt_boost =  amount
+                            app_data.current_debt_boost_month = current_boost_month                        
+                        db.session.add(app_data)
+                    
+                    cashflow_data = db.session.query(CashFlow).filter(
+                        CashFlow.user_id == user_id,
+                        CashFlow.month == current_boost_month
+                    ).first()
+                    if cashflow_data:
+                        cashflow_data.updated_at = None                
+                        db.session.add(cashflow_data)
+
+                
                 db.session.commit()
 
                 boost_id = boost.id
@@ -166,9 +238,12 @@ def update_boost_pg():
 
         except Exception as ex:
             print('Payment Boost Update Exception: ', ex)
+            db.session.rollback()
             boost_id = None
             result = 0
             message = 'Payment Boost account update failed'
+        finally:
+            db.session.close()
 
         return jsonify({
             "boost_id": boost_id,
@@ -188,6 +263,8 @@ def delete_boost_pg():
         error = 0
         deleted_done = 0
         admin_id = data.get('admin_id')
+        current_datetime = datetime.now()
+        current_boost_month = int(convertDateTostring(current_datetime,'%Y%m'))
 
         try:
             # Extract the boost ID from the request data
@@ -197,9 +274,27 @@ def delete_boost_pg():
             boost = PaymentBoost.query.filter_by(id=boost_id).first()
 
             if boost:
+                user_id = boost.user_id
+                previous_amount = boost.amount
+                previous_pay_date_boost = boost.pay_date_boost
+                pay_date_boost_month = int(convertDateTostring(previous_pay_date_boost,'%Y%m'))
                 # Mark the record as deleted by setting 'deleted_at' field
-                boost.deleted_at = datetime.now()
+                boost.deleted_at = current_datetime
                 boost.admin_id = admin_id
+                if pay_date_boost_month == current_boost_month:
+                    app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first() 
+                    if app_data:                        
+                        if app_data.current_debt_boost_month == current_boost_month:
+                            app_data.total_monthly_debt_boost -= previous_amount                                                      
+                        db.session.add(app_data)
+                    
+                    cashflow_data = db.session.query(CashFlow).filter(
+                        CashFlow.user_id == user_id,
+                        CashFlow.month == current_boost_month
+                    ).first()
+                    if cashflow_data:
+                        cashflow_data.updated_at = None                
+                        db.session.add(cashflow_data)
 
                 # Commit the changes to the database
                 db.session.commit()

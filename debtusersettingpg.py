@@ -3,7 +3,7 @@ from flask import request,jsonify
 from app import app
 
 from util import *
-from models import UserSettings, DebtAccounts
+from models import CashFlow, UserSettings, DebtAccounts
 from dbpg import db
 
 from db import my_col
@@ -59,8 +59,9 @@ def save_user_settings_pg():
         change_found_monthly_budget = False
         change_found_debt_payoff_method = False
         is_new_settings = False
+        current_month = int(convertDateTostring(datetime.now(),'%Y%m'))
         
-        try:
+        try:            
             # Check if the user setting already exists
             user_setting = (
                 db.session.query(UserSettings)
@@ -117,6 +118,23 @@ def save_user_settings_pg():
                 
             if is_new_settings or change_found_monthly_budget or change_found_debt_payoff_method:
                 debt_user_setting.update_one(debt_acc_query,newvalues, upsert=True)                
+
+            cashflow_data = db.session.query(CashFlow).filter(
+                CashFlow.user_id == user_id,
+                CashFlow.month == current_month
+            ).first()
+            if not cashflow_data:
+                cashflow_data = CashFlow(
+                    user_id = user_id,
+                    amount = 0,
+                    month = current_month,
+                    updated_at = None
+                )
+            else:
+                cashflow_data.updated_at = None
+            
+            db.session.add(cashflow_data)
+
             
             # Commit changes to the database
             db.session.commit()

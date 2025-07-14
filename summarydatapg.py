@@ -5,7 +5,7 @@ from app import app
 from util import *
 from datetime import datetime
 
-from models import AppData, BillAccounts, BillTransactions, DebtAccounts, DebtTransactions, DebtType, PaymentBoost, Saving, SavingCategory, SavingContribution, UserSettings
+from models import AppData, BillAccounts, BillTransactions, CashFlow, DebtAccounts, DebtTransactions, DebtType, PaymentBoost, Saving, SavingCategory, SavingContribution, UserSettings
 from dbpg import db
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,6 +21,7 @@ async def header_summary_data_pg(user_id:int):
 
         # Get the current date
         current_date = datetime.now()
+        current_month = int(convertDateTostring(current_date,'%Y%m'))
 
         # Aggregate query to calculate debt summary
         result = session.query(
@@ -58,7 +59,16 @@ async def header_summary_data_pg(user_id:int):
             .scalar()
         ) or 0
         
-        snowball_amount = round((monthly_budget - total_monthly_minimum)+total_payment_boost,2)
+        #snowball_amount = round((monthly_budget - total_monthly_minimum)+total_payment_boost,2)
+        
+        cashflow = (
+                session.query(CashFlow.amount)
+                .filter(
+                    CashFlow.user_id == user_id,
+                    CashFlow.month == current_month
+                )
+                .scalar()
+            ) or 0
 
         active_debt_account = session.query(func.count()).filter(
             DebtAccounts.user_id == user_id,
@@ -131,7 +141,7 @@ async def header_summary_data_pg(user_id:int):
             "debt_total_balance":total_balance,
             'monthly_budget':monthly_budget,
             'total_monthly_minimum':total_monthly_minimum,
-            'snowball_amount':snowball_amount,
+            'snowball_amount':cashflow,
             'total_paid_off':total_paid_off,
             'active_debt_account':active_debt_account,
             "month_debt_free":latest_month_debt_free,

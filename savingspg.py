@@ -347,6 +347,8 @@ async def edit_saving_pg(id:int):
 
         stmt = select(
             Saving.id,
+            Saving.saver,
+            Saving.category,
             Saving.category_id,
             Saving.interest,
             Saving.interest_type,
@@ -960,14 +962,12 @@ async def save_saving_pg():
                 app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 if app_data:
-                    # Update the existing record
-                                        
-                    app_data.current_saving_month = current_saving_month
-                    
-                    if app_data.current_saving_month == current_saving_month:
+                    # Update the existing record                    
+                    if app_data.current_saving_month!= None and app_data.current_saving_month == current_saving_month:
                         app_data.total_monthly_saving += total_monthly_balance_xyz
                     else:
-                        app_data.total_monthly_saving =  total_monthly_balance_xyz                   
+                        app_data.total_monthly_saving =  total_monthly_balance_xyz
+                        app_data.current_saving_month = current_saving_month                   
                     app_data.saving_updated_at = None
                     
                     

@@ -5,7 +5,7 @@ from app import app
 from bson.json_util import dumps
 from util import *
 from datetime import datetime
-from models import AppData, Income, IncomeBoost, IncomeLog, IncomeTransaction, IncomeSourceType
+from models import AppData, CashFlow, Income, IncomeBoost, IncomeLog, IncomeTransaction, IncomeSourceType
 from dbpg import db
 from pgutils import *
 from sqlalchemy import func, insert, select, update
@@ -337,6 +337,7 @@ def create_income():
         income_id = None
         message = ''
         result = 0
+        current_month = int(convertDateTostring(datetime.now(),'%Y%m'))
 
         # Get a database session from get_db
         session = db.session
@@ -465,6 +466,22 @@ def create_income():
 
                 session.add(app_data)
                 print('income_id', income_id)
+
+                cashflow_data = session.query(CashFlow).filter(
+                        CashFlow.user_id == user_id,
+                        CashFlow.month == current_month
+                    ).first()
+                if not cashflow_data:
+                    cashflow_data = CashFlow(
+                        user_id = user_id,
+                        amount = 0,
+                        month = current_month,
+                        updated_at = None
+                    )
+                else:
+                    cashflow_data.updated_at = None
+                
+                session.add(cashflow_data)
                 
                 message = 'Income account added successfully'
                 session.commit()  # Commit the transaction
