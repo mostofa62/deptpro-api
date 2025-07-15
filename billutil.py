@@ -49,7 +49,7 @@ def generate_bill(
         is_single = 1
 
         current_amount += amount
-        current_amount = round(current_amount,2)
+        current_amount = current_amount
 
         bill_transaction = {
             'amount':amount,
@@ -59,8 +59,8 @@ def generate_bill(
             'current_amount':amount,
             'pay_date':current_date,
             'due_date':next_pay_date,
-            'created_at':datetime.now(),
-            'updated_at':datetime.now(),
+            'created_at':current_datetime_now,
+            'updated_at':current_datetime_now,
             'user_id':user_id,
             'admin_id':admin_id,
             'bill_acc_id':bill_acc_id,
@@ -93,8 +93,8 @@ def generate_bill(
                 'current_amount':amount,
                 'pay_date':current_date,
                 'due_date':next_pay_date,
-                'created_at':datetime.now(),
-                'updated_at':datetime.now(),
+                'created_at':current_datetime_now,
+                'updated_at':current_datetime_now,
                 'user_id':user_id,
                 'admin_id':admin_id,
                 'bill_acc_id':bill_acc_id,

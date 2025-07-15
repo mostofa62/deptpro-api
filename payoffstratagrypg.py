@@ -7,7 +7,7 @@ from app import app
 from util import *
 from datetime import datetime
 
-from models import DebtAccounts, UserSettings, PayoffStrategy, PaymentBoost, DebtType
+from models import AppData, CashFlow, DebtAccounts, UserSettings, PayoffStrategy, PaymentBoost, DebtType
 from dbpg import db
 from db import my_col
 debt_user_setting = my_col('debt_user_setting')
@@ -69,6 +69,8 @@ def save_payoff_strategy_pg():
         change_found_monthly_budget = False
         change_found_debt_payoff_method = False
         is_new_settings = False
+        current_datetime_now = datetime.now()
+        current_month = int(convertDateTostring(current_datetime_now,'%Y%m'))
 
         try:
             '''
@@ -98,6 +100,22 @@ def save_payoff_strategy_pg():
                 .filter(UserSettings.user_id == user_id)
                 .first()
             )
+
+            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+            total_monthly_net_income = 0
+            monthly_debt_boost = 0
+            monthly_paid_bill_totals=0
+            monthly_budget = data['monthly_budget']
+            if app_data:
+                total_monthly_net_income = app_data.total_monthly_net_income
+                if app_data.current_debt_boost_month!=None and app_data.current_debt_boost_month == current_month:
+                    monthly_debt_boost = app_data.total_monthly_debt_boost
+                if app_data.current_billing_month!=None and app_data.current_billing_month == current_month:
+                    monthly_paid_bill_totals = app_data.total_monthly_bill_paid    
+            
+            total_debt = monthly_budget  + monthly_debt_boost
+    
+            cashflow_amount = total_monthly_net_income - monthly_paid_bill_totals - total_debt
 
             if user_setting:
                 print('both budget: ', data['monthly_budget'], round(user_setting.monthly_budget), are_floats_equal(float(data['monthly_budget']), round(user_setting.monthly_budget,0)))
@@ -136,7 +154,7 @@ def save_payoff_strategy_pg():
                 'ammortization_at':None,
             }
             if is_new_settings:
-                update_json['ammortization_at']  = datetime.now()
+                update_json['ammortization_at']  = current_datetime_now
             
             if change_found_monthly_budget and not is_new_settings:
                 update_json['ammortization_at']  = None
@@ -148,6 +166,23 @@ def save_payoff_strategy_pg():
                 
             if is_new_settings or change_found_monthly_budget or change_found_debt_payoff_method:
                 debt_user_setting.update_one(debt_acc_query,newvalues, upsert=True)
+
+                cashflow_data = db.session.query(CashFlow).filter(
+                    CashFlow.user_id == user_id,
+                    CashFlow.month == current_month
+                ).first()
+                if not cashflow_data:
+                    cashflow_data = CashFlow(
+                        user_id = user_id,
+                        amount = 0,
+                        month = current_month,
+                        updated_at = None
+                    )
+                else:
+                    cashflow_data.amount = cashflow_amount
+                    cashflow_data.updated_at = current_datetime_now
+                    
+                db.session.add(cashflow_data)
 
             # Commit changes to the database
             db.session.commit()
@@ -325,6 +360,7 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
     max_months_to_payoff = 0
     total_paid_amount = 0
     total_interest_amount = 0
+    current_month = int(convertDateTostring(initail_date,'%Y%m'))
 
     # Initialize a dictionary to store the final result
     data = {}
@@ -341,12 +377,14 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
 
     #total_monthly_payment = round(sum(account["monthly_payment"] for account in debt_accounts_list),2)
     monthly_budget = round(payoff_strategy_data["monthly_budget"], 2)
+    '''
     total_monthly_minimum = db.session.query(
         func.coalesce(func.sum(DebtAccounts.monthly_payment), 0)
     ).filter(
         DebtAccounts.user_id == user_id,
         DebtAccounts.deleted_at.is_(None)
     ).scalar() or 0
+    '''
     current_month_string = datetime.now().strftime('%b %Y')
 
     total_payment_boost = (
@@ -357,7 +395,19 @@ def get_payoff_strategy_account_pg(user_id:int, init_state:int):
         )
         .scalar()
     ) or 0
-    cashflow_amount = round((monthly_budget - total_monthly_minimum) + total_payment_boost,2)
+
+    
+
+    cashflow_amount = (
+                db.session.query(CashFlow.amount)
+                .filter(
+                    CashFlow.user_id == user_id,
+                    CashFlow.month == current_month
+                )
+                .scalar()
+            ) or 0
+    
+    # cashflow_amount = round((monthly_budget - total_monthly_minimum) + total_payment_boost,2)
 
     #debt_accounts_list = distribute_amount(payoff_strategy_data['monthly_budget'], debt_accounts_list)
 

@@ -66,7 +66,7 @@ def get_bill_trans_pg(accntid: int):
         BillTransactions.bill_acc_id == accntid,
         BillTransactions.type == op_type,
         BillAccounts.deleted_at.is_(None)
-    ).order_by(BillTransactions.created_at.desc())
+    ).order_by(BillTransactions.due_date.desc(),BillTransactions.id.desc())
 
     # Get total count for pagination
     total_count = query.count()
@@ -119,20 +119,21 @@ def pay_bill_transaction_pg(accntid: int):
         trans_payment_id = None
         message = ''
         result = 0
-        current_billing_month = int(convertDateTostring(datetime.now(),'%Y%m'))
+        current_datetime = datetime.now()
+        current_billing_month = int(convertDateTostring(current_datetime,'%Y%m'))
 
         try:
             # Start transaction
             
             amount = float(data['amount'])
             pay_date = convertStringTodate(data['pay_date'])
-
+            pay_date_month = int(convertDateTostring(pay_date,'%Y%m'))
             # Create new BillPayment
             new_payment = BillPayments(
                 amount=amount,
                 pay_date=pay_date,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=current_datetime,
+                updated_at=current_datetime,
                 bill_trans_id=bill_trans_id,
                 bill_account_id=bill_account_id,
                 user_id=user_id,
@@ -175,39 +176,41 @@ def pay_bill_transaction_pg(accntid: int):
             # Update BillAccounts
             bill_account.current_amount = current_amount
             bill_account.paid_total = paid_total
-            bill_account.updated_at = datetime.now()
+            bill_account.updated_at = current_datetime
             db.session.add(bill_account)
 
-            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-            if app_data:                
-                if app_data.current_billing_month != None and app_data.current_billing_month == current_billing_month:
-                    app_data.total_monthly_bill_paid += amount
+            
+            if pay_date_month == current_billing_month:
+                app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+                if app_data:                
+                    if app_data.current_billing_month != None and app_data.current_billing_month == current_billing_month:
+                        app_data.total_monthly_bill_paid += amount
+                    else:
+                        app_data.total_monthly_bill_paid =  amount
+                        app_data.current_billing_month = current_billing_month
                 else:
-                    app_data.total_monthly_bill_paid =  amount
-                    app_data.current_billing_month = current_billing_month
-            else:
-                app_data = AppData(
-                        user_id=user_id,
-                        current_billing_month = current_billing_month,
-                        total_monthly_bill_paid=amount                        
-                    )
-            db.session.add(app_data)
+                    app_data = AppData(
+                            user_id=user_id,
+                            current_billing_month = current_billing_month,
+                            total_monthly_bill_paid=amount                        
+                        )
+                db.session.add(app_data)
 
-            cashflow_data = db.session.query(CashFlow).filter(
-                        CashFlow.user_id == user_id,
-                        CashFlow.month == current_billing_month
-                    ).first()
-            if not cashflow_data:
-                cashflow_data = CashFlow(
-                    user_id = user_id,
-                    amount = 0,
-                    month = current_billing_month,
-                    updated_at = None
-                )
-            else:
-                cashflow_data.updated_at = None
-                
-            db.session.add(cashflow_data)    
+                cashflow_data = db.session.query(CashFlow).filter(
+                            CashFlow.user_id == user_id,
+                            CashFlow.month == current_billing_month
+                        ).first()
+                if not cashflow_data:
+                    cashflow_data = CashFlow(
+                        user_id = user_id,
+                        amount = 0,
+                        month = current_billing_month,
+                        updated_at = None
+                    )
+                else:
+                    cashflow_data.updated_at = None
+                    
+                db.session.add(cashflow_data)    
 
             # Commit transaction
             db.session.commit()

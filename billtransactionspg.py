@@ -5,7 +5,7 @@ from app import app
 from util import *
 from datetime import datetime
 from dbpg import db
-from models import BillAccounts, BillPayments, BillTransactions
+from models import AppData, BillAccounts, BillPayments, BillTransactions, CashFlow
 from pgutils import ExtraType, RepeatFrequency
 
 
@@ -19,6 +19,7 @@ def delete_bill_transaction_pg(accntid:str):
         message = None
         error = 0
         deleted_done = 0
+        current_datetime = datetime.now()
         try:
             # Get the bill account object by ID
             account_current_amount, account_paid_total = db.session.query(
@@ -51,7 +52,7 @@ def delete_bill_transaction_pg(accntid:str):
                 BillAccounts.current_amount: account_current_amount,
                 BillAccounts.paid_total:account_paid_total,
                 BillAccounts.admin_id:admin_id,
-                BillAccounts.updated_at:datetime.now()
+                BillAccounts.updated_at:current_datetime
             })
 
             db.session.commit()  # Commit the changes to the database
@@ -79,9 +80,11 @@ def distribute_amount(bill_account_id,withdraw_amount):
     documents = (
         db.session.query(BillTransactions.id,BillTransactions.current_amount, BillTransactions.due_date)
         .join(BillAccounts, BillTransactions.bill_acc_id == BillAccounts.id)
-        .filter(BillTransactions.bill_acc_id == bill_account_id)
-        .filter(BillTransactions.type == ExtraType[0]['value'])
-        .filter(BillTransactions.deleted_at.is_(None))
+        .filter(
+            BillTransactions.bill_acc_id == bill_account_id,
+            BillTransactions.type == ExtraType[0]['value'],
+            BillTransactions.deleted_at.is_(None)
+        )        
         .order_by(asc(BillTransactions.due_date))
         .all()
     )
@@ -90,6 +93,7 @@ def distribute_amount(bill_account_id,withdraw_amount):
     remaining_amount = withdraw_amount
 
     for doc in documents:
+        print(doc)
         if remaining_amount <= 0:
             break
         
@@ -102,6 +106,7 @@ def distribute_amount(bill_account_id,withdraw_amount):
         new_current_amount = doc.current_amount - amount_to_allocate
 
         payment_status = 1 if new_current_amount <= 0 else 0
+        #print('payment_status, remaining_amount',payment_status, remaining_amount)
         
 
         db.session.query(BillTransactions).filter(BillTransactions.id == doc.id).update({
@@ -109,9 +114,11 @@ def distribute_amount(bill_account_id,withdraw_amount):
             'payment_status': payment_status
         })
         db.session.commit()
-        
+        '''
+        ## this commented 20250715 for return spare amount
         if payment_status > 0:
             return []
+        '''
             # Track the affected document ID
         affected_ids.append({'trans_id':doc.id, 'amount':amount_to_allocate, 'due_date':doc.due_date})
         
@@ -144,20 +151,28 @@ def save_bill_transactions_pg():
         result = 0
 
         current_amount = 0
+        paid_total = 0
+        current_datetime = datetime.now()
+        current_billing_month = int(convertDateTostring(current_datetime,'%Y%m'))
         
 
         previous_bill_acc = (
-            db.session.query(BillAccounts.current_amount)
+            db.session.query(
+                BillAccounts.current_amount,
+                BillAccounts.paid_total
+            )
             .filter(BillAccounts.id == bill_account_id)            
             .first()
         )
         if previous_bill_acc !=None:
             current_amount = previous_bill_acc.current_amount
+            paid_total = previous_bill_acc.paid_total or 0
 
         try:
 
             amount = float(data.get("amount", 0))
             due_date = convertStringTodate(data['due_date'])
+            due_date_month = int(convertDateTostring(due_date,'%Y%m'))
             op_type = data['type']['value']
 
             if op_type < 2:
@@ -169,8 +184,8 @@ def save_bill_transactions_pg():
                     note=data["note"] if "note" in data and data["note"]!="" else None,
                     current_amount=amount,                        
                     due_date=due_date,                                                                              
-                    created_at=datetime.now(),
-                    updated_at=datetime.now(),                        
+                    created_at=current_datetime,
+                    updated_at=current_datetime,                        
                     user_id=user_id,
                     admin_id=admin_id,
                     bill_acc_id=bill_account_id,
@@ -185,21 +200,22 @@ def save_bill_transactions_pg():
 
             else:
                 current_amount = current_amount - amount
+                paid_total += amount
                 bill_trans_id = None
                 affected_ids = distribute_amount(
                             withdraw_amount=amount,
                             bill_account_id=bill_account_id                            
-                        )
+                        )                
                 if len(affected_ids) > 0:
                     for af_id in affected_ids:
-                        trans_due_date = max(due_date, af_id['due_date'])
-                        
+                        #trans_due_date = max(due_date, af_id['due_date'])
+                        trans_due_date = due_date
                         # Insert into BillPayment table
                         trans_payment_data = BillPayments(
                             amount=af_id['amount'],
                             pay_date=trans_due_date,
-                            created_at=datetime.now(),
-                            updated_at=datetime.now(),
+                            created_at=current_datetime,
+                            updated_at=current_datetime,
                             bill_trans_id=af_id['trans_id'],
                             user_id=user_id,
                             admin_id=admin_id,
@@ -218,8 +234,8 @@ def save_bill_transactions_pg():
                         note=data["note"] if "note" in data and data["note"]!="" else None,
                         current_amount=amount,
                         due_date=due_date,
-                        created_at=datetime.now(),
-                        updated_at=datetime.now(),
+                        created_at=current_datetime,
+                        updated_at=current_datetime,
                         user_id=user_id,
                         admin_id=admin_id,
                         bill_acc_id=bill_account_id,
@@ -228,15 +244,49 @@ def save_bill_transactions_pg():
                         closed_at=None
                     )
                     db.session.add(bill_trans_data)
+
+                    if due_date_month == current_billing_month:
+                        app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+                        if app_data:                
+                            if app_data.current_billing_month != None and app_data.current_billing_month == current_billing_month:
+                                app_data.total_monthly_bill_paid += amount
+                            else:
+                                app_data.total_monthly_bill_paid =  amount
+                                app_data.current_billing_month = current_billing_month
+                        else:
+                            app_data = AppData(
+                                    user_id=user_id,
+                                    current_billing_month = current_billing_month,
+                                    total_monthly_bill_paid=amount                        
+                                )
+                        db.session.add(app_data)
+
+                        cashflow_data = db.session.query(CashFlow).filter(
+                            CashFlow.user_id == user_id,
+                            CashFlow.month == current_billing_month
+                        ).first()
+                        if not cashflow_data:
+                            cashflow_data = CashFlow(
+                                user_id = user_id,
+                                amount = 0,
+                                month = current_billing_month,
+                                updated_at = None
+                            )
+                        else:
+                            cashflow_data.updated_at = None
+                            
+                        db.session.add(cashflow_data) 
+
                     db.session.commit()
 
                     bill_trans_id = bill_trans_data.id  # Get the inserted transaction's ID
 
-
+            print(paid_total,'paid_total')
             new_values = {
                 'current_amount': current_amount,
+                'paid_total':paid_total,
                 'latest_transaction_id': bill_trans_id,  # Assuming this is a foreign key or just an ID
-                'updated_at': datetime.now()
+                'updated_at': current_datetime
             }
 
             # Perform the update using the `update()` method

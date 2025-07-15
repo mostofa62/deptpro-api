@@ -53,9 +53,12 @@ def bill_extra_dropdown_pg(user_id:int):
     # Query the BillAccounts model with filters for deleted_at and closed_at
     bill_accounts_query = (
         db.session.query(BillAccounts.id, BillAccounts.name, BillAccounts.next_due_date)
-        .filter(BillAccounts.user_id == user_id)
-        .filter(BillAccounts.deleted_at.is_(None))
-        .filter(BillAccounts.closed_at.is_(None))
+        .filter(
+            BillAccounts.user_id == user_id,
+            BillAccounts.deleted_at.is_(None),
+            BillAccounts.closed_at.is_(None),
+            BillAccounts.current_amount > 0
+        )       
         .all()
     )
     
