@@ -194,6 +194,26 @@ def save_bill_transactions_pg():
                     closed_at=None
                 )
 
+                if due_date_month == current_billing_month:
+                    app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+                    if app_data:
+                        # Update the existing record                    
+                        if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
+                            app_data.total_monthly_bill_unpaid += amount
+                        else:
+                            app_data.total_monthly_bill_unpaid =  amount
+                            app_data.current_billing_month_up = current_billing_month                   
+                        
+                    else:
+                        # Insert a new record if the user doesn't exist
+                        app_data = AppData(
+                            user_id=user_id,
+                            current_billing_month_up = current_billing_month,
+                            total_monthly_bill_unpaid=amount,                                                
+                        )
+
+                
+                    db.session.add(app_data)
                 db.session.add(bill_trans_data)
                 db.session.commit()  # Commit to get the bill_account ID     
                 bill_trans_id = bill_trans_data.id

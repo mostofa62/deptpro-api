@@ -44,6 +44,8 @@ def generate_bill(
 
     current_amount = 0
 
+    total_monthly_unpaid_bill=0
+
     is_single = 0
     if current_datetime_now <= next_pay_date:
         is_single = 1
@@ -69,11 +71,17 @@ def generate_bill(
 
         }
 
+        month = int(current_date.strftime("%Y%m"))
+
+        if month == int(current_datetime_now.strftime('%Y%m')):            
+            total_monthly_unpaid_bill+=amount
+
         return ({
             'bill_transaction':bill_transaction,
             'current_amount':current_amount,
             'next_pay_date':next_pay_date,
-            'is_single':is_single
+            'is_single':is_single,
+            'total_monthly_unpaid_bill':total_monthly_unpaid_bill
 
         })
 
@@ -84,6 +92,11 @@ def generate_bill(
 
             current_amount += amount
             next_pay_date = current_date + delta
+
+            month = int(current_date.strftime("%Y%m"))
+
+            if month == int(current_datetime_now.strftime('%Y%m')):            
+                total_monthly_unpaid_bill+=amount
 
             bill_transaction.append({
                 'amount':amount,
@@ -104,11 +117,14 @@ def generate_bill(
             })
             current_date = next_pay_date
 
+            
+
         return ({
             'bill_transaction':bill_transaction,
             'current_amount':current_amount,
             'next_pay_date':next_pay_date,
-            'is_single':is_single
+            'is_single':is_single,
+            'total_monthly_unpaid_bill':total_monthly_unpaid_bill
 
         })    
 

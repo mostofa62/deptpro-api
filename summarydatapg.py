@@ -99,7 +99,7 @@ async def header_summary_data_pg(user_id:int):
 
 
 
-
+        '''
         monthly_bill_totals = session.query(
             func.sum(BillTransactions.amount).label('monthly_bill_totals')
         ).join(
@@ -112,7 +112,10 @@ async def header_summary_data_pg(user_id:int):
             BillAccounts.deleted_at.is_(None),  # Make sure related account is not deleted
             BillAccounts.closed_at.is_(None)    # Make sure related account is not closed
         ).scalar() or 0
-
+        '''
+        total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
+        total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
+        monthly_bill_totals = total_monthly_bill_paid + total_monthly_bill_unpaid
         # monthly_bill_totals = session.query(
         #     func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
         # ).filter(
@@ -195,6 +198,9 @@ async def get_dashboard_data_pg(user_id: int):
     bill_paid_total = 0
     debt_list = []
 
+    current_date = datetime.now()
+    current_month = int(convertDateTostring(current_date,'%Y%m'))
+
     session = None
     try:
         session = db.session
@@ -219,33 +225,40 @@ async def get_dashboard_data_pg(user_id: int):
                 "progress": left_to_go,
                 "amount": debt.balance
             })
+        
+        user_setting = session.query(UserSettings.debt_payoff_method, UserSettings.monthly_budget).filter(
+            UserSettings.user_id == user_id
+        ).first()
 
-        debt_total_balance = session.query(
-            func.coalesce(func.sum(DebtAccounts.balance), 0).label("debt_total_balance")
-        ).filter(
-            DebtAccounts.user_id == user_id,
-            DebtAccounts.deleted_at.is_(None)
-        ).scalar()
+        # Set monthly_budget with rounding if user_setting exists, otherwise default to 0
+        monthly_budget = round(user_setting.monthly_budget, 2) if user_setting and user_setting.monthly_budget else 0
 
-        bill_paid_total = session.query(
-            func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
-        ).filter(
-            BillAccounts.user_id == user_id,
-            BillAccounts.deleted_at.is_(None)
-        ).scalar()
+        current_month_string = datetime.now().strftime('%b %Y')
+
+        total_payment_boost = (
+            db.session.query(func.coalesce(func.sum(PaymentBoost.amount), 0))
+            .filter(
+                PaymentBoost.month == current_month_string,
+                PaymentBoost.deleted_at.is_(None)
+            )
+            .scalar()
+        ) or 0
+
+        debt_total_balance = monthly_budget + total_payment_boost
+        
+
+        total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
+        total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
+        bill_paid_total = total_monthly_bill_paid + total_monthly_bill_unpaid
 
         total_net_income = app_datas.total_monthly_net_income if app_datas else 0
         total_saving = app_datas.total_monthly_saving if app_datas else 0
         total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total), 2)
 
-        remaining_income = total_net_income - (debt_total_balance + bill_paid_total + total_saving)
-        saving_ratio = 0
-        remaining_income_ratio = 0
+       
         debt_to_wealth = 0
-        if total_net_income > 0:
-            saving_ratio = (total_saving / total_net_income) * 100
-            remaining_income_ratio = (remaining_income / total_net_income) * 100
-            debt_to_wealth = round((saving_ratio * 0.5) + (remaining_income_ratio * 0.5), 0)
+        if total_net_income > 0 and total_wealth > 0:
+            debt_to_wealth = round(total_wealth / total_net_income* 100 , 0)
 
         debttype_id_list = session.query(DebtType.id).filter(
             DebtType.deleted_at.is_(None),
@@ -299,13 +312,13 @@ async def get_dashboard_data_pg(user_id: int):
 
         return jsonify({
             'debt_total_balance': debt_total_balance,
-            'total_net_income': total_net_income,
-            'bill_paid_total': bill_paid_total,
+            'total_net_income': round(total_net_income,0),
+            'bill_paid_total': round(bill_paid_total,0),
             "debt_list": debt_list,
             'total_wealth': total_wealth,
             'debt_to_wealth': debt_to_wealth,
             'credit_ratio': credit_ratio,
-            'total_saving': total_saving,
+            'total_saving': round(total_saving,0),
             'total_allocation_data': total_allocation_data
         })
 

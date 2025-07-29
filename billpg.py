@@ -138,7 +138,8 @@ def save_bill_account_pg():
             admin_id = data['admin_id']
             bill_type_id = data['bill_type']['value']
             current_amount = amount
-            current_datetime_now = datetime.now()                        
+            current_datetime_now = datetime.now()
+            current_billing_month = int(convertDateTostring(current_datetime_now,'%Y%m'))                        
 
             # Create BillAccount record
             bill_account = BillAccounts(
@@ -165,7 +166,8 @@ def save_bill_account_pg():
             bill_account_id = bill_account.id
 
             bill_trans_id = None
-            no_repeat_next = 0            
+            no_repeat_next = 0
+            total_monthly_unpaid_bill = 0            
             
             if repeat_frequency > 0:
                 bill_transaction_generate = generate_bill(
@@ -181,7 +183,7 @@ def save_bill_account_pg():
                 current_amount = bill_transaction_generate['current_amount']
                 next_due_date = bill_transaction_generate['next_pay_date']
                 is_single = bill_transaction_generate['is_single']
-                
+                total_monthly_unpaid_bill = bill_transaction_generate['total_monthly_unpaid_bill']
                 
                 bill_transaction = None
                 if len(bill_transaction_list) > 0:
@@ -222,6 +224,11 @@ def save_bill_account_pg():
                     db.session.flush()  # Commit to get the transaction ID
                     bill_trans_id = bill_transaction.id
 
+                    month = int(next_due_date.strftime("%Y%m"))
+
+                    if month == int(current_datetime_now.strftime('%Y%m')):            
+                        total_monthly_unpaid_bill+=amount
+
             if repeat_frequency < 1 and no_repeat_next < 1:
                 current_amount = 0
             # Update BillAccount with the latest_transaction_id
@@ -231,6 +238,28 @@ def save_bill_account_pg():
             bill_account.next_due_date = next_due_date
             bill_account.single_done = 1 if repeat_frequency < 1 and no_repeat_next > 0 else 0
             bill_account.auto_update = int(not no_repeat_next)
+            if total_monthly_unpaid_bill > 0:
+                app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+                if app_data:
+                    # Update the existing record                    
+                    if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
+                        app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
+                    else:
+                        app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
+                        app_data.current_billing_month_up = current_billing_month                   
+                    
+                    
+                    
+                else:
+                    # Insert a new record if the user doesn't exist
+                    app_data = AppData(
+                        user_id=user_id,
+                        current_billing_month_up = current_billing_month,
+                        total_monthly_bill_unpaid=total_monthly_unpaid_bill,                                                
+                    )
+
+                
+                db.session.add(app_data)
             db.session.commit()  # Commit the update
 
             result = 1 if bill_account_id else 0
