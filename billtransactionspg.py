@@ -267,7 +267,14 @@ def save_bill_transactions_pg():
 
                     if due_date_month == current_billing_month:
                         app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-                        if app_data:                
+                        if app_data:
+
+                            if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
+                                total_monthly_bill_unpaid = app_data.total_monthly_bill_unpaid - amount
+                                app_data.total_monthly_bill_unpaid =0 if total_monthly_bill_unpaid < 0 else total_monthly_bill_unpaid
+                            
+                            
+                                            
                             if app_data.current_billing_month != None and app_data.current_billing_month == current_billing_month:
                                 app_data.total_monthly_bill_paid += amount
                             else:
