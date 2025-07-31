@@ -12,7 +12,7 @@ from dbpg import db
 from models import *
 from sqlalchemy.orm import joinedload
 from db import my_col
-from billutil import generate_bill
+from billutil import generate_bill, get_freq_data
 calender_data = my_col('calender_data')
 @app.route('/api/billspg/<int:user_id>', methods=['POST'])
 async def list_bills_pg(user_id: int):
@@ -167,7 +167,8 @@ def save_bill_account_pg():
 
             bill_trans_id = None
             no_repeat_next = 0
-            total_monthly_unpaid_bill = 0            
+            total_monthly_unpaid_bill = 0
+            total_monthly_unpaid_billf = 0            
             
             if repeat_frequency > 0:
                 bill_transaction_generate = generate_bill(
@@ -184,7 +185,10 @@ def save_bill_account_pg():
                 next_due_date = bill_transaction_generate['next_pay_date']
                 is_single = bill_transaction_generate['is_single']
                 total_monthly_unpaid_bill = bill_transaction_generate['total_monthly_unpaid_bill']
-                
+                current_next_due_month = int(convertDateTostring(next_due_date,'%Y%m'))
+                if current_billing_month == current_next_due_month:
+                    future_data = get_freq_data(next_due_date.date(),repeat_frequency,amount)
+                    total_monthly_unpaid_billf = future_data['amount']
                 bill_transaction = None
                 if len(bill_transaction_list) > 0:
                     if is_single > 0:
@@ -244,9 +248,12 @@ def save_bill_account_pg():
                     # Update the existing record                    
                     if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
                         app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
+                        app_data.total_monthly_bill_unpaidf += total_monthly_unpaid_billf
                     else:
                         app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
-                        app_data.current_billing_month_up = current_billing_month                   
+                        app_data.total_monthly_bill_unpaidf = total_monthly_unpaid_billf
+                        app_data.current_billing_month_up = current_billing_month
+                        app_data.current_billing_month_upf = current_billing_month                   
                     
                     
                     
@@ -255,7 +262,9 @@ def save_bill_account_pg():
                     app_data = AppData(
                         user_id=user_id,
                         current_billing_month_up = current_billing_month,
-                        total_monthly_bill_unpaid=total_monthly_unpaid_bill,                                                
+                        total_monthly_bill_unpaid=total_monthly_unpaid_bill,
+                        total_monthly_unpaid_billf=total_monthly_unpaid_billf,
+                        current_billing_month_upf=current_billing_month                                                
                     )
 
                 
