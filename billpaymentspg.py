@@ -121,7 +121,7 @@ def pay_bill_transaction_pg(accntid: int):
         result = 0
         current_datetime = datetime.now()
         current_billing_month = int(convertDateTostring(current_datetime,'%Y%m'))
-
+        total_monthly_unpaid_bill = 0
         try:
             # Start transaction
             
@@ -178,21 +178,24 @@ def pay_bill_transaction_pg(accntid: int):
             bill_account.paid_total = paid_total
             bill_account.updated_at = current_datetime
             db.session.add(bill_account)
-
             
             if pay_date_month == current_billing_month:
                 app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
                 if app_data:                
                     if app_data.current_billing_month != None and app_data.current_billing_month == current_billing_month:
+                        app_data.total_monthly_bill_unpaid -= amount
                         app_data.total_monthly_bill_paid += amount
                     else:
                         app_data.total_monthly_bill_paid =  amount
+                        app_data.total_monthly_bill_unpaid = app_data.total_monthly_bill_unpaid - amount if app_data.total_monthly_bill_unpaid > 0 else 0
+                        app_data.current_billing_month_up = current_billing_month
                         app_data.current_billing_month = current_billing_month
                 else:
                     app_data = AppData(
                             user_id=user_id,
                             current_billing_month = current_billing_month,
-                            total_monthly_bill_paid=amount                        
+                            total_monthly_bill_paid=amount,
+                            total_monthly_bill_unpaid=0                        
                         )
                 db.session.add(app_data)
 

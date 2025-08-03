@@ -115,7 +115,8 @@ async def header_summary_data_pg(user_id:int):
         '''
         total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
         total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
-        monthly_bill_totals = total_monthly_bill_paid + total_monthly_bill_unpaid
+        total_monthly_bill_unpaidf = app_datas.total_monthly_bill_unpaidf if app_datas.current_billing_month_upf!=None and app_datas.current_billing_month_up == current_month else 0
+        monthly_bill_totals = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
         # monthly_bill_totals = session.query(
         #     func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
         # ).filter(
@@ -249,7 +250,8 @@ async def get_dashboard_data_pg(user_id: int):
 
         total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
         total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
-        bill_paid_total = total_monthly_bill_paid + total_monthly_bill_unpaid
+        total_monthly_bill_unpaidf = app_datas.total_monthly_bill_unpaidf if app_datas.current_billing_month_upf!=None and app_datas.current_billing_month_up == current_month else 0
+        bill_paid_total = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
 
         total_net_income = app_datas.total_monthly_net_income if app_datas else 0
         total_saving = app_datas.total_monthly_saving if app_datas else 0

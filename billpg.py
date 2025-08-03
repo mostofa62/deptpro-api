@@ -201,9 +201,9 @@ def save_bill_account_pg():
 
 
                 # Create BillTransaction record
-                
-                db.session.flush()  # Commit to get the transaction ID
-                bill_trans_id = bill_transaction.id if is_single > 0 else bill_transaction[-1].id
+                if bill_transaction!=None:
+                    db.session.flush()  # Commit to get the transaction ID
+                    bill_trans_id = bill_transaction.id if is_single > 0 else bill_transaction[-1].id
             else:
                 
                 if next_due_date <= current_datetime_now:
@@ -228,10 +228,12 @@ def save_bill_account_pg():
                     db.session.flush()  # Commit to get the transaction ID
                     bill_trans_id = bill_transaction.id
 
-                    month = int(next_due_date.strftime("%Y%m"))
-
-                    if month == int(current_datetime_now.strftime('%Y%m')):            
+                month = int(next_due_date.strftime("%Y%m"))
+                if month == int(current_datetime_now.strftime('%Y%m')):                         
+                    if next_due_date <= current_datetime_now:
                         total_monthly_unpaid_bill+=amount
+                    elif  next_due_date > current_datetime_now:
+                        total_monthly_unpaid_billf+=amount
 
             if repeat_frequency < 1 and no_repeat_next < 1:
                 current_amount = 0
@@ -242,30 +244,30 @@ def save_bill_account_pg():
             bill_account.next_due_date = next_due_date
             bill_account.single_done = 1 if repeat_frequency < 1 and no_repeat_next > 0 else 0
             bill_account.auto_update = int(not no_repeat_next)
-            if total_monthly_unpaid_bill > 0:
-                app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-                if app_data:
-                    # Update the existing record                    
-                    if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
-                        app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
-                        app_data.total_monthly_bill_unpaidf += total_monthly_unpaid_billf
-                    else:
-                        app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
-                        app_data.total_monthly_bill_unpaidf = total_monthly_unpaid_billf
-                        app_data.current_billing_month_up = current_billing_month
-                        app_data.current_billing_month_upf = current_billing_month                   
-                    
-                    
-                    
+            
+            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+            if app_data:
+                # Update the existing record                    
+                if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
+                    app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
+                    app_data.total_monthly_bill_unpaidf += total_monthly_unpaid_billf
                 else:
-                    # Insert a new record if the user doesn't exist
-                    app_data = AppData(
-                        user_id=user_id,
-                        current_billing_month_up = current_billing_month,
-                        total_monthly_bill_unpaid=total_monthly_unpaid_bill,
-                        total_monthly_unpaid_billf=total_monthly_unpaid_billf,
-                        current_billing_month_upf=current_billing_month                                                
-                    )
+                    app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
+                    app_data.total_monthly_bill_unpaidf = total_monthly_unpaid_billf
+                    app_data.current_billing_month_up = current_billing_month
+                    app_data.current_billing_month_upf = current_billing_month                   
+                    
+                    
+                    
+            else:
+                # Insert a new record if the user doesn't exist
+                app_data = AppData(
+                    user_id=user_id,
+                    current_billing_month_up = current_billing_month,
+                    total_monthly_bill_unpaid=total_monthly_unpaid_bill,
+                    total_monthly_unpaid_billf=total_monthly_unpaid_billf,
+                    current_billing_month_upf=current_billing_month                                                
+                )
 
                 
                 db.session.add(app_data)
