@@ -131,6 +131,7 @@ def save_bill_account_pg():
             repeat_frequency = int(data['repeat_frequency']['value'])
             reminder_days = int(data['reminder_days']['value'])
             next_due_date = convertStringTodate(data['next_due_date'])
+            next_due_date_month = int(convertDateTostring(next_due_date,'%Y%m'))
             op_type = ExtraType[0]['value']  # Assuming you fetch operation type somewhere
             
             # Get user and bill type
@@ -228,7 +229,7 @@ def save_bill_account_pg():
                     db.session.flush()  # Commit to get the transaction ID
                     bill_trans_id = bill_transaction.id
 
-                month = int(next_due_date.strftime("%Y%m"))
+                month = next_due_date_month
                 if month == int(current_datetime_now.strftime('%Y%m')):                         
                     if next_due_date <= current_datetime_now:
                         total_monthly_unpaid_bill+=amount
@@ -245,31 +246,32 @@ def save_bill_account_pg():
             bill_account.single_done = 1 if repeat_frequency < 1 and no_repeat_next > 0 else 0
             bill_account.auto_update = int(not no_repeat_next)
             
-            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-            if app_data:
-                # Update the existing record                    
-                if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
-                    app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
-                    app_data.total_monthly_bill_unpaidf += total_monthly_unpaid_billf
+            if current_billing_month == next_due_date_month:
+                app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+                if app_data:
+                    # Update the existing record                    
+                    if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
+                        app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
+                        app_data.total_monthly_bill_unpaidf += total_monthly_unpaid_billf
+                    else:
+                        app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
+                        app_data.total_monthly_bill_unpaidf = total_monthly_unpaid_billf
+                        app_data.current_billing_month_up = current_billing_month
+                        app_data.current_billing_month_upf = current_billing_month                   
+                        
+                        
+                        
                 else:
-                    app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
-                    app_data.total_monthly_bill_unpaidf = total_monthly_unpaid_billf
-                    app_data.current_billing_month_up = current_billing_month
-                    app_data.current_billing_month_upf = current_billing_month                   
-                    
-                    
-                    
-            else:
-                # Insert a new record if the user doesn't exist
-                app_data = AppData(
-                    user_id=user_id,
-                    current_billing_month_up = current_billing_month,
-                    total_monthly_bill_unpaid=total_monthly_unpaid_bill,
-                    total_monthly_unpaid_billf=total_monthly_unpaid_billf,
-                    current_billing_month_upf=current_billing_month                                                
-                )
+                    # Insert a new record if the user doesn't exist
+                    app_data = AppData(
+                        user_id=user_id,
+                        current_billing_month_up = current_billing_month,
+                        total_monthly_bill_unpaid=total_monthly_unpaid_bill,
+                        total_monthly_unpaid_billf=total_monthly_unpaid_billf,
+                        current_billing_month_upf=current_billing_month                                                
+                    )
 
-                
+                    
                 db.session.add(app_data)
             db.session.commit()  # Commit the update
 

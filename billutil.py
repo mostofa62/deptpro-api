@@ -47,7 +47,9 @@ def generate_bill(
     total_monthly_unpaid_bill=0
 
     is_single = 0
-
+    ##commented due next_pay_date > current_datetime_now
+    ##but we will enter at least one row for safe cause
+    '''
     if next_pay_date > current_datetime_now:
         return ({
             'bill_transaction':bill_transaction,
@@ -56,7 +58,9 @@ def generate_bill(
             'is_single':is_single,
             'total_monthly_unpaid_bill':total_monthly_unpaid_bill
 
-        })   
+        }) 
+
+    '''  
 
     
     if current_datetime_now <= next_pay_date:

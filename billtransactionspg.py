@@ -168,6 +168,9 @@ def save_bill_transactions_pg():
             current_amount = previous_bill_acc.current_amount
             paid_total = previous_bill_acc.paid_total or 0
 
+        total_monthly_unpaid_bill = 0
+        total_monthly_unpaid_billf = 0
+
         try:
 
             amount = float(data.get("amount", 0))
@@ -195,21 +198,32 @@ def save_bill_transactions_pg():
                 )
 
                 if due_date_month == current_billing_month:
+                    if due_date <= current_datetime:
+                        total_monthly_unpaid_bill+=amount
+                    elif  due_date > current_datetime:
+                        total_monthly_unpaid_billf+=amount
+
+                
                     app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
                     if app_data:
                         # Update the existing record                    
                         if app_data.current_billing_month_up!= None and app_data.current_billing_month_up == current_billing_month:
-                            app_data.total_monthly_bill_unpaid += amount
+                            app_data.total_monthly_bill_unpaid += total_monthly_unpaid_bill
+                            app_data.total_monthly_bill_unpaidf += total_monthly_unpaid_billf
                         else:
-                            app_data.total_monthly_bill_unpaid =  amount
-                            app_data.current_billing_month_up = current_billing_month                   
+                            app_data.total_monthly_bill_unpaid =  total_monthly_unpaid_bill
+                            app_data.total_monthly_bill_unpaidf = total_monthly_unpaid_billf
+                            app_data.current_billing_month_up = current_billing_month
+                            app_data.current_billing_month_upf = current_billing_month                   
                         
                     else:
                         # Insert a new record if the user doesn't exist
                         app_data = AppData(
                             user_id=user_id,
                             current_billing_month_up = current_billing_month,
-                            total_monthly_bill_unpaid=amount,                                                
+                            total_monthly_bill_unpaid=total_monthly_unpaid_bill,
+                            total_monthly_unpaid_billf=total_monthly_unpaid_billf,
+                            current_billing_month_upf=current_billing_month                                                
                         )
 
                 
