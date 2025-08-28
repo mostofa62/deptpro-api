@@ -79,6 +79,8 @@ async def header_summary_data_pg(user_id:int):
 
         #income and incomeboost      
         total_monthly_net_income = app_datas.total_monthly_net_income if  app_datas!=None else 0
+        total_monthly_net_income_f = app_datas.total_monthly_net_income_f if  app_datas!=None else 0
+        total_monthly_net_income += total_monthly_net_income_f
 
         target_year = current_date.year
         target_month = current_date.month
@@ -254,6 +256,8 @@ async def get_dashboard_data_pg(user_id: int):
         bill_paid_total = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
 
         total_net_income = app_datas.total_monthly_net_income if app_datas else 0
+        total_net_income_f = app_datas.total_monthly_net_income_f if  app_datas!=None else 0
+        total_net_income += total_net_income_f
         total_saving = app_datas.total_monthly_saving if app_datas else 0
         total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total), 2)
 

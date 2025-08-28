@@ -1,6 +1,6 @@
 import re
 from flask import Flask,request,jsonify
-from incomeutil import calculate_periods, generate_new_transaction_data_for_income
+from incomeutil import calculate_periods, generate_new_transaction_data_for_income, get_remaining_frequency_with_next, get_remaining_frequency_with_next_yearly
 from app import app
 from bson.json_util import dumps
 from util import *
@@ -33,6 +33,9 @@ async def delete_income_pg():
     error = 0
     deleted_done = 0
 
+    current_month = int(convertDateTostring(datetime.now(),'%Y%m'))
+    current_year = int(current_month/100)
+
     session = db.session
 
     try:
@@ -42,19 +45,43 @@ async def delete_income_pg():
             Income.total_yearly_gross_income,
             Income.total_yearly_net_income,
             Income.total_monthly_gross_income,
-            Income.total_monthly_net_income                     
+            Income.total_monthly_net_income,
+            Income.total_monthly_gross_income_f,
+            Income.total_monthly_net_income_f,
+            Income.total_yearly_gross_income_f,
+            Income.total_yearly_net_income_f,
+            Income.current_month,
+            Income.current_year                   
         ).where(Income.id == income_id)
 
         previous_income = session.execute(stmt).mappings().first()
-
         app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
+        if key < 2:            
+            if app_data.current_income_month == current_month and previous_income['current_month'] == current_month:
+                app_data.total_monthly_net_income -= previous_income['total_monthly_net_income'] if app_data.total_monthly_net_income >= previous_income['total_monthly_net_income'] else 0
+                app_data.total_monthly_gross_income -= previous_income['total_monthly_gross_income'] if app_data.total_monthly_gross_income >= previous_income['total_monthly_gross_income'] else 0
+                app_data.total_monthly_net_income_f -= previous_income['total_monthly_net_income_f'] if app_data.total_monthly_net_income_f >= previous_income['total_monthly_net_income_f'] else 0
+                app_data.total_monthly_gross_income_f -= previous_income['total_monthly_gross_income_f'] if app_data.total_monthly_gross_income_f >= previous_income['total_monthly_gross_income_f'] else 0
+                
+            
+            if app_data.current_income_year == current_year and previous_income['current_year'] == current_year:
+                app_data.total_yearly_gross_income -= previous_income['total_yearly_gross_income'] if app_data.total_yearly_gross_income >= previous_income['total_yearly_gross_income'] else 0
+                app_data.total_yearly_net_income -= previous_income['total_yearly_net_income'] if app_data.total_yearly_net_income >= previous_income['total_yearly_net_income']  else 0
+                app_data.total_yearly_gross_income_f -= previous_income['total_yearly_gross_income_f'] if app_data.total_yearly_gross_income_f >= previous_income['total_yearly_gross_income_f'] else 0
+                app_data.total_yearly_net_income_f -= previous_income['total_yearly_net_income_f'] if app_data.total_yearly_net_income_f >= previous_income['total_yearly_net_income_f']  else 0
+        else:
 
-        app_data.total_yearly_gross_income -= previous_income['total_yearly_gross_income'] if app_data.total_yearly_gross_income >= previous_income['total_yearly_gross_income'] else 0
-        app_data.total_yearly_net_income -= previous_income['total_yearly_net_income'] if app_data.total_yearly_net_income >= previous_income['total_yearly_net_income']  else 0
-        app_data.total_monthly_net_income -= previous_income['total_monthly_net_income'] if app_data.total_monthly_net_income >= previous_income['total_monthly_net_income'] else 0
-        app_data.total_monthly_gross_income -= previous_income['total_monthly_gross_income'] if app_data.total_monthly_gross_income >= previous_income['total_monthly_gross_income'] else 0
-        app_data.income_updated_at = None
-        session.add(app_data)
+            if app_data.current_income_month == current_month and previous_income['current_month'] == current_month:
+                app_data.total_monthly_net_income_f -= previous_income['total_monthly_net_income_f'] if app_data.total_monthly_net_income_f >= previous_income['total_monthly_net_income_f'] else 0
+                app_data.total_monthly_gross_income_f -= previous_income['total_monthly_gross_income_f'] if app_data.total_monthly_gross_income_f >= previous_income['total_monthly_gross_income_f'] else 0
+            
+            if app_data.current_income_year == current_year and previous_income['current_year'] == current_year:
+                app_data.total_yearly_gross_income_f -= previous_income['total_yearly_gross_income_f'] if app_data.total_yearly_gross_income_f >= previous_income['total_yearly_gross_income_f'] else 0
+                app_data.total_yearly_net_income_f -= previous_income['total_yearly_net_income_f'] if app_data.total_yearly_net_income_f >= previous_income['total_yearly_net_income_f']  else 0
+        
+                
+            app_data.income_updated_at = None
+            session.add(app_data)
 
 
                 
@@ -62,7 +89,11 @@ async def delete_income_pg():
         income_update = session.query(Income).filter(Income.id == income_id).update(
             {
                 field: datetime.now(),
-                Income.admin_id:admin_id
+                Income.admin_id:admin_id,
+                Income.total_monthly_gross_income_f:0,
+                Income.total_monthly_net_income_f:0,
+                Income.total_yearly_gross_income_f:0,
+                Income.total_yearly_net_income_f:0,
                 #Income.calender_at: None
             }, synchronize_session=False
         )
@@ -275,7 +306,7 @@ async def list_income_pg(user_id: int):
 
         # App data
         app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
-
+        
         income_list = [
             {
                 "id": inc.id,
@@ -288,10 +319,10 @@ async def list_income_pg(user_id: int):
                 "total_net_income": inc.total_net_income,
                 "pay_date": convertDateTostring(inc.pay_date),
                 "next_pay_date": convertDateTostring(inc.next_pay_date),
-                "total_monthly_gross_income": inc.total_monthly_gross_income,
-                "total_monthly_net_income": inc.total_monthly_net_income,
-                "total_yearly_net_income": inc.total_yearly_net_income,
-                "total_yearly_gross_income": inc.total_yearly_gross_income,
+                "total_monthly_gross_income": inc.total_monthly_gross_income+inc.total_monthly_gross_income_f,
+                "total_monthly_net_income": inc.total_monthly_net_income+inc.total_monthly_net_income_f,
+                "total_yearly_net_income": inc.total_yearly_net_income+inc.total_yearly_net_income_f,
+                "total_yearly_gross_income": inc.total_yearly_gross_income+inc.total_yearly_gross_income_f,
                 "net_income_boost_monthly": net_boost if net_boost is not None else 0,
             }
             for inc, net_boost in results
@@ -302,10 +333,10 @@ async def list_income_pg(user_id: int):
             'pageCount': (total_count + page_size - 1) // page_size,
             'totalRows': total_count,
             'extra_payload': {
-                'total_net_income': app_data.total_monthly_net_income if app_data else 0,
-                'total_gross_income': app_data.total_monthly_gross_income if app_data else 0,
-                'total_net_income_yearly': app_data.total_yearly_net_income if app_data else 0,
-                'total_gross_income_yearly': app_data.total_yearly_gross_income if app_data else 0
+                'total_net_income': app_data.total_monthly_net_income + app_data.total_monthly_net_income_f if app_data else 0,
+                'total_gross_income': app_data.total_monthly_gross_income + app_data.total_monthly_gross_income_f if app_data else 0,
+                'total_net_income_yearly': app_data.total_yearly_net_income + app_data.total_yearly_net_income_f if app_data else 0,
+                'total_gross_income_yearly': app_data.total_yearly_gross_income + app_data.total_yearly_gross_income_f if app_data else 0
             }
         })
 
@@ -338,6 +369,7 @@ def create_income():
         message = ''
         result = 0
         current_month = int(convertDateTostring(datetime.now(),'%Y%m'))
+        current_year = int(current_month/100)
 
         # Get a database session from get_db
         session = db.session
@@ -357,6 +389,11 @@ def create_income():
                 total_monthly_net_income = 0
                 total_yearly_gross_income = 0
                 total_yearly_net_income = 0
+
+                total_monthly_gross_income_f = 0
+                total_monthly_net_income_f = 0
+                total_yearly_gross_income_f = 0
+                total_yearly_net_income_f = 0
                 
                 commit = datetime.now()
 
@@ -429,6 +466,34 @@ def create_income():
                         income_transaction_data = [IncomeTransaction(**txn) for txn in income_transaction_list]
                         session.add_all(income_transaction_data)
 
+                current_running_month = int(convertDateTostring(next_pay_date,'%Y%m'))
+                current_running_year = int(current_running_month / 100)
+                print(current_running_month, current_year,'-',current_month, current_running_year)
+
+                if current_running_month == current_month and repeat < 30:
+                    projected_income = get_remaining_frequency_with_next(
+                        next_pay_date.date(),
+                        repeat,
+                        gross_income,
+                        net_income
+                    )
+                    projected_gross_income = projected_income['gross_income']
+                    projected_net_income = projected_income['net_income']
+                    total_monthly_gross_income_f = projected_gross_income
+                    total_monthly_net_income_f = projected_net_income
+
+                if current_running_year == current_year:
+                    
+                    projected_income_yearly = get_remaining_frequency_with_next_yearly(
+                        next_pay_date.date(),
+                        repeat,
+                        gross_income,
+                        net_income
+                    )
+                    projected_gross_income = projected_income_yearly['gross_income']
+                    projected_net_income = projected_income_yearly['net_income']
+                    total_yearly_gross_income_f = projected_gross_income
+                    total_yearly_net_income_f = projected_net_income
                 
 
                 # Update income record with transaction totals
@@ -439,17 +504,42 @@ def create_income():
                 income_record.total_monthly_net_income = total_monthly_net_income
                 income_record.total_yearly_gross_income = total_yearly_gross_income
                 income_record.total_yearly_net_income = total_yearly_net_income
+                income_record.total_monthly_gross_income_f = total_monthly_gross_income_f
+                income_record.total_monthly_net_income_f = total_monthly_net_income_f
+                income_record.total_yearly_gross_income_f = total_yearly_gross_income_f
+                income_record.total_yearly_net_income_f = total_yearly_net_income_f
+                income_record.current_month = current_month
+                income_record.current_year = current_year
                 income_record.updated_at = datetime.now()
 
                                
                 app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
                 if app_data:
-                    # Update the existing record
-                    app_data.total_yearly_gross_income += total_yearly_gross_income
-                    app_data.total_yearly_net_income += total_yearly_net_income
-                    app_data.total_monthly_gross_income += total_monthly_gross_income
-                    app_data.total_monthly_net_income += total_monthly_net_income
+                    if app_data.current_income_month !=None and app_data.current_income_month == current_month:
+                        app_data.total_monthly_gross_income += total_monthly_gross_income
+                        app_data.total_monthly_net_income += total_monthly_net_income
+                        app_data.total_monthly_gross_income_f += total_monthly_gross_income_f
+                        app_data.total_monthly_net_income_f += total_monthly_net_income_f
+                    else:
+                        app_data.total_monthly_gross_income = total_monthly_gross_income
+                        app_data.total_monthly_net_income = total_monthly_net_income
+                        app_data.total_monthly_gross_income_f = total_monthly_gross_income_f
+                        app_data.total_monthly_net_income_f = total_monthly_net_income_f
+                        app_data.current_income_month = current_month
+                    
+                    if app_data.current_income_year !=None and app_data.current_income_year == current_year:
+                        app_data.total_yearly_gross_income += total_yearly_gross_income
+                        app_data.total_yearly_net_income += total_yearly_net_income
+                        app_data.total_yearly_gross_income_f += total_yearly_gross_income_f
+                        app_data.total_yearly_net_income_f += total_yearly_net_income_f
+                    else:
+                        app_data.total_yearly_gross_income = total_yearly_gross_income
+                        app_data.total_yearly_net_income = total_yearly_net_income
+                        app_data.total_yearly_gross_income_f = total_yearly_gross_income_f
+                        app_data.total_yearly_net_income_f = total_yearly_net_income_f
+                        app_data.current_income_year = current_year
+                    
                     app_data.income_updated_at = None
                     
                     
@@ -461,11 +551,17 @@ def create_income():
                         total_yearly_net_income=total_yearly_net_income,
                         total_monthly_gross_income=total_monthly_gross_income,
                         total_monthly_net_income=total_monthly_net_income,
+                        total_monthly_gross_income_f = total_monthly_gross_income_f,
+                        total_monthly_net_income_f = total_monthly_net_income_f,
+                        total_yearly_gross_income_f = total_yearly_gross_income_f,
+                        total_yearly_net_income_f = total_yearly_net_income_f,
+                        current_income_month = current_month,
+                        current_income_year = current_year,
                         income_updated_at=None
                     )
 
                 session.add(app_data)
-                print('income_id', income_id)
+                # print('income_id', income_id)
 
                 cashflow_data = session.query(CashFlow).filter(
                         CashFlow.user_id == user_id,

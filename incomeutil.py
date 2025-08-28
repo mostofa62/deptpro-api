@@ -848,7 +848,7 @@ def calculate_total_income_for_sepecific_month(data, target_month, key='base_net
     return total_monthly_net_income,total_monthly_gross_income
 
 
-def get_remaining_frequency_with_next(start_date: date, frequency_days: int, gross_amount:int, net_amount:int):
+def get_remaining_frequency_with_next(start_date: date, frequency_days: int, gross_amount:float, net_amount:float):
     if frequency_days < 1:
         raise ValueError("Frequency must be a positive integer.")
 
@@ -871,6 +871,34 @@ def get_remaining_frequency_with_next(start_date: date, frequency_days: int, gro
     return {
         #"count": in_month_count,
         "next_pay_date": first_next_month_date,
+        'gross_income':total_gross_amount,
+        'net_income':total_net_amount
+    }
+
+
+def get_remaining_frequency_with_next_yearly(start_date: date, frequency_days: int, gross_amount:float, net_amount:float):
+    if frequency_days < 1:
+        raise ValueError("Frequency must be a positive integer.")
+
+    # End of the current calendar month
+    year = start_date.year
+    end_of_year = date(year, 12, 31)
+
+    # Calculate how many full frequencies fit within current month
+    days_remaining = (end_of_year - start_date).days + 1
+    in_year_count = 1 + (days_remaining - 1) // frequency_days
+    # First overflow date beyond end of month
+    first_next_year_date = start_date + timedelta(days=in_year_count * frequency_days)
+
+    print('in to yearly',year, end_of_year, days_remaining, in_year_count, first_next_year_date)
+    
+    total_gross_amount  = in_year_count * gross_amount
+    total_net_amount = in_year_count * net_amount
+
+    print('counted for ',total_gross_amount, total_net_amount)
+
+    return {
+        "next_pay_date": first_next_year_date,
         'gross_income':total_gross_amount,
         'net_income':total_net_amount
     }

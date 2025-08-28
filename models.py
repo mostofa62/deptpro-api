@@ -69,8 +69,15 @@ class AppData(db.Model):
     user_id = Column(Integer, ForeignKey("users.id"),unique=True, nullable=False, index=True)  # Foreign key to users table
     total_monthly_gross_income = Column(Float, nullable=True, default=0.0)
     total_monthly_net_income = Column(Float, nullable=True, default=0.0)
+    current_income_month = Column(Integer, nullable=True)
     total_yearly_gross_income = Column(Float, nullable=True, default=0.0)
     total_yearly_net_income = Column(Float, nullable=True, default=0.0)
+    total_monthly_gross_income_f = Column(Float, nullable=True, default=0.0)
+    total_monthly_net_income_f = Column(Float, nullable=True, default=0.0)
+    total_yearly_gross_income_f = Column(Float, nullable=True, default=0.0)
+    total_yearly_net_income_f = Column(Float, nullable=True, default=0.0)
+    current_income_month = Column(Integer, nullable=True)
+    current_income_year = Column(Integer, nullable=True)
     income_updated_at = Column(DateTime, nullable=True)
     total_monthly_saving = Column(Float, nullable=True, default=0.0)
     saving_updated_at = Column(DateTime, nullable=True)
@@ -156,6 +163,12 @@ class Income(db.Model):
     calender_at = Column(DateTime, nullable=True,index=True)
     deleted_at = Column(DateTime, nullable=True,index=True)
     closed_at = Column(DateTime, nullable=True,index=True)
+    current_month = Column(Integer,nullable=True)
+    current_year = Column(Integer,nullable=True)
+    total_monthly_gross_income_f = Column(Float, nullable=True, default=0.0)
+    total_monthly_net_income_f = Column(Float, nullable=True, default=0.0)
+    total_yearly_gross_income_f = Column(Float, nullable=True, default=0.0)
+    total_yearly_net_income_f = Column(Float, nullable=True, default=0.0)
 
     # Relationships
     user = relationship("User", backref="incomes", lazy="joined")
@@ -203,6 +216,12 @@ class IncomeBoost(db.Model):
     total_monthly_net_income = Column(Float, nullable=True, default=0.0)
     total_yearly_gross_income = Column(Float, nullable=True, default=0.0)
     total_yearly_net_income = Column(Float, nullable=True, default=0.0)
+    current_month = Column(Integer,nullable=True)
+    current_year = Column(Integer,nullable=True)
+    total_monthly_gross_income_f = Column(Float, nullable=True, default=0.0)
+    total_monthly_net_income_f = Column(Float, nullable=True, default=0.0)
+    total_yearly_gross_income_f = Column(Float, nullable=True, default=0.0)
+    total_yearly_net_income_f = Column(Float, nullable=True, default=0.0)
 
     # Relationships
     user = relationship("User", backref="income_boosts", lazy="joined")
