@@ -94,6 +94,7 @@ class AppData(db.Model):
     current_billing_month_upf = Column(Integer, nullable=True)    
     total_monthly_debt_boost = Column(Float, nullable=True, default=0.0)
     current_debt_boost_month = Column(Integer, nullable=True)
+    total_monthly_saving_f = Column(Float, nullable=True, default=0.0)
 
     # Relationship with the user
     user = relationship("User", backref="app_data", lazy="joined")
@@ -696,6 +697,7 @@ class Saving(db.Model):
     total_monthly_balance = Column(Float, nullable=False, default=0)
     financial_freedom_target = Column(Float, nullable=True, default=0)
     current_month = Column(Integer,nullable=True)
+    total_monthly_balance_f = Column(Float, nullable=False, default=0)
 
     category = db.relationship(
         'SavingCategory', 

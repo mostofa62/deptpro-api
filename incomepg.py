@@ -80,8 +80,8 @@ async def delete_income_pg():
                 app_data.total_yearly_net_income_f -= previous_income['total_yearly_net_income_f'] if app_data.total_yearly_net_income_f >= previous_income['total_yearly_net_income_f']  else 0
         
                 
-            app_data.income_updated_at = None
-            session.add(app_data)
+        app_data.income_updated_at = None
+        session.add(app_data)
 
 
                 

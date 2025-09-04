@@ -14,6 +14,8 @@ from sqlalchemy.exc import SQLAlchemyError
 async def header_summary_data_pg(user_id:int):
 
     session = db.session
+    total_monthly_net_income = 0
+    monthly_bill_totals = 0
     try:
         app_datas = session.query(AppData).filter(
             AppData.user_id == user_id           
@@ -77,10 +79,11 @@ async def header_summary_data_pg(user_id:int):
 
         latest_month_debt_free = convertDateTostring(latest_month_debt_free,'%b %Y') if latest_month_debt_free else ''
 
-        #income and incomeboost      
-        total_monthly_net_income = app_datas.total_monthly_net_income if  app_datas!=None else 0
-        total_monthly_net_income_f = app_datas.total_monthly_net_income_f if  app_datas!=None else 0
-        total_monthly_net_income += total_monthly_net_income_f
+        #income and incomeboost 
+        if app_datas!=None:     
+            total_monthly_net_income = app_datas.total_monthly_net_income if app_datas.current_income_month!=None and app_datas.current_income_month == current_month else 0
+            total_monthly_net_income_f = app_datas.total_monthly_net_income_f if app_datas.current_income_month!=None and app_datas.current_income_month == current_month else 0
+            total_monthly_net_income += total_monthly_net_income_f
 
         target_year = current_date.year
         target_month = current_date.month
@@ -115,10 +118,11 @@ async def header_summary_data_pg(user_id:int):
             BillAccounts.closed_at.is_(None)    # Make sure related account is not closed
         ).scalar() or 0
         '''
-        total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
-        total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
-        total_monthly_bill_unpaidf = app_datas.total_monthly_bill_unpaidf if app_datas.current_billing_month_upf!=None and app_datas.current_billing_month_up == current_month else 0
-        monthly_bill_totals = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
+        if app_datas!=None:
+            total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
+            total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
+            total_monthly_bill_unpaidf = app_datas.total_monthly_bill_unpaidf if app_datas.current_billing_month_upf!=None and app_datas.current_billing_month_up == current_month else 0
+            monthly_bill_totals = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
         # monthly_bill_totals = session.query(
         #     func.coalesce(func.sum(BillAccounts.default_amount), 0).label("bill_paid_total")
         # ).filter(
@@ -249,17 +253,19 @@ async def get_dashboard_data_pg(user_id: int):
 
         debt_total_balance = monthly_budget + total_payment_boost
         
+        if app_datas:
+            total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
+            total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
+            total_monthly_bill_unpaidf = app_datas.total_monthly_bill_unpaidf if app_datas.current_billing_month_upf!=None and app_datas.current_billing_month_up == current_month else 0
+            bill_paid_total = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
 
-        total_monthly_bill_paid = app_datas.total_monthly_bill_paid if app_datas.current_billing_month!=None and app_datas.current_billing_month == current_month else 0
-        total_monthly_bill_unpaid = app_datas.total_monthly_bill_unpaid if app_datas.current_billing_month_up!=None and app_datas.current_billing_month_up == current_month else 0
-        total_monthly_bill_unpaidf = app_datas.total_monthly_bill_unpaidf if app_datas.current_billing_month_upf!=None and app_datas.current_billing_month_up == current_month else 0
-        bill_paid_total = total_monthly_bill_paid + total_monthly_bill_unpaid + total_monthly_bill_unpaidf
-
-        total_net_income = app_datas.total_monthly_net_income if app_datas else 0
-        total_net_income_f = app_datas.total_monthly_net_income_f if  app_datas!=None else 0
-        total_net_income += total_net_income_f
-        total_saving = app_datas.total_monthly_saving if app_datas else 0
-        total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total), 2)
+            total_net_income = app_datas.total_monthly_net_income if app_datas.current_income_month!=None and app_datas.current_income_month == current_month else 0
+            total_net_income_f = app_datas.total_monthly_net_income_f if  app_datas.current_income_month!=None and app_datas.current_income_month == current_month else 0
+            total_net_income += total_net_income_f
+            total_saving = app_datas.total_monthly_saving if app_datas.current_saving_month!=None and app_datas.current_saving_month == current_month else 0
+            total_saving_f = app_datas.total_monthly_saving_f if app_datas.current_saving_month!=None and app_datas.current_saving_month == current_month else 0
+            total_saving += total_saving_f
+            total_wealth = round((total_net_income + total_saving) - (debt_total_balance + bill_paid_total), 2)
 
        
         debt_to_wealth = 0

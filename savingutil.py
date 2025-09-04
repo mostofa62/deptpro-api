@@ -502,7 +502,11 @@ def calculate_breakdown(initial_amount,
         if month == int(current_datetime_now.strftime('%Y%m')):            
             total_monthly_balance_xyz+= contribution_i_intrs
             total_monthly_balance_boost+= contribution_i_intrs
-            
+
+
+        total_balance = balance
+        total_balance_xyz = balance
+        total_balance_boost = balance_boost    
         
 
 
@@ -587,8 +591,6 @@ def calculate_breakdown(initial_amount,
             total_balance_xyz = balance
             total_balance_boost = balance_boost
 
-            
-
             if balance >= goal_amount:
                 progress = round(100,2)
                 goal_reached = next_contribution_date
@@ -659,6 +661,7 @@ def calculate_breakdown(initial_amount,
             total_balance_xyz = balance
             total_balance_boost = balance_boost
             goal_reached = None
+    
 
     
     return ({
@@ -726,6 +729,55 @@ def get_freq_month(balance,
         'i_contribution':i_contribution,
         'total_i_contribution':total_i_contribution,
         'period':in_month_count
+    }
+
+
+def get_freq_month_future(contribution, 
+                   interest_rate,
+                   frequency,
+                   start_date:date,
+                   i_contribution=0,
+                   interest_type=1 
+                   ):
+    
+
+    total_monthly_saving = 0
+
+    if frequency < 1:
+        raise ValueError("Frequency must be a positive integer.")
+    
+    periods_per_year = FREQUENCY_MAP[frequency]
+    
+    year, month = start_date.year, start_date.month
+    last_day = calendar.monthrange(year, month)[1]
+    end_of_month = date(year, month, last_day)
+    
+
+    days_remaining = (end_of_month - start_date).days + 1
+    in_month_count = 1 + (days_remaining - 1) // frequency
+
+    #print('year, month, last_day, end_of_month, days_remaining, in_month_count',year, month,last_day,end_of_month, days_remaining,in_month_count,(end_of_month - start_date).days, start_date)
+
+    interest_rate = interest_rate / 100
+    rate_per_period = interest_rate  / periods_per_year
+
+    next_pay_date = start_date + timedelta(days=in_month_count * frequency)
+
+    total_contribution = in_month_count * contribution    
+    total_interest = in_month_count * rate_per_period
+    total_i_contribution = in_month_count * i_contribution
+    if interest_type > 1:
+        total_monthly_saving += total_contribution + total_i_contribution
+        interest = (total_monthly_saving * rate_per_period)
+        total_monthly_saving += interest
+    else:
+        total_monthly_saving += total_contribution + total_interest + total_i_contribution
+
+    #balance += total_contribution + total_interest + total_i_contribution
+    return {
+        #"count": in_month_count,
+        "next_pay_date": next_pay_date,
+        'total_monthly_saving':total_monthly_saving
     }
 
 # Function to calculate breakdown based on frequency

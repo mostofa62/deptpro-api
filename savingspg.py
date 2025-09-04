@@ -1,6 +1,6 @@
 from flask import request,jsonify, json
 from sqlalchemy import func, or_, select, update
-from savingutil import calculate_breakdown, calculate_intial_balance
+from savingutil import calculate_breakdown, calculate_intial_balance, get_freq_month_future
 from app import app
 import re
 from util import *
@@ -27,36 +27,37 @@ def delete_saving_pg():
     error = 0
     deleted_done = 0
 
+    current_month = int(convertDateTostring(datetime.now(),'%Y%m'))
+
     try:
-        if key < 2:
-            stmt = select(
+        stmt = select(
                 Saving.id,                                         
                 Saving.total_monthly_balance,
+                Saving.total_monthly_balance_f,
                 Saving.current_month                       
             ).where(Saving.id == saving_id)
 
-            previous_saving = db.session.execute(stmt).mappings().first()
-
-            app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
-            if app_data.current_saving_month == previous_saving['current_month']:
-                total_monthly_saving = app_data.total_monthly_saving
-                if total_monthly_saving >= previous_saving['total_monthly_balance']:
-                   total_monthly_saving -=  previous_saving['total_monthly_balance']
-                else:
-                    total_monthly_saving = 0
-
+        previous_saving = db.session.execute(stmt).mappings().first()
+        app_data = db.session.query(AppData).filter(AppData.user_id == user_id).first()
+        if key < 2:
+            if app_data.current_saving_month == current_month and app_data.current_saving_month == previous_saving['current_month']:
                 #app_data.total_monthly_saving = previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0       
-                app_data.total_monthly_saving = total_monthly_saving
+                app_data.total_monthly_saving -= previous_saving['total_monthly_balance'] if app_data.total_monthly_saving >= previous_saving['total_monthly_balance'] else 0
+                app_data.total_monthly_saving_f -= previous_saving['total_monthly_balance_f'] if app_data.total_monthly_saving_f >= previous_saving['total_monthly_balance_f'] else 0
                 
                 app_data.saving_updated_at = None
                 db.session.add(app_data)
+        else:
+            if app_data.current_saving_month == current_month and app_data.current_saving_month == previous_saving['current_month']:
+                app_data.total_monthly_saving_f -= previous_saving['total_monthly_balance_f'] if app_data.total_monthly_saving_f >= previous_saving['total_monthly_balance_f'] else 0
 
-                
+        db.session.add(app_data)        
         # Update the Saving record
         saving_update = db.session.query(Saving).filter(Saving.id == saving_id).update(
             {
                 field: datetime.now(),
-                Saving.admin_id:admin_id
+                Saving.admin_id:admin_id,
+                Saving.total_monthly_balance_f:0,
                 #Saving.calender_at: None
             }, synchronize_session=False
         )        
@@ -163,7 +164,7 @@ def list_saving_pg(user_id: int):
             'next_contribution_date': convertDateTostring(saving.next_contribution_date),
             'goal_reached': convertDateTostring(saving.goal_reached),
             'monthly_saving_boost': monthly_saving_boost,
-            'monthly_saving': round(saving.total_monthly_balance, 2),
+            'monthly_saving': round(saving.total_monthly_balance + saving.total_monthly_balance_f, 2),
             'total_balance_xyz':round(saving.total_balance_xyz,2),
             'category': category_name
         })
@@ -757,10 +758,13 @@ async def save_saving_pg():
         commit = datetime.now()            
         goal_reached = None 
         period = 0
-        current_saving_month = int(convertDateTostring(datetime.now(),'%Y%m'))                   
+        current_saving_month = int(convertDateTostring(datetime.now(),'%Y%m'))  
+        total_balance = 0
+        total_balance_xyz = 0                 
         total_monthly_balance = 0
+        total_monthly_balance_f = 0
         starting_breakdown = None
-
+        current_running_month = current_saving_month
 
         if starting_amount > 0:
             get_initial = calculate_intial_balance(
@@ -802,12 +806,25 @@ async def save_saving_pg():
         is_single = contribution_breakdown['is_single']
         total_monthly_balance_xyz = contribution_breakdown['total_monthly_balance_xyz']
 
+        if next_contribution_date !=None:
+            current_running_month = int(convertDateTostring(next_contribution_date,'%Y%m'))
+            projected_income = get_freq_month_future(
+                contribution,
+                interest,
+                repeat,
+                next_contribution_date.date(),
+                i_contribution,
+                interest_type
+                )
+            total_monthly_balance_f = projected_income['total_monthly_saving']
+        
+
         len_breakdown = len(breakdown)
 
         if next_contribution_date == None:
             goal_reached = goal_reached if len_breakdown > 0 else None
 
-       
+        
 
         if len_breakdown < 1:
 
@@ -840,6 +857,7 @@ async def save_saving_pg():
                     period=period,
                     commit=commit,
                     total_monthly_balance = total_monthly_balance_xyz,
+                    total_monthly_balance_f = total_monthly_balance_f,
                     calender_at=None,
                     financial_freedom_target=financial_freedom_target,
                     current_month = current_saving_month
@@ -891,6 +909,7 @@ async def save_saving_pg():
                     commit=commit,
                     calender_at=None,
                     total_monthly_balance=total_monthly_balance_xyz,
+                    total_monthly_balance_f = total_monthly_balance_f,
                     financial_freedom_target=financial_freedom_target,
                     current_month = current_saving_month
                 )
@@ -963,10 +982,12 @@ async def save_saving_pg():
 
                 if app_data:
                     # Update the existing record                    
-                    if app_data.current_saving_month!= None and app_data.current_saving_month == current_saving_month:
+                    if app_data.current_saving_month!= None and app_data.current_saving_month == current_saving_month and current_running_month == current_saving_month:
                         app_data.total_monthly_saving += total_monthly_balance_xyz
+                        app_data.total_monthly_saving_f += total_monthly_balance_f
                     else:
                         app_data.total_monthly_saving =  total_monthly_balance_xyz
+                        app_data.total_monthly_saving_f = total_monthly_balance_f
                         app_data.current_saving_month = current_saving_month                   
                     app_data.saving_updated_at = None
                     
@@ -976,7 +997,8 @@ async def save_saving_pg():
                     app_data = AppData(
                         user_id=user_id,
                         current_saving_month = current_saving_month,
-                        total_monthly_saving=total_monthly_balance_xyz,                        
+                        total_monthly_saving=total_monthly_balance_xyz,
+                        total_monthly_saving_f =  total_monthly_balance_f,                       
                         saving_updated_at=None
                     )
 
