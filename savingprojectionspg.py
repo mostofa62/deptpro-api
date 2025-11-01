@@ -27,7 +27,7 @@ def process_projections(results=None):
     saving_account_names = {}
 
     if results:
-        
+
         for row in results:
             #goal_amount += row.goal_amount
             saving_id = row.id
@@ -40,9 +40,9 @@ def process_projections(results=None):
                     "contribution": row.contribution,
                     "starting_amount": row.starting_amount,
                     "goal_amount": row.goal_amount,
-                    "increase_contribution_by": row.increase_contribution_by, 
+                    "increase_contribution_by": row.increase_contribution_by,
                     "interest": row.interest,
-                    "interest_type":row.interest_type,                   
+                    "interest_type":row.interest_type,
                     "total_balance": row.total_balance_xyz,
                     "period": row.period,
                     "starting_date": row.starting_date,
@@ -54,7 +54,7 @@ def process_projections(results=None):
 
             if saving_id in saving_dict:
                 # Append saving_boost only if it exists
-                if row.saving_boost is not None:                    
+                if row.saving_boost is not None:
                     saving_dict[saving_id]["saving_boosts"].append({
                         "saving_boost": row.saving_boost,
                         "pay_date_boost": row.pay_date_boost,
@@ -85,7 +85,7 @@ def calculate_end_date(start_date, initial_balance, contribution, daily_rate, go
         # No interest; use simple accumulation
         if contribution == 0:
             return None, None  # No way to reach the goal
-        
+
         n = (goal_amount - initial_balance) / contribution
     else:
         # Compute number of periods using logarithmic formula
@@ -95,13 +95,13 @@ def calculate_end_date(start_date, initial_balance, contribution, daily_rate, go
         # Ensure valid log input
         if term1 <= 0 or term2 <= 0:
             return None, None  # Invalid input to log
-        
+
         numerator = math.log(term1 / term2)
         denominator = math.log(1 + periodic_rate)
 
         if denominator == 0:
             return None, None  # Avoid division by zero
-        
+
         n = numerator / denominator
 
     # Convert to integer periods
@@ -118,7 +118,7 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
     # Dictionary to store merged results
     projection = defaultdict(lambda: {
         "total_balance": 0,
-        "contribution": 0,       
+        "contribution": 0,
         "month_word": "",
         "month": None,
     })
@@ -152,38 +152,40 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
 
             while boost_date < end_date:
                 month_key = int(f"{boost_date.year}{boost_date.month:02d}")
-                
+
                 if month_key not in boost_dates:
                     boost_dates[month_key] = {}
-                
+
                 boost_dates[month_key] = {"amount": boost_amount, "op_type": op_type}
 
-                if boost_repeat == 0: 
+                if boost_repeat == 0:
                     break  # One-time boost
                 boost_date += get_delta(boost_repeat)  # Apply boost frequency
-        
+
         if next_contribution_date >= current_datetime_now and balance:
             while balance < goal_amount:
 
                 month_key = int(f"{pay_date.year}{pay_date.month:02d}")
-                next_contribution_date = pay_date + delta            
+                next_contribution_date = pay_date + delta
                 days_in_period = (next_contribution_date - pay_date).days
                 interest = balance * (daily_rate * days_in_period)
-                
-                balance += interest + contribution 
-                
+
+                #balance += interest + contribution
+                print(balance)
+                #contribution += i_contribution
+
                 inc_contri = period * i_contribution
 
                 contribution_i = inc_contri+contribution
-
-                balance += inc_contri
+                balance += contribution_i
+                #balance += inc_contri
 
                 period += 1
 
-                
+
 
                 projection[month_key]["total_balance"] = balance
-                projection[month_key]["contribution"] = contribution_i
+                projection[month_key]["contribution"] = contribution
 
                 if month_key in boost_dates:
                     #print('yes',boost_dates[month_key])
@@ -195,7 +197,7 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
                         projection[month_key]["total_balance"] += boost_dates[month_key]['amount']
                         balance += boost_dates[month_key]['amount']
 
-                
+
 
                 if projection[month_key]["month"] is None:
                     projection[month_key]["month"] = month_key
@@ -205,11 +207,11 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
                 initial_contribution = contribution_i
 
                 pay_date = next_contribution_date
-                
 
-   
 
-    
+
+
+
     return sorted(
         [{
             "month": month,
@@ -219,27 +221,29 @@ def get_projection_list(projection_list, goal_amount, total_balance_xyz):
         } for month, data in projection.items()],
         key=lambda x: x['month']
     )
-    
+
 
 def generate_projection(data):
+
     month_wise_projection = defaultdict(dict)
     all_account_ids = set()
-    
+
 
     for acc in data:
         ac_id = str(acc['id'])
         all_account_ids.add(ac_id)
-        saver = acc['saver']   
+        saver = acc['saver']
         freq = acc["repeat"]["value"]
         contribution = acc['contribution']
         increase_contribution_by = acc['increase_contribution_by']
         interest = acc['interest']
         interest_type = acc['interest_type']['value']
-        balance = acc['total_balance']        
+        balance = acc['total_balance']
         goal_amount = acc['goal_amount']
         pay_date = acc["next_pay_date"].date()
         saving_boosts = acc["saving_boosts"]
-        
+        starting_date = acc["starting_date"]
+
 
         # Initialize saving boost tracker
         boost_states = []
@@ -253,7 +257,7 @@ def generate_projection(data):
                 "applied": False  # default for one-time
             })
 
-       
+
 
         while balance < goal_amount:
 
@@ -263,16 +267,16 @@ def generate_projection(data):
             # Apply eligible boosts first
             total_boost = 0
             for b in boost_states:
-                
+
                 # if boost_month_label not in month_wise_projection:
                 #     month_label = boost_month_label
                 #     month_word = boost_month_word
-                
+
                 if b["freq"] == 0:
 
                     boost_month_label = int(f"{b['next_date'].year}{b['next_date'].month:02d}")
                     boost_month_word = convertDateTostring(b['next_date'], "%b, %Y")
-                    
+
                     #if not b.get("applied", False) and b["next_date"] <= pay_date:
                     if not b.get("applied", False) and boost_month_label == month_label:
                         if b["op_type"] < 2:
@@ -286,8 +290,8 @@ def generate_projection(data):
 
                     boost_month_label = int(f"{b['next_date'].year}{b['next_date'].month:02d}")
                     boost_month_word = convertDateTostring(b['next_date'], "%b, %Y")
-                    
-                    
+
+
                     if boost_month_label == month_label:
                         if b["op_type"] < 2:
                             balance += b["amount"]
@@ -297,7 +301,7 @@ def generate_projection(data):
                             total_boost -= b["amount"]
                     b["next_date"] += get_delta(b["freq"])
 
-            
+
 
 
             if 'data' not in month_wise_projection[month_label]:
@@ -309,21 +313,22 @@ def generate_projection(data):
             if 'month_word' not in month_wise_projection[month_label]:
                 month_wise_projection[month_label]['month_word'] = month_word
 
-            if ac_id not in month_wise_projection[month_label]:                
+            if ac_id not in month_wise_projection[month_label]:
                 month_wise_projection[month_label][ac_id] = 0
 
-            
+
             result = get_freq_month(
                 balance,
                 contribution,
                 interest,
                 freq,
+                starting_date.date(),
                 pay_date,
                 increase_contribution_by,
                 interest_type
             )
 
-            
+            print(result)
             balance = result["balance"]
             period = result["period"]
             total_contribution = result['total_contribution']
@@ -332,18 +337,18 @@ def generate_projection(data):
             i_contribution = result['i_contribution']
             total_i_contribution = result['total_i_contribution']
 
-            
 
-            
-           
+
+
+
             if(balance > goal_amount):
-                del month_wise_projection[month_label][ac_id]                
+                del month_wise_projection[month_label][ac_id]
                 balance = goal_amount
-            
+
             month_wise_projection[month_label][ac_id] = round(balance,2)
             month_wise_projection[month_label]['month_word'] = month_word
             month_wise_projection[month_label]['data'][ac_id]["total_boosts"] = round(total_boost, 2)
-            month_wise_projection[month_label]['data'][ac_id]['balance'] = round(balance, 2)            
+            month_wise_projection[month_label]['data'][ac_id]['balance'] = round(balance, 2)
             month_wise_projection[month_label]['data'][ac_id]['contribution'] = contribution
             month_wise_projection[month_label]['data'][ac_id]['total_contribution'] = total_contribution
             month_wise_projection[month_label]['data'][ac_id]['total_interest'] = total_interest
@@ -357,7 +362,7 @@ def generate_projection(data):
 
             pay_date = result["next_pay_date"]
 
-    
+
 
     # Normalize: fill missing accounts with None
     all_months = sorted(month_wise_projection.keys())
@@ -369,27 +374,27 @@ def generate_projection(data):
     return [{'month': month, **month_wise_projection[month]} for month in all_months]
 
 
-  
+
 
 @app.route('/api/saving-contributions-nextpgu/<int:user_id>', methods=['GET'])
 def saving_contributions_next_pgu(user_id:int):
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    projection_list = []    
+    projection_list = []
 
     session = None
 
 
-    
+
     try:
-        
+
         session = db.session
 
         # Check if the session is connected (optional, but a good practice)
         if not session.is_active:
             raise Exception("Database session is not active.")
-        
+
 
         app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
@@ -442,7 +447,7 @@ def saving_contributions_next_pgu(user_id:int):
             ),
             else_=None
         )
-        
+
         query = session.query(
             Saving.id,
             Saving.saver,
@@ -455,7 +460,7 @@ def saving_contributions_next_pgu(user_id:int):
             Saving.starting_date,
             next_pay_date,
             Saving.interest_type,
-            Saving.repeat,            
+            Saving.repeat,
             Saving.user_id,
             Saving.total_balance,
             Saving.total_balance_xyz,
@@ -482,7 +487,7 @@ def saving_contributions_next_pgu(user_id:int):
             Saving.deleted_at.is_(None),
             Saving.closed_at.is_(None),
             Saving.goal_reached.is_(None),
-            next_pay_date.isnot(None), 
+            next_pay_date.isnot(None),
             next_pay_date >= today
         ).order_by(
             Saving.id,
@@ -514,10 +519,10 @@ def saving_contributions_next_pgu(user_id:int):
             app_data.financial_freedom_target = financial_freedom_target
             session.add(app_data)
             session.commit()
-            
-            
 
-        
+
+
+
 
     except OperationalError as e:
         print(f"Operational error: {str(e)}")
@@ -570,13 +575,13 @@ def saving_contributions_next_pgu(user_id:int):
     finally:
         if session:
             session.close()
-    
+
     return jsonify({
         "payLoads": {
             'projection_list': projection_list,
             'projections':projections,
             'saving_account_names':saving_account_names,
-            #'gen_projections':gen_projections,            
+            #'gen_projections':gen_projections,
             'exception':None
         }
     })
@@ -586,19 +591,19 @@ def saving_contributions_next_pgu(user_id:int):
 @app.route('/api/saving-contributions-nextpg/<int:saving_id>', methods=['GET'])
 def saving_contributions_next_pg(saving_id:int):
 
-    
+
     result =[]
 
     return jsonify({
-        "payLoads":{                                     
+        "payLoads":{
             'projection_list':result
-        }        
+        }
     })
 
 
 
 
-    
+
 
 import pandas as pd
 import random
@@ -640,20 +645,20 @@ def saving_contributions_next_pg_data(user_id:int):
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    projection_list = []    
+    projection_list = []
 
     session = None
 
 
-    
+
     try:
-        
+
         session = db.session
 
         # Check if the session is connected (optional, but a good practice)
         if not session.is_active:
             raise Exception("Database session is not active.")
-        
+
 
         # app_data = session.query(AppData).filter(AppData.user_id == user_id).first()
 
@@ -706,7 +711,7 @@ def saving_contributions_next_pg_data(user_id:int):
             ),
             else_=None
         )
-        
+
         query = session.query(
             Saving.id,
             Saving.saver,
@@ -719,7 +724,7 @@ def saving_contributions_next_pg_data(user_id:int):
             Saving.starting_date,
             next_pay_date,
             Saving.interest_type,
-            Saving.repeat,            
+            Saving.repeat,
             Saving.user_id,
             Saving.total_balance,
             Saving.total_balance_xyz,
@@ -746,7 +751,7 @@ def saving_contributions_next_pg_data(user_id:int):
             Saving.deleted_at.is_(None),
             Saving.closed_at.is_(None),
             Saving.goal_reached.is_(None),
-            next_pay_date.isnot(None), 
+            next_pay_date.isnot(None),
             next_pay_date >= today
         ).order_by(
             Saving.id,
@@ -757,9 +762,11 @@ def saving_contributions_next_pg_data(user_id:int):
 
         results = query.all()
         process_projection = process_projections(results)
+
         projections = process_projection[0]
+        print(projections)
         projection_list = generate_projection(projections)
-        
+        #print(projection_list)
 
         rows = []
         for month_data in projection_list:
@@ -780,11 +787,11 @@ def saving_contributions_next_pg_data(user_id:int):
                     "Total Period Contribution":details["total_period_contribution"],
                     "Total Boost":details["total_boosts"]
 
-                    
+
                 }
                 rows.append(row)
 
-    
+
 
         df = pd.DataFrame(rows)
 
@@ -883,6 +890,5 @@ def saving_contributions_next_pg_data(user_id:int):
         if session:
             session.close()
 
-    
-    
-   
+
+
